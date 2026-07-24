@@ -1,98 +1,161 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { AnchoringFlow } from "@/components/AnchoringFlow";
+import { DailyGoalCard } from "@/components/DailyGoalCard";
+import { HeroCard } from "@/components/HeroCard";
+import { HomeHeader } from "@/components/HomeHeader";
+import { TodayScheduleCard } from "@/components/TodayScheduleCard";
+import { ScheduleEmptyState } from "@/components/ScheduleEmptyState";
+import { useHomeDashboard } from "@/hooks/useHomeDashboard";
+import { ROUTES } from "@/lib/routes";
+import { useThemeColors } from "@/hooks/useThemeColors";
+import type { HeroAction } from "@/types/dashboard";
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+const TAB_BAR_CLEARANCE = 110;
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+function openMapsAt(latitude: number, longitude: number) {
+  const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=walking`;
+  void Linking.openURL(url);
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+/** Home dashboard — answers "What should I do next?" with goal, hero, and schedule. */
+export default function HomeScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const colors = useThemeColors();
+  const { streak, dailyGoal, hero, schedule, anchoringRequest } = useHomeDashboard();
+
+  const handleHeroAction = (action: HeroAction) => {
+    switch (action.kind) {
+      case "create_focus_node":
+        router.push(ROUTES.focusNodeNew);
+        return;
+      case "view_schedule":
+      case "view_today_schedule":
+        router.push(ROUTES.weekSchedule);
+        return;
+      case "view_progress":
+      case "view_statistics":
+        router.push(ROUTES.stats);
+        return;
+      case "open_maps":
+      case "navigate":
+        if (hero.latitude != null && hero.longitude != null) {
+          openMapsAt(hero.latitude, hero.longitude);
+          return;
+        }
+        if (hero.nodeId) {
+          router.push(ROUTES.sessionDetail(hero.nodeId));
+        }
+        return;
+      case "open_timer":
+      case "resume_session":
+      case "next_session":
+        if (hero.nodeId) {
+          router.push(ROUTES.sessionDetail(hero.nodeId));
+          return;
+        }
+        router.push(ROUTES.weekSchedule);
+        return;
+      case "manage_blocked_apps":
+        router.push(ROUTES.blockedApps);
+        return;
+      default:
+        return;
+    }
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top"]}>
+      <HomeHeader streak={streak} />
+
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingBottom: insets.bottom + TAB_BAR_CLEARANCE,
+        }}
+      >
+        <DailyGoalCard {...dailyGoal} />
+        <HeroCard {...hero} onActionPress={handleHeroAction} />
+
+        {anchoringRequest ? (
+          <AnchoringFlow
+            visible
+            mode="required"
+            nodeId={anchoringRequest.nodeId}
+            nodeTitle={anchoringRequest.nodeTitle}
+            anchorId={anchoringRequest.anchorId}
+            anchorName={anchoringRequest.anchorName}
+            onComplete={() => {}}
+          />
+        ) : null}
+
+        <View
+          style={{
+            marginTop: 20,
+            paddingHorizontal: 16,
+            ...(schedule.length === 0 ? { flex: 1 } : {}),
+          }}
+        >
+          <View
+            style={{
+              marginBottom: 10,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Poppins-Bold",
+                fontSize: 17,
+                lineHeight: 22,
+                color: colors.foreground,
+              }}
+            >
+              Today&apos;s plan
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View all schedule"
+              onPress={() => router.push(ROUTES.weekSchedule)}
+              hitSlop={8}
+            >
+              <Text
+                style={{
+                  fontFamily: "Poppins-SemiBold",
+                  fontSize: 14,
+                  lineHeight: 20,
+                  color: colors.foregroundSubtle,
+                }}
+              >
+                View all
+              </Text>
+            </Pressable>
+          </View>
+
+          {schedule.length > 0 ? (
+            <TodayScheduleCard
+              items={schedule}
+              onItemPress={(item) => router.push(ROUTES.sessionDetail(item.id))}
+            />
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                justifyContent: "center",
+                paddingVertical: 24,
+              }}
+            >
+              <ScheduleEmptyState />
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}

@@ -1,0 +1,27 @@
+/* Type scale — sizes and line-heights; pair with font utilities or text-h* composites */
+
+@theme {
+  --text-h1: 32px;
+  --text-h1--line-height: 38.4px;
+
+  --text-h2: 24px;
+  --text-h2--line-height: 31.2px;
+
+  --text-h3: 20px;
+  --text-h3--line-height: 26px;
+
+  --text-h4: 16px;
+  --text-h4--line-height: 22.4px;
+
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 25.6px;
+
+  --text-body-md: 14px;
+  --text-body-md--line-height: 22.4px;
+
+  --text-body-sm: 13px;
+  --text-body-sm--line-height: 20.8px;
+
+  --text-caption: 11px;
+  --text-caption--line-height: 15.4px;
+}

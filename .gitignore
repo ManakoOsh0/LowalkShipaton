@@ -31,6 +31,7 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
@@ -41,3 +42,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# EAS local debug artifacts
+.eas-inspect/
+.eas-log.bin
+.eas-build*.log
+.eas-build-view.json

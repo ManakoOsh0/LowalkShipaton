@@ -1,0 +1,16 @@
+/* TRMNL Classic — 2-bit grayscale hero card tokens */
+
+@theme {
+  --color-trmnl-bg: #000000;
+  --color-trmnl-paper: #f4f4f0;
+  --color-trmnl-border: #ffffff;
+  --color-trmnl-ink: #000000;
+  --color-trmnl-inverse: #ffffff;
+  --color-trmnl-muted: #8e8e93;
+
+  --font-block-kie: "BlockKie";
+  --font-nico-clean: "NicoClean-Regular";
+  --font-nico-pups: "NicoPups-Regular";
+
+  --radius-trmnl: 22px;
+}

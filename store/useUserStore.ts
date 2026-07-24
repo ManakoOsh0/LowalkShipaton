@@ -1,0 +1,145 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+
+import { getYesterdayIso, toIsoDateString } from "@/lib/time";
+
+/** One Focus Coin earned when the user hits their full daily session target. */
+export const COINS_PER_DAILY_GOAL = 1;
+
+/** @deprecated Coins are earned per daily goal, not per session. */
+export const COINS_PER_COMPLETED_SESSION = COINS_PER_DAILY_GOAL;
+
+export type DailyGoalAwardResult = {
+  hitDailyGoal: boolean;
+  coinAwarded: boolean;
+  streak: number;
+  streakIncremented: boolean;
+};
+
+import type { ClassPreBufferMinutes } from "@/lib/shieldSchedule";
+import type { PenaltyTierMinutes } from "@/lib/sessionPenalty";
+
+type UserState = {
+  coins: number;
+  streak: number;
+  /** Last calendar day (ISO) the user earned the daily-goal Focus Coin. */
+  lastDailyGoalAwardDateIso: string | null;
+  /** Last calendar day (ISO) the user hit their daily session target (drives streak). */
+  lastStreakDateIso: string | null;
+  /** Default app-lock duration when away from the venue past the grace window. */
+  penaltyTierMinutes: PenaltyTierMinutes;
+  /** How long before class start app shielding begins. */
+  classPreBufferMinutes: ClassPreBufferMinutes;
+  /** Minimum gap between sessions before the shield lifts. */
+  sessionGapMergeMinutes: number;
+  /** True after the first-run permissions sheet is finished or skipped. */
+  hasCompletedOnboarding: boolean;
+  setCoins: (coins: number) => void;
+  setStreak: (streak: number) => void;
+  setPenaltyTierMinutes: (minutes: PenaltyTierMinutes) => void;
+  setClassPreBufferMinutes: (minutes: ClassPreBufferMinutes) => void;
+  completeOnboarding: () => void;
+  /** Resets streak after an emergency wake-challenge dismiss. */
+  breakStreakForEmergency: () => void;
+  /**
+   * Award one Focus Coin when completedToday reaches today's scheduled count.
+   * Streak counts consecutive calendar days the full schedule was completed.
+   */
+  checkDailyGoalReward: (
+    completedToday: number,
+    scheduledToday: number,
+  ) => DailyGoalAwardResult;
+};
+
+/** Focus Coins, streak, and daily goal target — persisted locally per PRODUCT.md. */
+export const useUserStore = create<UserState>()(
+  persist(
+    (set, get) => ({
+      coins: 0,
+      streak: 0,
+      lastDailyGoalAwardDateIso: null,
+      lastStreakDateIso: null,
+      hasCompletedOnboarding: false,
+      penaltyTierMinutes: 30,
+      classPreBufferMinutes: 30,
+      sessionGapMergeMinutes: 30,
+      setCoins: (coins) => set({ coins }),
+      setStreak: (streak) => set({ streak }),
+      setPenaltyTierMinutes: (penaltyTierMinutes) => set({ penaltyTierMinutes }),
+      setClassPreBufferMinutes: (classPreBufferMinutes) => set({ classPreBufferMinutes }),
+      completeOnboarding: () => set({ hasCompletedOnboarding: true }),
+      breakStreakForEmergency: () => set({ streak: 0, lastStreakDateIso: null }),
+      checkDailyGoalReward: (completedToday, scheduledToday) => {
+        const state = get();
+        const todayIso = toIsoDateString(new Date());
+        const target = Math.max(scheduledToday, 0);
+
+        if (target === 0 || completedToday < target) {
+          return {
+            hitDailyGoal: false,
+            coinAwarded: false,
+            streak: state.streak,
+            streakIncremented: false,
+          };
+        }
+
+        const coinAwarded = state.lastDailyGoalAwardDateIso !== todayIso;
+        const streakIncremented = state.lastStreakDateIso !== todayIso;
+        const yesterdayIso = getYesterdayIso();
+
+        const streak = streakIncremented
+          ? state.lastStreakDateIso === yesterdayIso
+            ? state.streak + 1
+            : 1
+          : state.streak;
+
+        set({
+          coins: coinAwarded ? state.coins + COINS_PER_DAILY_GOAL : state.coins,
+          streak,
+          lastDailyGoalAwardDateIso: coinAwarded ? todayIso : state.lastDailyGoalAwardDateIso,
+          lastStreakDateIso: streakIncremented ? todayIso : state.lastStreakDateIso,
+        });
+
+        return {
+          hitDailyGoal: true,
+          coinAwarded,
+          streak,
+          streakIncremented,
+        };
+      },
+    }),
+    {
+      name: "lowalk-user",
+      storage: createJSONStorage(() => AsyncStorage),
+      version: 4,
+      migrate: (persisted, version) => {
+        const state = (persisted ?? {}) as Partial<UserState>;
+        if (version < 2) {
+          return { ...state, hasCompletedOnboarding: true };
+        }
+        if (version < 3) {
+          return { ...state, penaltyTierMinutes: 30 };
+        }
+        if (version < 4) {
+          return {
+            ...state,
+            classPreBufferMinutes: 30,
+            sessionGapMergeMinutes: 30,
+          };
+        }
+        return state;
+      },
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        state.lastDailyGoalAwardDateIso = state.lastDailyGoalAwardDateIso ?? null;
+        state.lastStreakDateIso =
+          state.lastStreakDateIso ?? (state as { lastCompletionDateIso?: string | null }).lastCompletionDateIso ?? null;
+        state.hasCompletedOnboarding = state.hasCompletedOnboarding ?? false;
+        state.penaltyTierMinutes = state.penaltyTierMinutes ?? 30;
+        state.classPreBufferMinutes = state.classPreBufferMinutes ?? 30;
+        state.sessionGapMergeMinutes = state.sessionGapMergeMinutes ?? 30;
+      },
+    },
+  ),
+);

@@ -1,0 +1,13 @@
+{
+  "name": "lowalk-app-shield",
+  "version": "1.0.0",
+  "description": "Android UsageStats-based foreground app detection for Lowalk focus shielding",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": false,
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

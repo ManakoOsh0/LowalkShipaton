@@ -6,12 +6,46 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "trylowalk",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Lowalk uses your location to verify you are at your Focus Node and to set up location anchors.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Lowalk needs background location to pause or complete your focus session when you leave or return to your Focus Node.",
+        "NSCameraUsageDescription": "Lowalk uses the camera to count push-ups on your device. Video is not recorded or uploaded.",
+        "UIBackgroundModes": [
+          "location"
+        ]
+      }
     },
     "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "FOREGROUND_SERVICE_SPECIAL_USE",
+        "PACKAGE_USAGE_STATS",
+        "SYSTEM_ALERT_WINDOW",
+        "QUERY_ALL_PACKAGES",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.FOREGROUND_SERVICE_SPECIAL_USE",
+        "android.permission.PACKAGE_USAGE_STATS",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.QUERY_ALL_PACKAGES",
+        "android.permission.CAMERA",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.USE_EXACT_ALARM",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -19,7 +53,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.karabocode.tryLowalk"
     },
     "web": {
       "output": "static",
@@ -28,21 +63,71 @@
     "plugins": [
       "expo-router",
       [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Poppins-Regular.ttf",
+            "./assets/fonts/Poppins-Medium.ttf",
+            "./assets/fonts/Poppins-SemiBold.ttf",
+            "./assets/fonts/Poppins-Bold.ttf"
+          ]
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Lowalk uses your location to verify you are at your Focus Node and to set up location anchors.",
+          "locationAlwaysAndWhenInUsePermission": "Lowalk needs background location to pause or complete your focus session when you leave or return to your Focus Node.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-task-manager",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#FF7700"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#141210",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#141210"
           }
+        }
+      ],
+      "./modules/lowalk-app-shield/app.plugin.js",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Lowalk uses the camera to count push-ups on your device. Video is not recorded or uploaded.",
+          "enableFrameProcessors": true
+        }
+      ],
+      [
+        "expo-screen-orientation",
+        {
+          "initialOrientation": "DEFAULT"
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c286315e-6164-4892-928b-4bc3f345b563"
+      }
+    },
+    "owner": "karabobuilds"
   }
 }

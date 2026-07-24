@@ -1,0 +1,9 @@
+/* Poppins font-family tokens — RN requires explicit family per weight, not font-weight */
+
+@theme {
+  --font-sans: "Poppins-Regular";
+  --font-poppins: "Poppins-Regular";
+  --font-poppins-medium: "Poppins-Medium";
+  --font-poppins-semibold: "Poppins-SemiBold";
+  --font-poppins-bold: "Poppins-Bold";
+}

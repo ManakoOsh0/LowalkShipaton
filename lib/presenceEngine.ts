@@ -1,0 +1,288 @@
+import {
+  hasUsableCoordinates,
+  isInsideGeofence,
+  isInsideGeofenceForSessionResume,
+  isOutsideGeofenceForSessionPause,
+  PRESENCE_VERIFICATION_SECONDS,
+  resolveAnchorForNode,
+  SESSION_GEOFENCE_PAUSE_SECONDS,
+  SESSION_GEOFENCE_RESUME_SECONDS,
+  type Coordinates,
+} from "@/lib/geo";
+import {
+  getNodeShieldInterval,
+  selectPrimaryObligationNode,
+  type ShieldScheduleSettings,
+} from "@/lib/shieldSchedule";
+import { PRESENCE_PENALTY_GRACE_MS } from "@/lib/sessionPenalty";
+import { isDurationSessionExpired, isSessionExpired, toIsoDateString } from "@/lib/time";
+import { selectAnchoringRequest } from "@/store/selectors";
+import { useScheduleStore } from "@/store/useScheduleStore";
+import { useUserStore } from "@/store/useUserStore";
+import type { Anchor } from "@/types/anchor";
+import type { FocusNode } from "@/types/focusNode";
+import type { ActiveSessionSnapshot } from "@/types/session";
+
+/** Shared debounce timestamps — used by foreground hook and headless background task. */
+let outsideSince: number | null = null;
+let insideSince: number | null = null;
+/** When the user entered the geofence while awaiting presence verification. */
+let verificationInsideSince: number | null = null;
+
+export type PresenceTrackingContext = {
+  needsLocation: boolean;
+  presenceAnchor: Anchor | null;
+  obligationNode: FocusNode | null;
+  activeNode: FocusNode | null;
+  activeSession: ActiveSessionSnapshot | null;
+  anchoringRequest: ReturnType<typeof selectAnchoringRequest>;
+};
+
+function getShieldSettings(): ShieldScheduleSettings {
+  const user = useUserStore.getState();
+  return {
+    classPreBufferMinutes: user.classPreBufferMinutes,
+    sessionGapMergeMinutes: user.sessionGapMergeMinutes,
+  };
+}
+
+/** Resolves whether GPS tracking should run and which anchor drives presence checks. */
+export function getPresenceTrackingContext(): PresenceTrackingContext {
+  const { activeSession, focusNodes, anchors } = useScheduleStore.getState();
+  const settings = getShieldSettings();
+  const anchoringRequest = selectAnchoringRequest(focusNodes, anchors);
+  const obligationNode = selectPrimaryObligationNode(
+    focusNodes,
+    activeSession,
+    settings,
+  );
+  const activeNode = activeSession
+    ? focusNodes.find((node) => node.id === activeSession.nodeId) ?? null
+    : null;
+  const presenceAnchor = resolveAnchorForNode(
+    (obligationNode ?? activeNode)?.anchorId ?? null,
+    anchors,
+  );
+
+  const now = Date.now();
+  let needsLocation = false;
+
+  if (anchoringRequest) {
+    needsLocation = true;
+  } else if (activeSession || obligationNode) {
+    needsLocation = Boolean(presenceAnchor && hasUsableCoordinates(presenceAnchor));
+  } else {
+    const intervals = focusNodes
+      .map((node) => getNodeShieldInterval(node, settings))
+      .filter(Boolean);
+    const upcomingSoon = intervals.some(
+      (interval) => interval && interval.startsAtMs - now < 60 * 60 * 1000,
+    );
+    needsLocation = upcomingSoon;
+  }
+
+  return {
+    needsLocation,
+    presenceAnchor,
+    obligationNode,
+    activeNode,
+    activeSession,
+    anchoringRequest,
+  };
+}
+
+export function resetPresenceTimers(): void {
+  outsideSince = null;
+  insideSince = null;
+  verificationInsideSince = null;
+}
+
+/** Countdown for Hero Card arrived / verification beats — null when not verifying. */
+export function getVerificationSecondsRemaining(now = Date.now()): number | null {
+  if (verificationInsideSince == null) return null;
+  const elapsedSeconds = (now - verificationInsideSince) / 1000;
+  const remaining = Math.ceil(PRESENCE_VERIFICATION_SECONDS - elapsedSeconds);
+  return remaining > 0 ? remaining : null;
+}
+
+/**
+ * Imperative presence tick — calendar sessions, on-site accumulation, away penalties.
+ * Callable from React hooks and TaskManager headless handlers.
+ */
+export function runPresenceTick(
+  position: Coordinates | null,
+  now = Date.now(),
+  accurateEnough = true,
+): void {
+  const store = useScheduleStore.getState();
+  let { activeSession, focusNodes, anchors } = store;
+  const settings = getShieldSettings();
+
+  // Drop stale or end-of-day duration sessions so shielding cannot carry overnight.
+  if (
+    activeSession?.scheduleType === "duration" &&
+    isDurationSessionExpired(activeSession.shieldStartsAt, new Date(now))
+  ) {
+    store.expireActiveSessionAsMissed();
+    activeSession = useScheduleStore.getState().activeSession;
+  }
+
+  const anchoringRequest = selectAnchoringRequest(focusNodes, anchors);
+  const obligationNode = selectPrimaryObligationNode(
+    focusNodes,
+    activeSession,
+    settings,
+    now,
+  );
+
+  if (!anchoringRequest && obligationNode) {
+    const interval = getNodeShieldInterval(obligationNode, settings, new Date(now));
+    if (interval && now >= interval.startsAtMs) {
+      if (!activeSession || activeSession.nodeId !== obligationNode.id) {
+        store.beginCalendarSession(obligationNode.id);
+      }
+    }
+  }
+
+  const currentSession = useScheduleStore.getState().activeSession;
+  const activeNode = currentSession
+    ? focusNodes.find((node) => node.id === currentSession.nodeId) ?? null
+    : null;
+  const presenceAnchor = resolveAnchorForNode(activeNode?.anchorId ?? null, anchors);
+
+  const insideGeofence =
+    accurateEnough &&
+    Boolean(position && presenceAnchor && hasUsableCoordinates(presenceAnchor)) &&
+    isInsideGeofence(position!, presenceAnchor!);
+
+  const canResumeSession =
+    accurateEnough &&
+    Boolean(position && presenceAnchor && hasUsableCoordinates(presenceAnchor)) &&
+    isInsideGeofenceForSessionResume(position!, presenceAnchor!);
+
+  const shouldMarkAway =
+    accurateEnough &&
+    Boolean(position && presenceAnchor && hasUsableCoordinates(presenceAnchor)) &&
+    isOutsideGeofenceForSessionPause(position!, presenceAnchor!);
+
+  const sessionAwaitingVerification =
+    currentSession != null && !currentSession.presenceVerified;
+
+  if (sessionAwaitingVerification) {
+    if (insideGeofence) {
+      if (!verificationInsideSince) verificationInsideSince = now;
+      const insideSeconds = (now - verificationInsideSince) / 1000;
+      if (insideSeconds >= PRESENCE_VERIFICATION_SECONDS) {
+        store.markSessionPresenceVerified();
+        verificationInsideSince = null;
+      }
+    } else {
+      verificationInsideSince = null;
+    }
+  } else {
+    verificationInsideSince = null;
+  }
+
+  if (currentSession) {
+    store.tickOnSitePresence(insideGeofence, now);
+  }
+
+  const sessionAfterTick = useScheduleStore.getState().activeSession;
+  if (
+    !sessionAfterTick ||
+    !sessionAfterTick.presenceVerified ||
+    !presenceAnchor ||
+    !hasUsableCoordinates(presenceAnchor)
+  ) {
+    outsideSince = null;
+    insideSince = null;
+  } else if (shouldMarkAway) {
+    insideSince = null;
+
+    if (!outsideSince) outsideSince = now;
+    const outsideSeconds = (now - outsideSince) / 1000;
+    if (outsideSeconds >= SESSION_GEOFENCE_PAUSE_SECONDS) {
+      const session = useScheduleStore.getState().activeSession;
+      if (session && !session.awaySince) {
+        useScheduleStore.getState().markSessionAway();
+      }
+      outsideSince = null;
+    }
+  } else {
+    outsideSince = null;
+
+    if (canResumeSession) {
+      if (!insideSince) insideSince = now;
+      const insideSeconds = (now - insideSince) / 1000;
+      if (insideSeconds >= SESSION_GEOFENCE_RESUME_SECONDS) {
+        const session = useScheduleStore.getState().activeSession;
+        if (session?.awaySince) {
+          useScheduleStore.getState().clearSessionAway();
+        }
+        insideSince = null;
+      }
+    } else {
+      insideSince = null;
+    }
+  }
+
+  const sessionAfterAway = useScheduleStore.getState().activeSession;
+  if (
+    sessionAfterAway?.scheduleType === "class" &&
+    sessionAfterAway.presenceVerified &&
+    sessionAfterAway.awaySince &&
+    !sessionAfterAway.penaltyShieldEndsAt
+  ) {
+    const awayMs = now - new Date(sessionAfterAway.awaySince).getTime();
+    if (awayMs >= PRESENCE_PENALTY_GRACE_MS) {
+      useScheduleStore.getState().applyPresencePenalty();
+    }
+  }
+
+  const sessionForExpiry = useScheduleStore.getState().activeSession;
+  if (!sessionForExpiry || !sessionForExpiry.presenceVerified) return;
+
+  if (
+    sessionForExpiry.scheduleType === "duration" &&
+    isDurationSessionExpired(sessionForExpiry.shieldStartsAt, new Date(now))
+  ) {
+    useScheduleStore.getState().expireActiveSessionAsMissed();
+    return;
+  }
+
+  if (sessionForExpiry.scheduleType === "duration" && sessionForExpiry.requiredOnSiteMs != null) {
+    if (sessionForExpiry.onSiteAccumulatedMs < sessionForExpiry.requiredOnSiteMs) return;
+    if (!insideGeofence) return;
+
+    const todayIso = toIsoDateString(new Date(now));
+    const completedNode = focusNodes.find((node) => node.id === sessionForExpiry.nodeId);
+    if (completedNode?.completedDates.includes(todayIso)) {
+      useScheduleStore.getState().setActiveSession(null);
+      return;
+    }
+
+    useScheduleStore.getState().completeActiveSession();
+    return;
+  }
+
+  if (!isSessionExpired(sessionForExpiry.endsAt, new Date(now))) return;
+
+  const penaltyEnd = sessionForExpiry.penaltyShieldEndsAt
+    ? new Date(sessionForExpiry.penaltyShieldEndsAt).getTime()
+    : 0;
+  if (penaltyEnd > now) return;
+
+  if (!insideGeofence) {
+    useScheduleStore.getState().setActiveSession(null);
+    return;
+  }
+
+  const todayIso = toIsoDateString(new Date(now));
+  const completedNode = focusNodes.find((node) => node.id === sessionForExpiry.nodeId);
+  if (completedNode?.completedDates.includes(todayIso)) {
+    useScheduleStore.getState().setActiveSession(null);
+    return;
+  }
+
+  useScheduleStore.getState().completeActiveSession();
+}
