@@ -9,9 +9,9 @@ import com.google.mlkit.vision.pose.PoseDetection
 import com.google.mlkit.vision.pose.PoseLandmark
 import com.google.mlkit.vision.pose.defaults.PoseDetectorOptions
 import com.mrousavy.camera.core.types.Orientation
-import com.mrousavy.camera.frameprocessor.Frame
-import com.mrousavy.camera.frameprocessor.FrameProcessorPlugin
-import com.mrousavy.camera.frameprocessor.VisionCameraProxy
+import com.mrousavy.camera.frameprocessors.Frame
+import com.mrousavy.camera.frameprocessors.FrameProcessorPlugin
+import com.mrousavy.camera.frameprocessors.VisionCameraProxy
 import java.util.HashMap
 
 class VisionCameraV3PoseDetectionModule(
@@ -19,7 +19,7 @@ class VisionCameraV3PoseDetectionModule(
   @Suppress("UNUSED_PARAMETER") options: Map<String, Any>?,
 ) : FrameProcessorPlugin() {
 
-  override fun callback(frame: Frame, arguments: Map<String, Any>?): HashMap<String, Any>? {
+  override fun callback(frame: Frame, arguments: Map<String, Any>?): Any? {
     try {
       val detectorOptions = PoseDetectorOptions.Builder()
       if (arguments?.get("mode") === "stream") {
