@@ -1,6 +1,9 @@
 # Lowalk
 
-Lowalk helps you show up where you planned to be, stay for your focus session, and build consistent real-world routines. The app separates **what you're doing** (Focus Node) from **where you're doing it** (Anchor), with optional app shielding during active sessions.
+Lowalk helps you follow through on your plans by getting you to the right place, keeping you there for a focused session, and turning repeated effort into consistent real-world routines.
+
+The app separates **what you are doing**—a *Focus Node*—from **where you are doing it**—an *Anchor*. During an active session, Lowalk shields selected distracting apps until you complete the required time at your Anchor.
+
 
 ## Features
 
