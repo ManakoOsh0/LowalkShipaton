@@ -33,6 +33,10 @@ class LowalkAppShieldModule : Module() {
       AppShieldOverlayController.canDrawOverlays(context)
     }
 
+    AsyncFunction("isMonitoringActive") {
+      AppShieldMonitorService.isMonitoringActive(context)
+    }
+
     AsyncFunction("openUsageAccessSettings") {
       val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -78,7 +82,9 @@ class LowalkAppShieldModule : Module() {
         ShieldOverlayContextStore.save(
           context,
           nodeKind = ctx["nodeKind"] as? String,
+          headline = ctx["headline"] as? String,
           subtitle = ctx["subtitle"] as? String,
+          detail = ctx["detail"] as? String,
           ctaLabel = ctx["ctaLabel"] as? String,
         )
       }
@@ -91,6 +97,36 @@ class LowalkAppShieldModule : Module() {
       AppShieldMonitorService.stop(context)
       AppShieldOverlayController.hide(context)
       ShieldOverlayContextStore.clear(context)
+    }
+
+    AsyncFunction("syncWidgetSchedule") { bundle: Map<String, Any?> ->
+      WidgetSessionStore.saveBundle(context, bundle)
+      WidgetSessionStore.requestWidgetRefresh(context)
+      HeroWidgetAlarmScheduler.reschedule(context)
+      ShieldOrchestrator.sync(context)
+    }
+
+    AsyncFunction("updateHeroWidgetSnapshot") { snapshot: Map<String, Any?> ->
+      val legacyBundle = mapOf(
+        "syncedAtMs" to System.currentTimeMillis(),
+        "timezoneId" to java.util.TimeZone.getDefault().id,
+        "classPreBufferMinutes" to 30,
+        "sessionGapMergeMinutes" to 30,
+        "dailyGoalCompleted" to (snapshot["dailyGoalCompleted"] ?: 0),
+        "dailyGoalTarget" to (snapshot["dailyGoalTarget"] ?: 0),
+        "blockedAppsCount" to 0,
+        "blockedPackageNames" to emptyList<String>(),
+        "todayIso" to "",
+        "todayWeekday" to java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) - 1,
+        "nodes" to emptyList<Any>(),
+        "activeSession" to null,
+        "display" to snapshot,
+        "intelCells" to emptyList<Any>(),
+        "upcomingToday" to emptyList<Any>(),
+      )
+      WidgetSessionStore.saveBundle(context, legacyBundle)
+      WidgetSessionStore.requestWidgetRefresh(context)
+      HeroWidgetAlarmScheduler.reschedule(context)
     }
 
     OnDestroy {

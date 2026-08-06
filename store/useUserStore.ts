@@ -17,8 +17,8 @@ export type DailyGoalAwardResult = {
   streakIncremented: boolean;
 };
 
-import type { ClassPreBufferMinutes } from "@/lib/shieldSchedule";
 import type { PenaltyTierMinutes } from "@/lib/sessionPenalty";
+import type { ClassPreBufferMinutes } from "@/lib/shieldSchedule";
 
 type UserState = {
   coins: number;
@@ -40,8 +40,6 @@ type UserState = {
   setPenaltyTierMinutes: (minutes: PenaltyTierMinutes) => void;
   setClassPreBufferMinutes: (minutes: ClassPreBufferMinutes) => void;
   completeOnboarding: () => void;
-  /** Resets streak after an emergency wake-challenge dismiss. */
-  breakStreakForEmergency: () => void;
   /**
    * Award one Focus Coin when completedToday reaches today's scheduled count.
    * Streak counts consecutive calendar days the full schedule was completed.
@@ -69,7 +67,6 @@ export const useUserStore = create<UserState>()(
       setPenaltyTierMinutes: (penaltyTierMinutes) => set({ penaltyTierMinutes }),
       setClassPreBufferMinutes: (classPreBufferMinutes) => set({ classPreBufferMinutes }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
-      breakStreakForEmergency: () => set({ streak: 0, lastStreakDateIso: null }),
       checkDailyGoalReward: (completedToday, scheduledToday) => {
         const state = get();
         const todayIso = toIsoDateString(new Date());

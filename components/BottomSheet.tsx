@@ -4,26 +4,28 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-  type StyleProp,
-  type ViewStyle,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    useWindowDimensions,
+    View,
+    type StyleProp,
+    type ViewStyle,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  Easing,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
+    Easing,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { CARD_RADIUS_XL } from "@/lib/cardStyle";
+import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { CARD_RADIUS_XL } from "@/lib/cardStyle";
 
 const DISMISS_DRAG_PX = 110;
 const DISMISS_VELOCITY = 900;
@@ -35,6 +37,10 @@ type BottomSheetProps = {
   onClose: () => void;
   children: ReactNode;
   dismissOnBackdrop?: boolean;
+  /** When false, backdrop tap and drag-to-dismiss are disabled. */
+  dismissible?: boolean;
+  /** Wrap children in ScrollView for tall content (e.g. map + form). */
+  scrollable?: boolean;
   contentStyle?: StyleProp<ViewStyle>;
 };
 
@@ -43,10 +49,13 @@ export function BottomSheet({
   onClose,
   children,
   dismissOnBackdrop = true,
+  dismissible = true,
+  scrollable = false,
   contentStyle,
 }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
+  const reduceMotion = useReduceMotion();
   const { height: windowHeight } = useWindowDimensions();
   const [rendered, setRendered] = useState(false);
 
@@ -60,6 +69,12 @@ export function BottomSheet({
       dragY.value = 0;
       sheetY.value = windowHeight;
       backdropOpacity.value = 0;
+
+      if (reduceMotion) {
+        sheetY.value = 0;
+        backdropOpacity.value = 1;
+        return;
+      }
 
       sheetY.value = withTiming(0, {
         duration: SHEET_ENTER_MS,
@@ -75,11 +90,19 @@ export function BottomSheet({
     if (!rendered) return;
 
     dragY.value = 0;
+
+    if (reduceMotion) {
+      sheetY.value = windowHeight;
+      backdropOpacity.value = 0;
+      setRendered(false);
+      return;
+    }
+
     sheetY.value = withTiming(
       windowHeight,
       {
         duration: SHEET_EXIT_MS,
-        easing: Easing.in(Easing.cubic),
+        easing: Easing.out(Easing.cubic),
       },
       (finished) => {
         if (finished) {
@@ -89,16 +112,22 @@ export function BottomSheet({
     );
     backdropOpacity.value = withTiming(0, {
       duration: SHEET_EXIT_MS,
-      easing: Easing.in(Easing.cubic),
+      easing: Easing.out(Easing.cubic),
     });
-  }, [backdropOpacity, dragY, rendered, sheetY, visible, windowHeight]);
+  }, [backdropOpacity, dragY, reduceMotion, rendered, sheetY, visible, windowHeight]);
 
   const pan = Gesture.Pan()
+    .enabled(dismissible)
     .activeOffsetY(12)
     .onUpdate((event) => {
       dragY.value = Math.max(0, event.translationY);
     })
     .onEnd((event) => {
+      if (!dismissible) {
+        dragY.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
+        return;
+      }
+
       if (event.translationY > DISMISS_DRAG_PX || event.velocityY > DISMISS_VELOCITY) {
         runOnJS(onClose)();
         return;
@@ -106,6 +135,8 @@ export function BottomSheet({
 
       dragY.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
     });
+
+  const canDismissOnBackdrop = dismissible && dismissOnBackdrop;
 
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: sheetY.value + dragY.value }],
@@ -118,7 +149,13 @@ export function BottomSheet({
   if (!rendered) return null;
 
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <Modal
+      visible
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={dismissible ? onClose : undefined}
+    >
       <View style={styles.root}>
         <Animated.View
           style={[
@@ -130,7 +167,7 @@ export function BottomSheet({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Dismiss sheet"
-            onPress={dismissOnBackdrop ? onClose : undefined}
+            onPress={canDismissOnBackdrop ? onClose : undefined}
             style={StyleSheet.absoluteFill}
           />
         </Animated.View>
@@ -155,17 +192,29 @@ export function BottomSheet({
               contentStyle,
             ]}
           >
-            <View
-              style={{
-                alignSelf: "center",
-                width: 40,
-                height: 4,
-                borderRadius: 2,
-                backgroundColor: colors.border,
-                marginBottom: 12,
-              }}
-            />
-            {children}
+            {dismissible ? (
+              <View
+                style={{
+                  alignSelf: "center",
+                  width: 40,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: colors.border,
+                  marginBottom: 12,
+                }}
+              />
+            ) : null}
+            {scrollable ? (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                bounces={false}
+              >
+                {children}
+              </ScrollView>
+            ) : (
+              children
+            )}
           </Animated.View>
         </GestureDetector>
       </View>

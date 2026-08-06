@@ -8,6 +8,9 @@ export const FONT_ASSETS = {
   "Poppins-Medium": require("@/assets/fonts/Poppins-Medium.ttf"),
   "Poppins-SemiBold": require("@/assets/fonts/Poppins-SemiBold.ttf"),
   "Poppins-Bold": require("@/assets/fonts/Poppins-Bold.ttf"),
+  /** Shield overlay on Android — Inter (SIL OFL, redistributable). */
+  "Inter-Bold": require("@/assets/fonts/Inter-Bold.ttf"),
+  "Inter-Regular": require("@/assets/fonts/Inter-Regular.ttf"),
   /** Rounded display faces for the header wordmark — softer than geometric Poppins. */
   "NunitoExtraLight-Black": require("@/assets/fonts/Nunito-Black.ttf"),
   "VarelaRound-Regular": require("@/assets/fonts/VarelaRound-Regular.ttf"),

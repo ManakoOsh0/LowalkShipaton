@@ -4,16 +4,17 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  Pressable,
-  ScrollView,
-  Text,
-  View,
+    Modal,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Pressable,
+    ScrollView,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { useModalAnimationType } from "@/hooks/useHeroMotion";
 import { formatMinutesToLabel, parseTimeToMinutes } from "@/lib/time";
 import type { ThemeColors } from "@/theme/tokens";
 
@@ -26,7 +27,7 @@ export const DURATION_PRESETS: { hours: number; label: string }[] = [
   { hours: 3, label: "3 hr" },
 ];
 
-const STEP_MINUTES = 15;
+const STEP_MINUTES = 1;
 const ITEM_HEIGHT = 44;
 const VISIBLE_ROWS = 5;
 const WHEEL_HEIGHT = ITEM_HEIGHT * VISIBLE_ROWS;
@@ -34,7 +35,7 @@ const PAD_ROWS = Math.floor(VISIBLE_ROWS / 2);
 const PAD_HEIGHT = PAD_ROWS * ITEM_HEIGHT;
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
-const MINUTES = [0, 15, 30, 45];
+const MINUTES = Array.from({ length: 60 }, (_, minute) => minute);
 
 function minutesToTimeString(totalMinutes: number): string {
   const normalized = ((totalMinutes % (24 * 60)) + 24 * 60) % (24 * 60);
@@ -155,6 +156,8 @@ function WheelColumn({
             >
               <Text
                 style={{
+                  width: "100%",
+                  textAlign: "center",
                   fontFamily: selected ? "Poppins-Bold" : "Poppins-Regular",
                   fontSize: selected ? 28 : 20,
                   lineHeight: selected ? 34 : 26,
@@ -210,7 +213,7 @@ type TimeRangeWheelsProps = {
 };
 
 /** Four-column start/end wheels with a shared selection band. */
-function TimeRangeWheels({
+export function TimeRangeWheels({
   startTime,
   endTime,
   onChangeStartTime,
@@ -309,7 +312,7 @@ type StartTimeWheelsProps = {
   colors: ThemeColors;
 };
 
-function StartTimeWheels({ startTime, onChangeStartTime, colors }: StartTimeWheelsProps) {
+export function StartTimeWheels({ startTime, onChangeStartTime, colors }: StartTimeWheelsProps) {
   const snapped = snapToStep(parseTimeToMinutes(startTime));
   const hour = Math.floor(snapped / 60) % 24;
   const minute = snapped % 60;
@@ -353,7 +356,7 @@ function StartTimeWheels({ startTime, onChangeStartTime, colors }: StartTimeWhee
   );
 }
 
-type TimePickerSheetProps = {
+type SchedulePickerSheetProps = {
   visible: boolean;
   title: string;
   onClose: () => void;
@@ -362,18 +365,20 @@ type TimePickerSheetProps = {
   children: ReactNode;
 };
 
-function TimePickerSheet({
+export function SchedulePickerSheet({
   visible,
   title,
   onClose,
   onConfirm,
   colors,
   children,
-}: TimePickerSheetProps) {
+}: SchedulePickerSheetProps) {
+  const modalAnimationType = useModalAnimationType("slide");
+
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType={modalAnimationType}
       transparent
       onRequestClose={onClose}
     >
@@ -410,6 +415,7 @@ function TimePickerSheet({
             fontSize: 18,
             lineHeight: 24,
             color: colors.foreground,
+            textAlign: "center",
             marginBottom: 20,
           }}
         >
@@ -549,7 +555,7 @@ export function ScheduleTimeRangeField({
         colors={colors}
       />
 
-      <TimePickerSheet
+      <SchedulePickerSheet
         visible={visible}
         title="Active time"
         onClose={() => setVisible(false)}
@@ -563,7 +569,7 @@ export function ScheduleTimeRangeField({
           onChangeEndTime={setDraftEnd}
           colors={colors}
         />
-      </TimePickerSheet>
+      </SchedulePickerSheet>
     </>
   );
 }
@@ -614,7 +620,7 @@ export function ScheduleSessionTimeField({
         colors={colors}
       />
 
-      <TimePickerSheet
+      <SchedulePickerSheet
         visible={visible}
         title="Session time"
         onClose={() => setVisible(false)}
@@ -682,7 +688,7 @@ export function ScheduleSessionTimeField({
             {formatDurationMinutes(Math.round(draftDuration * 60))}
           </Text>
         </View>
-      </TimePickerSheet>
+      </SchedulePickerSheet>
     </>
   );
 }
@@ -713,7 +719,7 @@ export function TimeWheel({
         }}
         colors={colors}
       />
-      <TimePickerSheet
+      <SchedulePickerSheet
         visible={visible}
         title={label}
         onClose={() => setVisible(false)}
@@ -728,7 +734,7 @@ export function TimeWheel({
           onChangeStartTime={setDraft}
           colors={colors}
         />
-      </TimePickerSheet>
+      </SchedulePickerSheet>
     </>
   );
 }

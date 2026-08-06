@@ -1,7 +1,9 @@
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { AppState } from "react-native";
 
 import { useForegroundLocation } from "@/hooks/useForegroundLocation";
+import { resolveClassCompletionOutcome } from "@/lib/classCompletion";
 import {
   getPresenceTrackingContext,
   getVerificationSecondsRemaining,
@@ -12,6 +14,7 @@ import {
   hasUsableCoordinates,
   isInsideGeofence,
 } from "@/lib/geo";
+import { DEFAULT_SESSION_GAP_MERGE_MINUTES } from "@/lib/shieldSchedule";
 import {
   getBackgroundPermissionStatus,
   type LocationPermissionStatus,
@@ -19,6 +22,7 @@ import {
 import type { PresenceContext } from "@/store/selectors";
 import { useArrivalCelebrationStore } from "@/store/useArrivalCelebrationStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
+import { useUserStore } from "@/store/useUserStore";
 import type { ScheduleItemKind } from "@/types/dashboard";
 import type { FocusNodeKind } from "@/types/focusNode";
 
@@ -48,6 +52,8 @@ export function useSessionPresenceEngine(): PresenceContext {
 
   const { needsLocation, presenceAnchor, obligationNode, anchoringRequest } = trackingContext;
   const wasInsideGeofenceRef = useRef(false);
+  const prevAwaySinceRef = useRef<string | null>(null);
+  const prevPenaltyEndsAtRef = useRef<string | null>(null);
 
   const { position, accurateEnough, permission, error } = useForegroundLocation(
     needsLocation,
@@ -75,6 +81,8 @@ export function useSessionPresenceEngine(): PresenceContext {
     backgroundLocationDenied: backgroundPermission === "denied",
   };
 
+  const completeActiveSession = useScheduleStore((state) => state.completeActiveSession);
+
   useEffect(() => {
     return useScheduleStore.persist.onFinishHydration(() => {
       const session = useScheduleStore.getState().activeSession;
@@ -89,17 +97,37 @@ export function useSessionPresenceEngine(): PresenceContext {
         const penaltyEnd = session.penaltyShieldEndsAt
           ? new Date(session.penaltyShieldEndsAt).getTime()
           : 0;
-        if (penaltyEnd <= Date.now()) {
-          setActiveSession(null);
+        if (penaltyEnd > Date.now()) return;
+
+        if (session.scheduleType === "class") {
+          const { classPreBufferMinutes } = useUserStore.getState();
+          const outcome = resolveClassCompletionOutcome(
+            session,
+            {
+              classPreBufferMinutes,
+              sessionGapMergeMinutes: DEFAULT_SESSION_GAP_MERGE_MINUTES,
+            },
+            Date.now(),
+            false,
+          );
+          if (outcome === "complete") {
+            completeActiveSession();
+          } else {
+            setActiveSession(null);
+          }
+          return;
         }
+
+        setActiveSession(null);
       }
     });
-  }, [setActiveSession]);
+  }, [completeActiveSession, setActiveSession]);
 
   useEffect(() => {
-    const interval = setInterval(() => setTimerTick((tick) => tick + 1), 1000);
+    const tickMs = activeSession || needsLocation ? 1000 : 5000;
+    const interval = setInterval(() => setTimerTick((tick) => tick + 1), tickMs);
     return () => clearInterval(interval);
-  }, []);
+  }, [activeSession, needsLocation]);
 
   useEffect(() => {
     if (!needsLocation) return;
@@ -121,6 +149,37 @@ export function useSessionPresenceEngine(): PresenceContext {
   useEffect(() => {
     runPresenceTick(position, Date.now(), accurateEnough);
   }, [position, accurateEnough, timerTick]);
+
+  // Foreground haptics when the user steps out or incurs a penalty (notifications handle background).
+  useEffect(() => {
+    if (AppState.currentState !== "active") {
+      prevAwaySinceRef.current = activeSession?.awaySince ?? null;
+      prevPenaltyEndsAtRef.current = activeSession?.penaltyShieldEndsAt ?? null;
+      return;
+    }
+
+    const awaySince = activeSession?.awaySince ?? null;
+    const penaltyEndsAt = activeSession?.penaltyShieldEndsAt ?? null;
+
+    if (
+      activeSession?.presenceVerified &&
+      awaySince &&
+      awaySince !== prevAwaySinceRef.current
+    ) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+
+    if (penaltyEndsAt && penaltyEndsAt !== prevPenaltyEndsAtRef.current) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+
+    prevAwaySinceRef.current = awaySince;
+    prevPenaltyEndsAtRef.current = penaltyEndsAt;
+  }, [
+    activeSession?.awaySince,
+    activeSession?.penaltyShieldEndsAt,
+    activeSession?.presenceVerified,
+  ]);
 
   // Arrival card when entering the venue during a calendar travel phase.
   useEffect(() => {

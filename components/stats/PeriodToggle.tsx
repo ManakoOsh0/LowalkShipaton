@@ -1,8 +1,9 @@
 /**
  * PeriodToggle — Week / Month / Year segmented control for Statistics.
  */
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
+import { PressableScale } from "@/components/PressableScale";
 import { CARD_RADIUS_SM, CARD_RADIUS_XS } from "@/lib/cardStyle";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import type { StatsPeriod } from "@/types/stats";
@@ -36,7 +37,7 @@ export function PeriodToggle({ value, onChange }: PeriodToggleProps) {
       {OPTIONS.map((option) => {
         const selected = option.id === value;
         return (
-          <Pressable
+          <PressableScale
             key={option.id}
             accessibilityRole="button"
             accessibilityState={{ selected }}
@@ -60,7 +61,7 @@ export function PeriodToggle({ value, onChange }: PeriodToggleProps) {
             >
               {option.label}
             </Text>
-          </Pressable>
+          </PressableScale>
         );
       })}
     </View>

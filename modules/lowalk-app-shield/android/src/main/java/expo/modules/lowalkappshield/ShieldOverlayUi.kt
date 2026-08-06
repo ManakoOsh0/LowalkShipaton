@@ -8,80 +8,81 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.core.content.res.ResourcesCompat
 
-/** Shared black full-screen shield layout — matches the in-app BlockingOverlay design. */
+/** Shared full-screen shield layout — logo, blocked-app headline, and bottom Close pill. */
 object ShieldOverlayUi {
-  private const val PRIMARY = "#6C4EF5"
-  private const val CREAM = "#F0EDE9"
+  private const val DAWN_PATH_BACKGROUND = "#141210"
+  private const val DAWN_PATH_FOREGROUND = "#F5F2ED"
+  private const val CTA_BACKGROUND = "#FFFFFF"
+  private const val CTA_TEXT = "#141210"
 
   data class Copy(
     val nodeKind: String,
+    val headline: String,
     val subtitle: String,
+    val detail: String?,
     val ctaLabel: String,
   )
 
   fun build(
     context: Context,
     copy: Copy,
+    blockedAppLabel: String? = null,
     onCtaClick: () -> Unit,
   ): View {
     val density = context.resources.displayMetrics.density
+    val horizontalPad = (28 * density).toInt()
+    val bottomInset = getBottomInset(context, density)
 
-    val root = LinearLayout(context).apply {
-      orientation = LinearLayout.VERTICAL
-      setBackgroundColor(Color.BLACK)
-      gravity = Gravity.CENTER
-      setPadding(
-        (28 * density).toInt(),
-        (48 * density).toInt(),
-        (28 * density).toInt(),
-        (48 * density).toInt(),
-      )
+    val root = FrameLayout(context).apply {
+      setBackgroundColor(Color.parseColor(DAWN_PATH_BACKGROUND))
+      setPadding(horizontalPad, 0, horizontalPad, 0)
     }
 
     val content = LinearLayout(context).apply {
       orientation = LinearLayout.VERTICAL
       gravity = Gravity.CENTER_HORIZONTAL
-      layoutParams = LinearLayout.LayoutParams(
-        LinearLayout.LayoutParams.MATCH_PARENT,
-        LinearLayout.LayoutParams.WRAP_CONTENT,
+      layoutParams = FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT,
+        FrameLayout.LayoutParams.MATCH_PARENT,
       )
     }
 
-    content.addView(buildMascotTile(context, copy.nodeKind, density))
-    content.addView(
-      titleText(context, "App Blocked", density).apply {
-        setPadding(0, (32 * density).toInt(), 0, 0)
+    val centerStack = LinearLayout(context).apply {
+      orientation = LinearLayout.VERTICAL
+      gravity = Gravity.CENTER_HORIZONTAL
+      layoutParams = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.MATCH_PARENT,
+        0,
+        1f,
+      )
+    }
+
+    centerStack.addView(buildLogoIcon(context, density))
+    centerStack.addView(
+      titleText(context, resolveHeadline(copy, blockedAppLabel)).apply {
+        setPadding(0, (28 * density).toInt(), 0, 0)
       },
     )
-
-    val subtitleParts = copy.subtitle.split("\n", limit = 2)
-    val headline = subtitleParts.firstOrNull().orEmpty()
-    val timing = subtitleParts.getOrNull(1).orEmpty().trim()
-
-    content.addView(
-      bodyText(context, headline, density, bold = false).apply {
+    centerStack.addView(
+      bodyText(context, copy.subtitle).apply {
         setPadding(0, (12 * density).toInt(), 0, 0)
       },
     )
 
-    if (timing.isNotEmpty()) {
-      content.addView(
-        bodyText(context, timing, density, bold = false, muted = true).apply {
-          setPadding(0, (8 * density).toInt(), 0, 0)
-        },
-      )
-    }
-
+    content.addView(centerStack)
     content.addView(
-      buildCtaButton(context, copy.ctaLabel, density, onCtaClick).apply {
+      buildCtaRow(context, density, copy, onCtaClick).apply {
         layoutParams = LinearLayout.LayoutParams(
           LinearLayout.LayoutParams.MATCH_PARENT,
           LinearLayout.LayoutParams.WRAP_CONTENT,
         ).apply {
-          topMargin = (40 * density).toInt()
+          topMargin = (-24 * density).toInt()
+          bottomMargin = bottomInset + (24 * density).toInt()
         }
       },
     )
@@ -90,116 +91,102 @@ object ShieldOverlayUi {
     return root
   }
 
-  private fun kindTileLabel(kind: String): String =
-    when (kind) {
-      "class" -> "Class"
-      "gym" -> "Gym"
-      "library" -> "Library"
-      else -> "Focus"
+  private fun resolveHeadline(copy: Copy, blockedAppLabel: String?): String {
+    val label = blockedAppLabel?.trim().orEmpty()
+    if (label.isNotBlank()) {
+      return "$label blocked by Lowalk"
     }
-
-  private fun buildMascotTile(context: Context, nodeKind: String, density: Float): View {
-    val tileSize = (96 * density).toInt()
-    val tileRadius = (22 * density)
-
-    val tileBg = GradientDrawable().apply {
-      cornerRadius = tileRadius
-      setColor(Color.parseColor(PRIMARY))
-    }
-
-    val tile = FrameLayout(context).apply {
-      layoutParams = LinearLayout.LayoutParams(tileSize, tileSize)
-      background = tileBg
-    }
-
-    val labelView = TextView(context).apply {
-      text = kindTileLabel(nodeKind)
-      setTextColor(Color.WHITE)
-      setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
-      typeface = Typeface.DEFAULT_BOLD
-      gravity = Gravity.CENTER
-      layoutParams = FrameLayout.LayoutParams(
-        FrameLayout.LayoutParams.MATCH_PARENT,
-        FrameLayout.LayoutParams.MATCH_PARENT,
-        Gravity.CENTER,
-      )
-    }
-    tile.addView(labelView)
-
-    val badgeSize = (34 * density).toInt()
-    val badgeBg = GradientDrawable().apply {
-      shape = GradientDrawable.OVAL
-      setColor(Color.WHITE)
-      setStroke((3 * density).toInt(), Color.parseColor(PRIMARY))
-    }
-
-    val badge = TextView(context).apply {
-      text = "🔒"
-      gravity = Gravity.CENTER
-      setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
-      background = badgeBg
-      layoutParams = FrameLayout.LayoutParams(badgeSize, badgeSize).apply {
-        gravity = Gravity.TOP or Gravity.END
-        topMargin = (-4 * density).toInt()
-        marginEnd = (-4 * density).toInt()
-      }
-    }
-    tile.addView(badge)
-
-    return tile
+    return copy.headline.ifBlank { "App blocked by Lowalk" }
   }
 
-  private fun titleText(context: Context, text: String, density: Float): TextView {
+  private fun getBottomInset(context: Context, density: Float): Int {
+    val resourceId = context.resources.getIdentifier("navigation_bar_height", "dimen", "android")
+    val navBarPx =
+      if (resourceId > 0) context.resources.getDimensionPixelSize(resourceId) else 0
+    return navBarPx + (12 * density).toInt()
+  }
+
+  private fun buildLogoIcon(context: Context, density: Float): ImageView {
+    val iconSize = (124 * density).toInt()
+    return ImageView(context).apply {
+      setImageResource(R.drawable.shield_lowalk_logo)
+      scaleType = ImageView.ScaleType.FIT_CENTER
+      translationX = -6f * density
+      layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+    }
+  }
+
+  private fun displayBoldTypeface(context: Context): Typeface {
+    return ResourcesCompat.getFont(context, R.font.inter_bold) ?: Typeface.DEFAULT_BOLD
+  }
+
+  private fun textRegularTypeface(context: Context): Typeface {
+    return ResourcesCompat.getFont(context, R.font.inter_regular) ?: Typeface.DEFAULT
+  }
+
+  private fun titleText(context: Context, text: String): TextView {
     return TextView(context).apply {
       this.text = text
-      setTextColor(Color.WHITE)
-      setTextSize(TypedValue.COMPLEX_UNIT_SP, 30f)
-      typeface = Typeface.DEFAULT_BOLD
+      setTextColor(Color.parseColor(DAWN_PATH_FOREGROUND))
+      setTextSize(TypedValue.COMPLEX_UNIT_SP, 28f)
+      typeface = displayBoldTypeface(context)
       gravity = Gravity.CENTER_HORIZONTAL
       setLineSpacing(0f, 1.1f)
     }
   }
 
-  private fun bodyText(
-    context: Context,
-    text: String,
-    density: Float,
-    bold: Boolean,
-    muted: Boolean = false,
-  ): TextView {
+  private fun bodyText(context: Context, text: String): TextView {
     return TextView(context).apply {
       this.text = text
-      setTextColor(if (muted) Color.parseColor("#9EFFFFFF") else Color.WHITE)
-      setTextSize(TypedValue.COMPLEX_UNIT_SP, if (muted) 14f else 18f)
-      typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+      setTextColor(Color.parseColor(DAWN_PATH_FOREGROUND))
+      setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+      typeface = textRegularTypeface(context)
       gravity = Gravity.CENTER_HORIZONTAL
       setLineSpacing(0f, 1.15f)
     }
   }
 
+  private fun buildCtaRow(
+    context: Context,
+    density: Float,
+    copy: Copy,
+    onClick: () -> Unit,
+  ): View {
+    return LinearLayout(context).apply {
+      orientation = LinearLayout.HORIZONTAL
+      gravity = Gravity.CENTER_HORIZONTAL
+      addView(buildCtaButton(context, density, copy, onClick))
+    }
+  }
+
   private fun buildCtaButton(
     context: Context,
-    label: String,
     density: Float,
+    copy: Copy,
     onClick: () -> Unit,
-  ): TextView {
-    val bg = GradientDrawable().apply {
+  ): View {
+    val buttonBg = GradientDrawable().apply {
       cornerRadius = 999f * density
-      setColor(Color.parseColor(CREAM))
+      setColor(Color.parseColor(CTA_BACKGROUND))
     }
 
     return TextView(context).apply {
-      text = label
-      setTextColor(Color.parseColor(PRIMARY))
-      setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
+      text = copy.ctaLabel.ifBlank { "Close" }
+      setTextColor(Color.parseColor(CTA_TEXT))
+      setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f)
       typeface = Typeface.DEFAULT_BOLD
       gravity = Gravity.CENTER
-      background = bg
+      background = buttonBg
+      minWidth = (260 * density).toInt()
       setPadding(
-        (24 * density).toInt(),
-        (18 * density).toInt(),
-        (24 * density).toInt(),
-        (18 * density).toInt(),
+        (64 * density).toInt(),
+        (16 * density).toInt(),
+        (64 * density).toInt(),
+        (16 * density).toInt(),
+      )
+      layoutParams = LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams.WRAP_CONTENT,
+        LinearLayout.LayoutParams.WRAP_CONTENT,
       )
       setOnClickListener { onClick() }
     }

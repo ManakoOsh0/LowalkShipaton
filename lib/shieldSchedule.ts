@@ -285,6 +285,31 @@ function isPerNodeCalendarShieldActive(
   );
 }
 
+function isLiveActiveSessionShielded(
+  session: ActiveSessionSnapshot,
+  now: number,
+  referenceDate: Date,
+): boolean {
+  if (session.scheduleType === "duration" && session.requiredOnSiteMs != null) {
+    if (isDurationSessionExpired(session.shieldStartsAt, referenceDate)) {
+      return false;
+    }
+    return session.onSiteAccumulatedMs < session.requiredOnSiteMs;
+  }
+
+  if (session.scheduleType === "class") {
+    const endMs = Math.max(
+      new Date(session.endsAt).getTime(),
+      session.penaltyShieldEndsAt
+        ? new Date(session.penaltyShieldEndsAt).getTime()
+        : 0,
+    );
+    return now < endMs;
+  }
+
+  return new Date(session.endsAt).getTime() > now;
+}
+
 /** True when the native app shield should be running. */
 export function isAppShieldActive(
   nodes: FocusNode[],
@@ -297,31 +322,9 @@ export function isAppShieldActive(
     if (new Date(activeSession.penaltyShieldEndsAt).getTime() > now) return true;
   }
 
-  if (activeSession && now >= new Date(activeSession.shieldStartsAt).getTime()) {
-    if (activeSession.scheduleType === "duration" && activeSession.requiredOnSiteMs != null) {
-      if (isDurationSessionExpired(activeSession.shieldStartsAt, referenceDate)) {
-        return isPerNodeCalendarShieldActive(
-          nodes,
-          null,
-          settings,
-          now,
-          referenceDate,
-        );
-      }
-      if (activeSession.onSiteAccumulatedMs < activeSession.requiredOnSiteMs) {
-        return true;
-      }
-    }
-
-    if (activeSession.scheduleType === "class") {
-      const endMs = Math.max(
-        new Date(activeSession.endsAt).getTime(),
-        activeSession.penaltyShieldEndsAt
-          ? new Date(activeSession.penaltyShieldEndsAt).getTime()
-          : 0,
-      );
-      if (now < endMs) return true;
-    }
+  // A live session always drives shielding — even before the calendar pre-buffer opens.
+  if (activeSession && isLiveActiveSessionShielded(activeSession, now, referenceDate)) {
+    return true;
   }
 
   return isPerNodeCalendarShieldActive(
@@ -416,7 +419,11 @@ export function formatOnSiteRemainingLabel(
 
 export function formatDurationClock(totalMs: number): string {
   const totalSeconds = Math.max(Math.floor(totalMs / 1000), 0);
-  const minutes = Math.floor(totalSeconds / 60);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }
+  return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }

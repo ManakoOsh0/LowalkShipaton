@@ -21,7 +21,9 @@ export type BlockedAppDetectedEvent = {
 
 export type ShieldOverlayContext = {
   nodeKind: string;
+  headline: string;
   subtitle: string;
+  detail?: string;
   ctaLabel: string;
 };
 
@@ -45,6 +47,7 @@ declare class LowalkAppShieldNativeModule extends NativeModule<LowalkAppShieldEv
   isSupported(): Promise<boolean>;
   hasUsageStatsPermission(): Promise<boolean>;
   hasOverlayPermission(): Promise<boolean>;
+  isMonitoringActive(): Promise<boolean>;
   openUsageAccessSettings(): Promise<void>;
   openOverlaySettings(): Promise<void>;
   getInstalledApps(): Promise<NativeInstalledApp[]>;
@@ -55,6 +58,8 @@ declare class LowalkAppShieldNativeModule extends NativeModule<LowalkAppShieldEv
     overlayContext?: ShieldOverlayContext,
   ): Promise<void>;
   stopMonitoring(): Promise<void>;
+  syncWidgetSchedule(bundle: Record<string, unknown>): Promise<void>;
+  updateHeroWidgetSnapshot(snapshot: Record<string, unknown>): Promise<void>;
 }
 
 const nativeModule =
@@ -74,6 +79,11 @@ export async function hasUsageStatsPermission(): Promise<boolean> {
 export async function hasOverlayPermission(): Promise<boolean> {
   if (!nativeModule) return false;
   return nativeModule.hasOverlayPermission();
+}
+
+export async function isAppShieldMonitoringActive(): Promise<boolean> {
+  if (!nativeModule) return false;
+  return nativeModule.isMonitoringActive();
 }
 
 export async function openUsageAccessSettings(): Promise<void> {
@@ -125,6 +135,25 @@ export async function startAppShieldMonitoring(
 export async function stopAppShieldMonitoring(): Promise<void> {
   if (!nativeModule) return;
   await nativeModule.stopMonitoring();
+}
+
+export async function syncWidgetSchedule(
+  bundle: Record<string, unknown>,
+): Promise<void> {
+  if (!nativeModule) return;
+  await nativeModule.syncWidgetSchedule(bundle);
+}
+
+/** @deprecated Use syncWidgetSchedule */
+export async function updateHeroWidgetSnapshot(
+  snapshot: Record<string, unknown>,
+): Promise<void> {
+  if (!nativeModule) return;
+  if (nativeModule.syncWidgetSchedule) {
+    await nativeModule.syncWidgetSchedule(snapshot);
+    return;
+  }
+  await nativeModule.updateHeroWidgetSnapshot(snapshot);
 }
 
 export function addBlockedAppDetectedListener(

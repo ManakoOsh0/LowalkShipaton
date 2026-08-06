@@ -1,33 +1,87 @@
 /**
- * Statistics screen — stack route reachable from Hero / deep links (not a tab).
+ * Activity — single stats destination from the home streak pill.
+ * Hierarchy: streak context → one focus metric → chart → active days → yearly lifetime.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useMemo, useState } from "react";
+import { ScrollView, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AchievementBadge } from "@/components/stats/AchievementBadge";
-import { ContributionGrid } from "@/components/stats/ContributionGrid";
-import { HeroStreakCard } from "@/components/stats/HeroStreakCard";
-import { InsightCard } from "@/components/stats/InsightCard";
-import { PeriodToggle } from "@/components/stats/PeriodToggle";
-import { PersonalBestCard } from "@/components/stats/PersonalBestCard";
+import { PressableScale } from "@/components/PressableScale";
 import { SessionsBarChart } from "@/components/stats/SessionsBarChart";
-import { StatCard } from "@/components/stats/StatCard";
-import { StatsSectionHeader } from "@/components/stats/StatsSectionHeader";
-import { statsMockData } from "@/data/statsMock";
+import { StatsActivityHero } from "@/components/stats/StatsActivityHero";
+import { StatsDayList } from "@/components/stats/StatsDayList";
+import { StatsLifetimeSection } from "@/components/stats/StatsLifetimeSection";
+import { StatsPeriodSheet } from "@/components/stats/StatsPeriodSheet";
+import { StatsShareSheet } from "@/components/stats/StatsShareSheet";
 import { usePeriodStats } from "@/hooks/usePeriodStats";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { CARD_RADIUS_SM } from "@/lib/cardStyle";
+import { SCREEN_PADDING } from "@/lib/layout";
+import {
+  openShareOverlayConsistencyRecap,
+  openShareOverlayWeeklyRecap,
+} from "@/lib/shareOverlayActions";
 import type { StatsPeriod } from "@/types/stats";
+
+function HeaderIconButton({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress: () => void;
+}) {
+  const colors = useThemeColors();
+  return (
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={8}
+      style={{
+        width: 40,
+        height: 40,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: CARD_RADIUS_SM,
+        backgroundColor: colors.card,
+        borderWidth: 1,
+        borderColor: colors.cardStroke,
+        borderCurve: "continuous",
+      }}
+    >
+      <Ionicons name={icon} size={20} color={colors.foreground} />
+    </PressableScale>
+  );
+}
 
 export default function StatsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
   const [period, setPeriod] = useState<StatsPeriod>("week");
-  const { periodStats, streak, lifetimeStats, contributionWeeks } = usePeriodStats(period);
-  const mock = statsMockData;
+  const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const {
+    periodStats,
+    streak,
+    totalSessionsAllTime,
+    focusDurationLabel,
+    contributionWeeks,
+  } = usePeriodStats(period);
+
+  const dayList = useMemo(() => {
+    // Week already filters empties; month keeps active weeks only (top few).
+    if (period === "month") {
+      return periodStats.dayBreakdown.slice(0, 4);
+    }
+    return periodStats.dayBreakdown;
+  }, [period, periodStats.dayBreakdown]);
+
+  const maxDayMinutes = Math.max(...dayList.map((day) => day.focusMinutes), 1);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top"]}>
@@ -35,130 +89,66 @@ export default function StatsScreen() {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          paddingHorizontal: 16,
+          justifyContent: "space-between",
+          paddingHorizontal: SCREEN_PADDING,
           paddingTop: 8,
-          paddingBottom: 12,
-          gap: 12,
+          paddingBottom: 4,
         }}
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
+        <HeaderIconButton
+          label="Go back"
+          icon="chevron-back"
           onPress={() => router.back()}
-          hitSlop={8}
-          style={{
-            width: 40,
-            height: 40,
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 12,
-            backgroundColor: colors.card,
-            borderWidth: 1,
-            borderColor: colors.border,
-          }}
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.foreground} />
-        </Pressable>
-
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontFamily: "Poppins-Bold",
-              fontSize: 24,
-              lineHeight: 32,
-              color: colors.foreground,
-            }}
-          >
-            Statistics
-          </Text>
-          <Text
-            style={{
-              marginTop: 2,
-              fontFamily: "Poppins-Regular",
-              fontSize: 13,
-              lineHeight: 18,
-              color: colors.muted,
-            }}
-          >
-            Track your consistency over time.
-          </Text>
-        </View>
+        />
+        <HeaderIconButton
+          label="Share stats"
+          icon="share-outline"
+          onPress={() => setShareSheetOpen(true)}
+        />
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: insets.bottom + 32,
+          paddingHorizontal: SCREEN_PADDING,
+          paddingBottom: insets.bottom + 40,
+          gap: 32,
         }}
       >
-        <View style={{ gap: 28 }}>
-          <PeriodToggle value={period} onChange={setPeriod} />
+        <StatsActivityHero
+          stats={periodStats}
+          streak={streak}
+          onPressPeriod={() => setPeriodSheetOpen(true)}
+        />
 
-          <HeroStreakCard
-            streak={streak}
-            weeklyProgress={mock.weeklyProgress}
-            missedCount={6}
-            skippedCount={0}
+        <SessionsBarChart stats={periodStats} bare metric="focusMinutes" />
+
+        {dayList.length > 0 ? (
+          <StatsDayList days={dayList} maxFocusMinutes={maxDayMinutes} />
+        ) : null}
+
+        {period === "year" ? (
+          <StatsLifetimeSection
+            totalSessions={totalSessionsAllTime}
+            focusHoursLabel={focusDurationLabel}
+            contributionWeeks={contributionWeeks}
           />
-
-          <SessionsBarChart stats={periodStats} />
-
-          <View>
-            <StatsSectionHeader title="Lifetime Statistics" />
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-              {lifetimeStats.map((stat) => (
-                <StatCard
-                  key={stat.id}
-                  icon={stat.icon}
-                  value={stat.value}
-                  label={stat.label}
-                  numericValue={stat.numericValue}
-                />
-              ))}
-            </View>
-          </View>
-
-          <View>
-            <StatsSectionHeader
-              title="Achievements"
-              subtitle="Small wins that add up over time."
-            />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 4 }}
-            >
-              {mock.achievements.map((achievement) => (
-                <AchievementBadge key={achievement.id} achievement={achievement} />
-              ))}
-            </ScrollView>
-          </View>
-
-          <ContributionGrid weeks={contributionWeeks} />
-
-          <View>
-            <StatsSectionHeader title="Personal Bests" />
-            <View style={{ gap: 10 }}>
-              {mock.personalBests.map((best) => (
-                <PersonalBestCard key={best.id} best={best} />
-              ))}
-            </View>
-          </View>
-
-          <View>
-            <StatsSectionHeader
-              title="Insights"
-              subtitle="Friendly patterns from your focus journey."
-            />
-            <View style={{ gap: 10 }}>
-              {mock.insights.map((insight) => (
-                <InsightCard key={insight.id} message={insight.message} />
-              ))}
-            </View>
-          </View>
-        </View>
+        ) : null}
       </ScrollView>
+
+      <StatsPeriodSheet
+        visible={periodSheetOpen}
+        value={period}
+        onClose={() => setPeriodSheetOpen(false)}
+        onChange={setPeriod}
+      />
+
+      <StatsShareSheet
+        visible={shareSheetOpen}
+        onClose={() => setShareSheetOpen(false)}
+        onShareWeek={openShareOverlayWeeklyRecap}
+        onShareConsistency={openShareOverlayConsistencyRecap}
+      />
     </SafeAreaView>
   );
 }

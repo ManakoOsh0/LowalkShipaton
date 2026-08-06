@@ -21,6 +21,80 @@ export type HeroUpNextSnapshot = {
   locationLabel: string;
   /** Relative start copy, e.g. "Starts in 1 hour 15 minutes". */
   startsInLabel: string;
+  endTimeLabel?: string;
+  kindLabel?: string;
+  leaveByLabel?: string | null;
+};
+
+/** Top-row chip — session kind, status, etc. */
+export type HeroMetaChip = {
+  label: string;
+};
+
+/** LAST / NEXT flanking context rail. */
+export type HeroContextRail = {
+  label: string;
+  headline: string;
+  subline: string;
+};
+
+export type HeroDayArcMarkerStatus = "done" | "current" | "upcoming" | "skipped";
+
+export type HeroDayArc = {
+  positionLabel: string;
+  markers: Array<{ status: HeroDayArcMarkerStatus }>;
+};
+
+export type HeroIntelCell = {
+  label: string;
+  value: string;
+};
+
+export type HeroUpcomingRow = {
+  timeLabel: string;
+  title: string;
+  locationLabel: string;
+  status?: "current" | "upcoming";
+};
+
+/** Center metric between context rails — countdown, leave-by, or session title. */
+export type HeroCenterMetric = {
+  headline: string;
+  subline?: string;
+  countdownLabel?: string | null;
+  progressRatio?: number | null;
+};
+
+/** Shibuya-style tactical inset — geofence circle with you vs venue pins. */
+export type HeroTacticalInset = {
+  mode: "en_route" | "verifying";
+  radiusMeters: number;
+  /** Straight-line meters from anchor center — drives pin placement. */
+  distanceFromCenterMeters: number;
+  venueShortLabel: string;
+  hasUserPosition: boolean;
+  locationUnavailable: boolean;
+  verifyProgress?: number | null;
+};
+
+/** Zoned dashboard context for the fixed hero shell. */
+export type HeroCardContext = {
+  metaLeft: HeroMetaChip;
+  metaRight: HeroMetaChip;
+  sessionTitle: string;
+  dayArc: HeroDayArc;
+  leftRail?: HeroContextRail;
+  rightRail?: HeroContextRail;
+  center: HeroCenterMetric;
+  intelCells: HeroIntelCell[];
+  upcomingToday: HeroUpcomingRow[];
+  tagline?: string;
+  /** Tactical map inset for on_the_way / verifying hero moments. */
+  tacticalInset?: HeroTacticalInset;
+  /** Read-only shield copy — merged from blocked-apps store at hook layer. */
+  blockedAppsLabel?: string;
+  /** Straight-line meters outside geofence — drives travel progress on the display. */
+  travelMetersAway?: number | null;
 };
 
 /** Named icon keys rendered inside the shared Hero shell. */
@@ -119,6 +193,10 @@ export type HeroCardData = {
   upNext?: HeroUpNextSnapshot | null;
   /** Venue label for active session timer card. */
   locationLabel?: string | null;
+  /** Rich zoned dashboard — meta, rails, intel, upcoming strip. */
+  context?: HeroCardContext | null;
+  /** Blocked apps count merged at hook layer for active-state intel. */
+  blockedAppsCount?: number;
 };
 
 export type ScheduleItemKind = "class" | "library" | "gym" | "custom";

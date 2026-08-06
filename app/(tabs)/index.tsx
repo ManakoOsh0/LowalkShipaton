@@ -1,19 +1,20 @@
-import { Linking, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Linking, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AnchoringFlow } from "@/components/AnchoringFlow";
 import { DailyGoalCard } from "@/components/DailyGoalCard";
 import { HeroCard } from "@/components/HeroCard";
 import { HomeHeader } from "@/components/HomeHeader";
-import { TodayScheduleCard } from "@/components/TodayScheduleCard";
-import { ScheduleEmptyState } from "@/components/ScheduleEmptyState";
+import { ScheduleItemActionSheet } from "@/components/ScheduleItemActionSheet";
+import { TodayScheduleSection } from "@/components/TodayScheduleSection";
 import { useHomeDashboard } from "@/hooks/useHomeDashboard";
-import { ROUTES } from "@/lib/routes";
+import { useScheduleItemActions } from "@/hooks/useScheduleItemActions";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { CARD_GAP, SCREEN_PADDING } from "@/lib/layout";
+import { ROUTES } from "@/lib/routes";
 import type { HeroAction } from "@/types/dashboard";
 
-const TAB_BAR_CLEARANCE = 110;
+const TAB_BAR_CLEARANCE = 92;
 
 function openMapsAt(latitude: number, longitude: number) {
   const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=walking`;
@@ -25,12 +26,14 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const { streak, dailyGoal, hero, schedule, anchoringRequest } = useHomeDashboard();
+  const { streak, dailyGoal, hero, schedule, celebration, dismissCelebration, isHeroPreview } =
+    useHomeDashboard();
+  const { showScheduleItemActions, actionSheetProps } = useScheduleItemActions();
 
   const handleHeroAction = (action: HeroAction) => {
     switch (action.kind) {
       case "create_focus_node":
-        router.push(ROUTES.focusNodeNew);
+        router.push(ROUTES.focusNodeNewWithTemplate("custom"));
         return;
       case "view_schedule":
       case "view_today_schedule":
@@ -67,95 +70,45 @@ export default function HomeScreen() {
     }
   };
 
+  const scheduleBottomPadding = insets.bottom + TAB_BAR_CLEARANCE;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top"]}>
-      <HomeHeader streak={streak} />
+      <HomeHeader
+        streak={streak}
+        onStreakPress={() => router.push(ROUTES.stats)}
+      />
 
-      <ScrollView
-        style={{ flex: 1 }}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingBottom: insets.bottom + TAB_BAR_CLEARANCE,
-        }}
-      >
+      <View style={{ flex: 1 }}>
         <DailyGoalCard {...dailyGoal} />
-        <HeroCard {...hero} onActionPress={handleHeroAction} />
-
-        {anchoringRequest ? (
-          <AnchoringFlow
-            visible
-            mode="required"
-            nodeId={anchoringRequest.nodeId}
-            nodeTitle={anchoringRequest.nodeTitle}
-            anchorId={anchoringRequest.anchorId}
-            anchorName={anchoringRequest.anchorName}
-            onComplete={() => {}}
-          />
-        ) : null}
+        <HeroCard
+          {...hero}
+          isPreview={isHeroPreview}
+          onActionPress={handleHeroAction}
+          onViewBlockedApps={() => router.push(ROUTES.blockedApps)}
+          celebration={celebration}
+          onCelebrationDismiss={dismissCelebration}
+        />
 
         <View
           style={{
-            marginTop: 20,
-            paddingHorizontal: 16,
-            ...(schedule.length === 0 ? { flex: 1 } : {}),
+            flex: 1,
+            minHeight: 0,
+            marginTop: CARD_GAP,
+            paddingHorizontal: SCREEN_PADDING,
           }}
         >
-          <View
-            style={{
-              marginBottom: 10,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: "Poppins-Bold",
-                fontSize: 17,
-                lineHeight: 22,
-                color: colors.foreground,
-              }}
-            >
-              Today&apos;s plan
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="View all schedule"
-              onPress={() => router.push(ROUTES.weekSchedule)}
-              hitSlop={8}
-            >
-              <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: colors.foregroundSubtle,
-                }}
-              >
-                View all
-              </Text>
-            </Pressable>
-          </View>
-
-          {schedule.length > 0 ? (
-            <TodayScheduleCard
-              items={schedule}
-              onItemPress={(item) => router.push(ROUTES.sessionDetail(item.id))}
-            />
-          ) : (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                paddingVertical: 24,
-              }}
-            >
-              <ScheduleEmptyState />
-            </View>
-          )}
+          <TodayScheduleSection
+            items={schedule}
+            contentPaddingBottom={scheduleBottomPadding}
+            onItemPress={(item) => router.push(ROUTES.sessionDetail(item.id))}
+            onItemLongPress={showScheduleItemActions}
+            onEmptyPress={() => router.push(ROUTES.focusNodeNewWithTemplate("custom"))}
+          />
         </View>
-      </ScrollView>
+      </View>
+
+      <ScheduleItemActionSheet {...actionSheetProps} />
     </SafeAreaView>
   );
 }

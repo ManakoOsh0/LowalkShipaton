@@ -1,10 +1,10 @@
 /**
- * Geofence radius picker — preset chips + custom meters input for venue placement.
- * Used when dropping a pin or confirming a searched place before Anchor save.
+ * Geofence radius picker — compact horizontal presets with optional custom meters.
  */
-import { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
+import { InlineFieldError } from "@/components/form/InlineFieldError";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import {
   ANCHOR_RADIUS_PRESETS,
@@ -14,12 +14,23 @@ import {
   type AnchorRadiusPresetId,
 } from "@/lib/geo";
 
+const PRESET_SHORT_LABELS: Record<AnchorRadiusPresetId, string> = {
+  small_room: "Room",
+  classroom: "Class",
+  library: "Library",
+  large_gym: "Gym",
+};
+
 type GeofenceRadiusSelectorProps = {
   radiusMeters: number;
   onRadiusChange: (radiusMeters: number) => void;
   disabled?: boolean;
   suggestedPresetId?: AnchorRadiusPresetId;
 };
+
+function isPresetRadius(radiusMeters: number): boolean {
+  return ANCHOR_RADIUS_PRESETS.some((preset) => preset.radiusMeters === radiusMeters);
+}
 
 export function GeofenceRadiusSelector({
   radiusMeters,
@@ -28,9 +39,7 @@ export function GeofenceRadiusSelector({
   suggestedPresetId,
 }: GeofenceRadiusSelectorProps) {
   const colors = useThemeColors();
-  const [showCustom, setShowCustom] = useState(
-    () => !ANCHOR_RADIUS_PRESETS.some((preset) => preset.radiusMeters === radiusMeters),
-  );
+  const [customMode, setCustomMode] = useState(() => !isPresetRadius(radiusMeters));
   const [customDraft, setCustomDraft] = useState(String(radiusMeters));
   const [customError, setCustomError] = useState<string | null>(null);
 
@@ -38,18 +47,25 @@ export function GeofenceRadiusSelector({
     (preset) => preset.radiusMeters === radiusMeters,
   )?.id;
 
+  useEffect(() => {
+    setCustomDraft(String(radiusMeters));
+    if (isPresetRadius(radiusMeters)) {
+      setCustomMode(false);
+    }
+  }, [radiusMeters]);
+
   const handlePresetPress = (presetRadius: number) => {
     if (disabled) return;
-    setShowCustom(false);
+    setCustomMode(false);
     setCustomError(null);
     onRadiusChange(clampGeofenceRadiusMeters(presetRadius));
   };
 
-  const handleCustomApply = () => {
+  const applyCustomRadius = () => {
     if (disabled) return;
     const parsed = Number(customDraft);
     if (!Number.isFinite(parsed)) {
-      setCustomError(`Enter a number between ${MIN_GEOFENCE_RADIUS_METERS} and ${MAX_GEOFENCE_RADIUS_METERS}.`);
+      setCustomError(`Enter ${MIN_GEOFENCE_RADIUS_METERS}–${MAX_GEOFENCE_RADIUS_METERS} meters.`);
       return;
     }
     if (parsed < MIN_GEOFENCE_RADIUS_METERS || parsed > MAX_GEOFENCE_RADIUS_METERS) {
@@ -62,20 +78,41 @@ export function GeofenceRadiusSelector({
 
   return (
     <View style={{ gap: 10 }}>
-      <Text
+      <View
         style={{
-          fontFamily: "Poppins-SemiBold",
-          fontSize: 13,
-          lineHeight: 18,
-          color: colors.foreground,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
-        Geofence size
-      </Text>
+        <Text
+          style={{
+            fontFamily: "Poppins-SemiBold",
+            fontSize: 13,
+            lineHeight: 18,
+            color: colors.muted,
+          }}
+        >
+          Area size
+        </Text>
+        <Text
+          style={{
+            fontFamily: "Poppins-Regular",
+            fontSize: 13,
+            color: colors.muted,
+          }}
+        >
+          {radiusMeters}m around pin
+        </Text>
+      </View>
 
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8 }}
+      >
         {ANCHOR_RADIUS_PRESETS.map((preset) => {
-          const selected = !showCustom && activePresetId === preset.id;
+          const selected = !customMode && activePresetId === preset.id;
           const suggested = preset.id === suggestedPresetId;
           return (
             <Pressable
@@ -85,10 +122,12 @@ export function GeofenceRadiusSelector({
               disabled={disabled}
               onPress={() => handlePresetPress(preset.radiusMeters)}
               style={{
+                minWidth: 68,
+                alignItems: "center",
                 borderRadius: 12,
-                borderWidth: 1,
-                borderColor: selected ? colors.primary : colors.border,
-                backgroundColor: selected ? colors.iconTile : colors.background,
+                borderWidth: suggested && !selected ? 2 : 1,
+                borderColor: selected ? colors.primary : suggested ? colors.primary : colors.border,
+                backgroundColor: selected ? colors.primary : colors.background,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
                 opacity: disabled ? 0.55 : 1,
@@ -96,117 +135,87 @@ export function GeofenceRadiusSelector({
             >
               <Text
                 style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 13,
-                  color: selected ? colors.primary : colors.foreground,
+                  fontFamily: "Poppins-Bold",
+                  fontSize: 15,
+                  color: selected ? "#F0EDE9" : colors.foreground,
                 }}
               >
-                {preset.label}
-                {suggested && !disabled ? " · suggested" : ""}
+                {preset.radiusMeters}m
               </Text>
               <Text
                 style={{
                   marginTop: 2,
                   fontFamily: "Poppins-Regular",
                   fontSize: 11,
-                  color: colors.muted,
+                  color: selected ? "#F0EDE9" : colors.muted,
                 }}
               >
-                {preset.description}
+                {PRESET_SHORT_LABELS[preset.id]}
               </Text>
             </Pressable>
           );
         })}
-      </View>
 
-      <Pressable
-        accessibilityRole="button"
-        disabled={disabled}
-        onPress={() => {
-          if (disabled) return;
-          setShowCustom(true);
-          setCustomDraft(String(radiusMeters));
-        }}
-        style={{ opacity: disabled ? 0.55 : 1 }}
-      >
-        <Text
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: customMode, disabled }}
+          disabled={disabled}
+          onPress={() => {
+            if (disabled) return;
+            setCustomMode(true);
+            setCustomDraft(String(radiusMeters));
+            setCustomError(null);
+          }}
           style={{
-            fontFamily: "Poppins-SemiBold",
-            fontSize: 13,
-            color: showCustom ? colors.primary : colors.foreground,
+            minWidth: 68,
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: customMode ? colors.primary : colors.border,
+            backgroundColor: customMode ? colors.primary : colors.background,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            opacity: disabled ? 0.55 : 1,
           }}
         >
-          Custom radius
-        </Text>
-      </Pressable>
-
-      {showCustom && !disabled ? (
-        <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-          <TextInput
-            accessibilityLabel="Custom geofence radius in meters"
-            value={customDraft}
-            onChangeText={setCustomDraft}
-            onSubmitEditing={handleCustomApply}
-            keyboardType="number-pad"
-            placeholder={`${MIN_GEOFENCE_RADIUS_METERS}–${MAX_GEOFENCE_RADIUS_METERS}`}
-            placeholderTextColor={colors.muted}
+          <Text
             style={{
-              flex: 1,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              fontFamily: "Poppins-Regular",
+              fontFamily: "Poppins-Bold",
               fontSize: 15,
-              color: colors.foreground,
-            }}
-          />
-          <Pressable
-            accessibilityRole="button"
-            onPress={handleCustomApply}
-            style={{
-              borderRadius: 12,
-              backgroundColor: colors.primary,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
+              color: customMode ? "#F0EDE9" : colors.foreground,
             }}
           >
-            <Text
-              style={{
-                fontFamily: "Poppins-Bold",
-                fontSize: 14,
-                color: "#F0EDE9",
-              }}
-            >
-              Apply
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
+            Custom
+          </Text>
+        </Pressable>
+      </ScrollView>
 
-      {customError ? (
-        <Text
+      {customMode && !disabled ? (
+        <TextInput
+          accessibilityLabel="Custom geofence radius in meters"
+          value={customDraft}
+          onChangeText={setCustomDraft}
+          onSubmitEditing={applyCustomRadius}
+          onEndEditing={applyCustomRadius}
+          keyboardType="number-pad"
+          returnKeyType="done"
+          placeholder={`${MIN_GEOFENCE_RADIUS_METERS}–${MAX_GEOFENCE_RADIUS_METERS} m`}
+          placeholderTextColor={colors.muted}
           style={{
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
             fontFamily: "Poppins-Regular",
-            fontSize: 12,
-            color: colors.error,
+            fontSize: 15,
+            color: colors.foreground,
           }}
-        >
-          {customError}
-        </Text>
+        />
       ) : null}
 
-      <Text
-        style={{
-          fontFamily: "Poppins-Regular",
-          fontSize: 12,
-          lineHeight: 17,
-          color: colors.muted,
-        }}
-      >
-        Covers ~{radiusMeters}m around the pin
-      </Text>
+      {customError ? <InlineFieldError message={customError} /> : null}
     </View>
   );
 }

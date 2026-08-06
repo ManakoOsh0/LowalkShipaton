@@ -3,18 +3,19 @@ import { useMemo } from "react";
 import { computeConsistencyStats } from "@/lib/consistencyStats";
 import {
   computePeriodStats,
+  computeWeeklyReview,
   countTotalSessions,
   estimateFocusMinutes,
+  formatFocusDuration,
   formatFocusHours,
   mapContributionLevel,
 } from "@/lib/periodStats";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useUserStore } from "@/store/useUserStore";
-import type { ContributionWeek, LifetimeStat, StatsPeriod } from "@/types/stats";
+import type { ContributionWeek, StatsPeriod } from "@/types/stats";
 
 export function usePeriodStats(period: StatsPeriod) {
   const focusNodes = useScheduleStore((state) => state.focusNodes);
-  const coins = useUserStore((state) => state.coins);
   const dayStreak = useUserStore((state) => state.streak);
 
   const periodStats = useMemo(
@@ -27,42 +28,19 @@ export function usePeriodStats(period: StatsPeriod) {
     [focusNodes],
   );
 
-  const focusHoursLabel = useMemo(
-    () => formatFocusHours(estimateFocusMinutes(focusNodes)),
+  const totalFocusMinutes = useMemo(
+    () => estimateFocusMinutes(focusNodes),
     [focusNodes],
   );
 
-  const lifetimeStats: LifetimeStat[] = useMemo(
-    () => [
-      {
-        id: "sessions",
-        icon: "🎯",
-        value: String(totalSessionsAllTime),
-        label: "Sessions",
-        numericValue: totalSessionsAllTime,
-      },
-      {
-        id: "focused",
-        icon: "⏱",
-        value: focusHoursLabel,
-        label: "Focused",
-      },
-      {
-        id: "coins",
-        icon: "🪙",
-        value: String(coins),
-        label: "Focus Coins",
-        numericValue: coins,
-      },
-      {
-        id: "nodes",
-        icon: "📍",
-        value: String(focusNodes.length),
-        label: "Focus Nodes",
-        numericValue: focusNodes.length,
-      },
-    ],
-    [coins, focusHoursLabel, focusNodes.length, totalSessionsAllTime],
+  const focusHoursLabel = useMemo(
+    () => formatFocusHours(totalFocusMinutes),
+    [totalFocusMinutes],
+  );
+
+  const focusDurationLabel = useMemo(
+    () => formatFocusDuration(totalFocusMinutes),
+    [totalFocusMinutes],
   );
 
   const contributionWeeks: ContributionWeek[] = useMemo(() => {
@@ -76,14 +54,19 @@ export function usePeriodStats(period: StatsPeriod) {
     }));
   }, [dayStreak, focusNodes]);
 
+  const { weeklyProgress, missedDays } = useMemo(
+    () => computeWeeklyReview(focusNodes),
+    [focusNodes],
+  );
+
   return {
     periodStats,
     streak: dayStreak,
-    coins,
-    focusNodeCount: focusNodes.length,
     totalSessionsAllTime,
     focusHoursLabel,
-    lifetimeStats,
+    focusDurationLabel,
     contributionWeeks,
+    weeklyProgress,
+    missedDays,
   };
 }

@@ -1,18 +1,28 @@
 /**
- * LowalkLogoIcon — Dawn Path brand mark for the home header and branding slots.
+ * LowalkLogoIcon — canonical pixel brand mark from Lowalk-finale-logo.png.
  */
-import { SvgXml } from "react-native-svg";
+import { Image, type ImageStyle, type StyleProp } from "react-native";
 
-import { LOWALK2_LOGO_ASPECT, lowalk2LogoXml } from "@/constants/lowalk2Logo";
+import { lowalkLogoImage } from "@/constants/images";
+
+/** Finale logo is roughly square at 1:1. */
+const LOGO_ASPECT = 1;
 
 type LowalkLogoIconProps = {
   /** Rendered height; width follows the logo aspect ratio. */
   size?: number;
+  style?: StyleProp<ImageStyle>;
 };
 
-export function LowalkLogoIcon({ size = 36 }: LowalkLogoIconProps) {
+export function LowalkLogoIcon({ size = 36, style }: LowalkLogoIconProps) {
   const height = size;
-  const width = size * LOWALK2_LOGO_ASPECT;
+  const width = size * LOGO_ASPECT;
 
-  return <SvgXml xml={lowalk2LogoXml} width={width} height={height} />;
+  return (
+    <Image
+      source={lowalkLogoImage}
+      accessibilityLabel="Lowalk"
+      style={[{ width, height, resizeMode: "contain" }, style]}
+    />
+  );
 }

@@ -10,6 +10,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { StatsCardShell } from "@/components/stats/StatsCardShell";
+import { useReduceMotion } from "@/hooks/useHeroMotion";
+import { HERO_MOTION } from "@/lib/heroMotion";
 import type { Achievement } from "@/types/stats";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
@@ -19,13 +21,15 @@ type AchievementBadgeProps = {
 
 export function AchievementBadge({ achievement }: AchievementBadgeProps) {
   const colors = useThemeColors();
-  const scale = useSharedValue(achievement.unlocked ? 0.92 : 1);
+  const reduceMotion = useReduceMotion();
+  const scale = useSharedValue(achievement.unlocked && !reduceMotion ? 0.92 : 1);
 
   useEffect(() => {
-    if (achievement.unlocked) {
-      scale.value = withSpring(1, { damping: 14, stiffness: 180 });
-    }
-  }, [achievement.unlocked, scale]);
+    if (!achievement.unlocked) return;
+    scale.value = reduceMotion
+      ? 1
+      : withSpring(1, HERO_MOTION.markerSpring);
+  }, [achievement.unlocked, reduceMotion, scale]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

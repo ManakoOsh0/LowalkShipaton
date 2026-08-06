@@ -3,13 +3,25 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { FocusNodeTemplateId } from "@/data/quickActions";
-import { computeSessionEndsAt, nodeOverlapsExisting, toIsoDateString } from "@/lib/time";
+import { computeSessionEndsAt, getScheduleWindow, nodeOverlapsExisting, toIsoDateString } from "@/lib/time";
+import { isWithinClassNominalWindow } from "@/lib/classCompletion";
 import {
   computeRequiredOnSiteMs,
   computeShieldStartsAt,
   type ShieldScheduleSettings,
 } from "@/lib/shieldSchedule";
 import { isShieldActiveForNodes } from "@/lib/sessionPenalty";
+import { clampGeofenceRadiusMeters } from "@/lib/geo";
+import {
+  cancelAllPresenceNotifications,
+  clearSessionAwayNotifications,
+  notifyPresencePenalty,
+  notifySessionAway,
+} from "@/services/presenceReminders";
+import {
+  notifyDailyGoalAchieved,
+  notifySessionComplete,
+} from "@/services/completionReminders";
 import type { Anchor, AnchorInput } from "@/types/anchor";
 import type { FocusNode, FocusNodeInput } from "@/types/focusNode";
 import type { PlaceSelection } from "@/types/place";
@@ -26,10 +38,9 @@ import {
   selectWeekSchedule,
   type PresenceContext,
 } from "@/store/selectors";
+import { useSessionPenaltyStore } from "@/store/useSessionPenaltyStore";
 import { createNodeFromTemplate } from "@/store/seed";
-import type { HeroCelebrationPayload } from "@/store/useHeroCelebrationStore";
-import { useHeroCelebrationStore } from "@/store/useHeroCelebrationStore";
-import { useStreakCelebrationStore } from "@/store/useStreakCelebrationStore";
+import { useSessionCompleteStore } from "@/store/useSessionCompleteStore";
 import { useUserStore } from "@/store/useUserStore";
 
 export type AddFocusNodeResult =
@@ -93,6 +104,55 @@ function getShieldSettings(): ShieldScheduleSettings {
   return {
     classPreBufferMinutes: user.classPreBufferMinutes,
     sessionGapMergeMinutes: user.sessionGapMergeMinutes,
+  };
+}
+
+/** Skip per-second Zustand writes when only sub-second on-site ms changed. */
+function shouldPublishOnSiteTick(
+  prev: ActiveSessionSnapshot,
+  next: ActiveSessionSnapshot,
+): boolean {
+  if (prev.onSiteLastTickAt !== next.onSiteLastTickAt) return true;
+  if (prev.headline !== next.headline) return true;
+  return (
+    Math.floor(prev.onSiteAccumulatedMs / 1000) !==
+    Math.floor(next.onSiteAccumulatedMs / 1000)
+  );
+}
+
+function applyOnSitePresenceTick(
+  session: ActiveSessionSnapshot,
+  insideGeofence: boolean,
+  now: number,
+  focusNodes: FocusNode[],
+  anchors: Anchor[],
+): ActiveSessionSnapshot {
+  if (insideGeofence && session.presenceVerified) {
+    const lastTick = session.onSiteLastTickAt
+      ? new Date(session.onSiteLastTickAt).getTime()
+      : now;
+    const delta = session.onSiteLastTickAt ? Math.max(now - lastTick, 0) : 0;
+    const node = focusNodes.find((item) => item.id === session.nodeId);
+    const headline = node
+      ? buildActiveSessionSnapshot(node, anchors, session.endsAt).headline
+      : session.headline;
+
+    return {
+      ...session,
+      onSiteAccumulatedMs: session.onSiteAccumulatedMs + delta,
+      onSiteLastTickAt: new Date(now).toISOString(),
+      headline,
+    };
+  }
+
+  if (!session.onSiteLastTickAt) return session;
+
+  const lastTick = new Date(session.onSiteLastTickAt).getTime();
+  const delta = Math.max(now - lastTick, 0);
+  return {
+    ...session,
+    onSiteAccumulatedMs: session.onSiteAccumulatedMs + delta,
+    onSiteLastTickAt: null,
   };
 }
 
@@ -238,11 +298,34 @@ export const useScheduleStore = create<ScheduleState>()(
 
       resolveAnchorForPlace: (place, radiusMeters = DEFAULT_PROVISIONAL_RADIUS_M) => {
         const { anchors } = get();
-        const existing = anchors.find((anchor) => anchor.placeId === place.placeId);
-        if (existing) return existing.id;
-
+        const clampedRadius = clampGeofenceRadiusMeters(radiusMeters);
         const isDeferred =
           place.deferred === true || (place.latitude === 0 && place.longitude === 0);
+
+        const applyGeofenceToAnchor = (anchorId: string) => {
+          if (isDeferred) return anchorId;
+
+          set({
+            anchors: get().anchors.map((anchor) =>
+              anchor.id === anchorId
+                ? {
+                    ...anchor,
+                    name: place.name,
+                    formattedAddress: place.formattedAddress || anchor.formattedAddress,
+                    latitude: place.latitude,
+                    longitude: place.longitude,
+                    sourceLatitude: place.latitude,
+                    sourceLongitude: place.longitude,
+                    radiusMeters: clampedRadius,
+                  }
+                : anchor,
+            ),
+          });
+          return anchorId;
+        };
+
+        const existing = anchors.find((anchor) => anchor.placeId === place.placeId);
+        if (existing) return applyGeofenceToAnchor(existing.id);
 
         // Nearby reuse only for real map pins — never match deferred 0,0 placeholders.
         if (!isDeferred) {
@@ -252,7 +335,7 @@ export const useScheduleStore = create<ScheduleState>()(
             const dLng = Math.abs(anchor.longitude - place.longitude);
             return dLat < 0.0004 && dLng < 0.0004;
           });
-          if (nearby) return nearby.id;
+          if (nearby) return applyGeofenceToAnchor(nearby.id);
         }
 
         // Deferred anchors wait for on-site GPS; searched/pinned coords work immediately.
@@ -264,7 +347,7 @@ export const useScheduleStore = create<ScheduleState>()(
           sourceLongitude: place.longitude,
           latitude: place.latitude,
           longitude: place.longitude,
-          radiusMeters,
+          radiusMeters: clampedRadius,
           calibrated: false,
         });
       },
@@ -313,13 +396,20 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       setActiveSession: (nodeId, endsAt) => {
+        const previous = get().activeSession;
         if (!nodeId) {
+          if (previous) {
+            void cancelAllPresenceNotifications(previous.nodeId);
+          }
           set({ activeSession: null });
           return;
         }
 
         const node = get().focusNodes.find((focusNode) => focusNode.id === nodeId);
         if (!node) {
+          if (previous) {
+            void cancelAllPresenceNotifications(previous.nodeId);
+          }
           set({ activeSession: null });
           return;
         }
@@ -373,40 +463,41 @@ export const useScheduleStore = create<ScheduleState>()(
         const session = get().activeSession;
         if (!session) return;
 
+        const settings = getShieldSettings();
+        const { focusNodes, anchors } = get();
+
         if (session.scheduleType === "duration" && session.requiredOnSiteMs != null) {
           // On-site time only counts after the arrival verification window completes.
-          if (insideGeofence && session.presenceVerified) {
-            const lastTick = session.onSiteLastTickAt
-              ? new Date(session.onSiteLastTickAt).getTime()
-              : now;
-            const delta = session.onSiteLastTickAt ? Math.max(now - lastTick, 0) : 0;
-            const node = get().focusNodes.find((item) => item.id === session.nodeId);
-            const headline = node
-              ? buildActiveSessionSnapshot(node, get().anchors, session.endsAt).headline
-              : session.headline;
-
-            set({
-              activeSession: {
-                ...session,
-                onSiteAccumulatedMs: session.onSiteAccumulatedMs + delta,
-                onSiteLastTickAt: new Date(now).toISOString(),
-                headline,
-              },
-            });
-          } else if (session.onSiteLastTickAt) {
-            const lastTick = new Date(session.onSiteLastTickAt).getTime();
-            const delta = Math.max(now - lastTick, 0);
-            set({
-              activeSession: {
-                ...session,
-                onSiteAccumulatedMs: session.onSiteAccumulatedMs + delta,
-                onSiteLastTickAt: null,
-              },
-            });
+          const next = applyOnSitePresenceTick(
+            session,
+            insideGeofence,
+            now,
+            focusNodes,
+            anchors,
+          );
+          if (shouldPublishOnSiteTick(session, next)) {
+            set({ activeSession: next });
           }
           return;
         }
 
+        if (session.scheduleType === "class") {
+          const countsTowardAttendance =
+            insideGeofence &&
+            session.presenceVerified &&
+            isWithinClassNominalWindow(session, settings, now);
+
+          const next = applyOnSitePresenceTick(
+            session,
+            countsTowardAttendance,
+            now,
+            focusNodes,
+            anchors,
+          );
+          if (shouldPublishOnSiteTick(session, next)) {
+            set({ activeSession: next });
+          }
+        }
       },
 
       markSessionAway: () => {
@@ -419,6 +510,8 @@ export const useScheduleStore = create<ScheduleState>()(
             awaySince: new Date().toISOString(),
           },
         });
+
+        void notifySessionAway(session.zoneLabel, session.nodeId);
       },
 
       clearSessionAway: () => {
@@ -431,6 +524,8 @@ export const useScheduleStore = create<ScheduleState>()(
             awaySince: null,
           },
         });
+
+        void clearSessionAwayNotifications(session.nodeId);
       },
 
       applyPresencePenalty: () => {
@@ -449,6 +544,15 @@ export const useScheduleStore = create<ScheduleState>()(
             penaltyMinutes: tierMinutes,
           },
         });
+
+        // Surface the in-app penalty sheet when foreground; notification covers background.
+        useSessionPenaltyStore.getState().show({
+          nodeTitle: session.nodeTitle,
+          anchorName: session.zoneLabel,
+          penaltyMinutes: tierMinutes,
+        });
+
+        void notifyPresencePenalty(session.zoneLabel, session.nodeId, tierMinutes);
       },
 
       markSessionPresenceVerified: () => {
@@ -488,6 +592,7 @@ export const useScheduleStore = create<ScheduleState>()(
         if (isShieldActiveForNodes(get().focusNodes, session, settings)) {
           set({ activeSession: session });
         } else {
+          void cancelAllPresenceNotifications(session.nodeId);
           set({ activeSession: null });
         }
 
@@ -499,18 +604,40 @@ export const useScheduleStore = create<ScheduleState>()(
             .getState()
             .checkDailyGoalReward(completedToday, target);
 
-          // Brief Hero beat before the next stop — skipped when the day/week modal takes over.
-          useHeroCelebrationStore.getState().show({
+          void notifySessionComplete(session.nodeTitle, session.nodeId);
+
+          const anchor = node?.anchorId
+            ? get().anchors.find((item) => item.id === node.anchorId) ?? null
+            : null;
+          const scheduleWindow = node ? getScheduleWindow(node.schedule) : null;
+          const scheduledMs = scheduleWindow
+            ? (scheduleWindow.endMinutes - scheduleWindow.startMinutes) * 60_000
+            : 0;
+          const onSiteMs = session.onSiteAccumulatedMs;
+          const durationMs = onSiteMs > 0 ? onSiteMs : scheduledMs;
+          const onSitePercent =
+            scheduledMs > 0 ? Math.min(100, Math.round((onSiteMs / scheduledMs) * 100)) : null;
+
+          useSessionCompleteStore.getState().show({
             nodeId: session.nodeId,
             nodeTitle: session.nodeTitle,
+            kind: node?.kind ?? "custom",
+            streak: result.streak,
             hitDailyGoal: result.hitDailyGoal,
+            coinAwarded: result.coinAwarded,
+            pendingStreakCelebration:
+              result.hitDailyGoal && (result.coinAwarded || result.streakIncremented)
+                ? { streak: result.streak, coinAwarded: result.coinAwarded }
+                : null,
+            durationMs,
+            onSitePercent,
+            presenceVerified: session.presenceVerified,
+            scheduleType: session.scheduleType,
+            venueName: anchor?.name ?? null,
           });
 
           if (result.hitDailyGoal && (result.coinAwarded || result.streakIncremented)) {
-            useStreakCelebrationStore.getState().show({
-              streak: result.streak,
-              coinAwarded: result.coinAwarded,
-            });
+            void notifyDailyGoalAchieved(result.streak, result.coinAwarded);
           }
         }
       },
@@ -519,6 +646,7 @@ export const useScheduleStore = create<ScheduleState>()(
       expireActiveSessionAsMissed: () => {
         const session = get().activeSession;
         if (!session || session.scheduleType !== "duration") return;
+        void cancelAllPresenceNotifications(session.nodeId);
         set({ activeSession: null });
       },
 
@@ -563,6 +691,8 @@ export const useScheduleStore = create<ScheduleState>()(
           get().anchors,
           get().activeSession,
           presence,
+          new Date(),
+          getShieldSettings(),
         ),
 
       getTodaySchedule: () =>

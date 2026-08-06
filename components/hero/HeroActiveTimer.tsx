@@ -6,11 +6,11 @@ import { Platform, Text, View } from "react-native";
 import { HeroCounterProgress } from "@/components/hero/HeroCounterProgress";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
 import {
-  HERO_DIGITAL_CLOCK_LETTER_SPACING,
-  HERO_DIGITAL_CLOCK_LINE_HEIGHT,
-  HERO_DIGITAL_CLOCK_SIZE,
-  HERO_EINK_BUTTON_RADIUS,
-  TRMNL_THEME,
+    HERO_DIGITAL_CLOCK_LETTER_SPACING,
+    HERO_DIGITAL_CLOCK_LINE_HEIGHT,
+    HERO_DIGITAL_CLOCK_SIZE,
+    HERO_EINK_BUTTON_RADIUS,
+    TRMNL_THEME,
 } from "@/lib/heroEink";
 import { FONT_FAMILY } from "@/theme/fonts";
 

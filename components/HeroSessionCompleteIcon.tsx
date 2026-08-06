@@ -1,14 +1,14 @@
 /**
- * HeroSessionCompleteIcon — pixel trophy mascot for the "session complete" Hero Card state.
+ * HeroSessionCompleteIcon — pixel trophy for the session-complete hero beat.
  */
 import { SvgXml } from "react-native-svg";
 
-import { pixelSessionCompleteXml } from "@/constants/pixelSessionComplete";
+import { pixelFocusSecuredXml } from "@/constants/pixelFocusSecured";
 
 type HeroSessionCompleteIconProps = {
   size?: number;
 };
 
-export function HeroSessionCompleteIcon({ size = 76 }: HeroSessionCompleteIconProps) {
-  return <SvgXml xml={pixelSessionCompleteXml} width={size} height={size} />;
+export function HeroSessionCompleteIcon({ size = 56 }: HeroSessionCompleteIconProps) {
+  return <SvgXml xml={pixelFocusSecuredXml} width={size} height={size} />;
 }

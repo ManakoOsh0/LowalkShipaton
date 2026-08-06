@@ -1,10 +1,14 @@
 /** Centralized static image paths — import from here, not directly in UI files. */
 
-/** SVG source for LowalkLogoIcon — bundled via constants/lowalk2Logo.ts */
-export const lowalk2LogoAssetPath = "assets/images/Lowalk2-logo.svg" as const;
+/** Canonical Lowalk brand mark — assets/images/Lowalk-finale-logo.png */
+export const lowalkLogoAssetPath = "assets/images/Lowalk-finale-logo.png" as const;
 
-/** @deprecated Use lowalk2LogoAssetPath */
-export const lowalkTiltAssetPath = "assets/images/lowalk-tilt.svg" as const;
+export const lowalkLogoImage = require("@/assets/images/Lowalk-finale-logo.png");
+
+/** Pixel shield mascot — assets/images/New Piskel.png */
+export const shieldPiskelAssetPath = "assets/images/New Piskel.png" as const;
+
+export const shieldPiskelImage = require("@/assets/images/New Piskel.png");
 
 /** SVG source for LibraryKindIcon — assets/images/library-open-book.svg */
 export const libraryOpenBookAssetPath = "assets/images/library-open-book.svg" as const;
@@ -27,6 +31,9 @@ export const pixelWhaleAssetPath = "assets/images/pixel_whale.svg" as const;
 /** SVG source for HeroTravellerIcon — bundled via constants/pixelTraveller.ts */
 export const pixelTravellerAssetPath = "assets/images/pixel_traveller.svg" as const;
 
+/** SVG path for HeroWalkingIcon — bundled via constants/heroWalking.ts */
+export const heroWalkingAssetPath = "assets/images/hero-walking.svg" as const;
+
 /** SVG source for HeroArrivedIcon — bundled via constants/pixelArrived.ts */
 export const pixelArrivedAssetPath = "assets/images/pixel_arrived.svg" as const;
 
@@ -36,5 +43,5 @@ export const pixelVerificationAssetPath = "assets/images/pixel_verification.svg"
 /** SVG source for HeroPausedIcon — bundled via constants/pixelPaused.ts */
 export const pixelPausedAssetPath = "assets/images/pixel_paused.svg" as const;
 
-/** SVG source for HeroSessionCompleteIcon — bundled via constants/pixelSessionComplete.ts */
-export const pixelSessionCompleteAssetPath = "assets/images/pixel_session_complete.svg" as const;
+/** SVG source for HeroSessionCompleteIcon — bundled via constants/pixelFocusSecured.ts */
+export const pixelFocusSecuredAssetPath = "assets/images/pixel_focus_secured.svg" as const;

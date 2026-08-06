@@ -1,33 +1,59 @@
 /**
  * TodayScheduleCard — today's schedule as separate card rows with breathing room.
  */
+import { useMemo } from "react";
 import { View } from "react-native";
 
-import { NeuCard } from "@/components/NeuCard";
-import { ScheduleRow } from "@/components/ScheduleRow";
-import { CARD_RADIUS_LG } from "@/lib/cardStyle";
-import type { ScheduleItem } from "@/types/dashboard";
+import { TodayScheduleItemCard } from "@/components/TodayScheduleItemCard";
+import type { ScheduleItem, ScheduleItemStatus } from "@/types/dashboard";
 
 type TodayScheduleCardProps = {
   items: ScheduleItem[];
   onItemPress?: (item: ScheduleItem) => void;
+  onItemLongPress?: (item: ScheduleItem) => void;
 };
 
-export function TodayScheduleCard({ items, onItemPress }: TodayScheduleCardProps) {
+const FOCUS_STATUS_PRIORITY: ScheduleItemStatus[] = [
+  "active",
+  "overdue",
+  "upcoming",
+  "missed",
+];
+
+function getFocusScheduleIndex(items: ScheduleItem[]): number {
+  if (items.length === 0) return -1;
+
+  for (const status of FOCUS_STATUS_PRIORITY) {
+    const index = items.findIndex((item) => item.status === status);
+    if (index >= 0) return index;
+  }
+
+  const fallback = items.findIndex(
+    (item) => item.status !== "completed" && item.status !== "skipped",
+  );
+  return fallback >= 0 ? fallback : 0;
+}
+
+export function TodayScheduleCard({
+  items,
+  onItemPress,
+  onItemLongPress,
+}: TodayScheduleCardProps) {
+  const focusItemId = useMemo(() => {
+    const index = getFocusScheduleIndex(items);
+    return index >= 0 ? items[index]?.id : undefined;
+  }, [items]);
+
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 10 }}>
       {items.map((item) => (
-        <NeuCard
+        <TodayScheduleItemCard
           key={item.id}
-          borderRadius={CARD_RADIUS_LG}
-          shadowVariant="sm"
-          contentStyle={{ padding: 0 }}
-        >
-          <ScheduleRow
-            {...item}
-            onPress={onItemPress ? () => onItemPress(item) : undefined}
-          />
-        </NeuCard>
+          item={item}
+          isFocus={item.id === focusItemId}
+          onPress={onItemPress ? () => onItemPress(item) : undefined}
+          onLongPress={onItemLongPress ? () => onItemLongPress(item) : undefined}
+        />
       ))}
     </View>
   );

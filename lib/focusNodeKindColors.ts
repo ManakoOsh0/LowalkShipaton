@@ -33,3 +33,14 @@ export function getKindAccentColor(kind: KindColorKey): string {
 export function getKindTintColor(kind: KindColorKey, alpha = TILE_ALPHA): string {
   return hexToRgba(getKindAccentColor(kind), alpha);
 }
+
+const KIND_LABELS: Record<KindColorKey, string> = {
+  gym: "Gym",
+  class: "Class",
+  library: "Study",
+  custom: "Focus",
+};
+
+export function getKindLabel(kind: KindColorKey): string {
+  return KIND_LABELS[kind] ?? KIND_LABELS.custom;
+}

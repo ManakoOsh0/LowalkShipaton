@@ -18,8 +18,8 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 
 /**
- * Foreground UsageStats monitor — launches ShieldActivity when a blocked app opens.
- * Persists lock state so swiping Lowalk from recents does not end enforcement.
+ * Foreground UsageStats monitor — draws a full-screen shield over blocked apps.
+ * Uses SYSTEM_ALERT_WINDOW when granted (reliable on Android 10+); falls back to ShieldActivity.
  */
 class AppShieldMonitorService : Service() {
   private val handler = Handler(Looper.getMainLooper())
@@ -170,6 +170,31 @@ class AppShieldMonitorService : Service() {
     manager.createNotificationChannel(channel)
   }
 
+  private fun clearBlockedShield() {
+    AppShieldOverlayController.hide(this)
+    lastBlockedPackage = null
+  }
+
+  private fun sendUserHome() {
+    val home = Intent(Intent.ACTION_MAIN).apply {
+      addCategory(Intent.CATEGORY_HOME)
+      flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    }
+    startActivity(home)
+  }
+
+  private fun showBlockedShield(blockedPackage: String, appLabel: String) {
+    if (AppShieldOverlayController.canDrawOverlays(this)) {
+      AppShieldOverlayController.show(this, appLabel) {
+        sendUserHome()
+      }
+      return
+    }
+
+    // Fallback when overlay permission is missing — may fail on Android 10+ background limits.
+    ShieldActivity.launch(this, blockedPackage, appLabel)
+  }
+
   private fun pollOnce() {
     if (blockedPackages.isEmpty()) return
 
@@ -184,18 +209,21 @@ class AppShieldMonitorService : Service() {
     val foreground = AppShieldPermissionHelper.queryForegroundPackage(this) ?: return
 
     if (foreground == packageName) {
-      lastBlockedPackage = null
+      clearBlockedShield()
       return
     }
 
     if (!blockedPackages.contains(foreground)) {
-      lastBlockedPackage = null
+      clearBlockedShield()
+      return
+    }
+
+    if (lastBlockedPackage == foreground && AppShieldOverlayController.isShowing()) {
       return
     }
 
     lastBlockedPackage = foreground
-    val label = resolveLabel(foreground)
-    ShieldActivity.launch(this, foreground, label)
+    showBlockedShield(foreground, resolveLabel(foreground))
   }
 
   private fun resolveLabel(packageName: String): String {
@@ -223,6 +251,10 @@ class AppShieldMonitorService : Service() {
 
     fun prefs(context: Context) =
       context.applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+
+    fun isMonitoringActive(context: Context): Boolean {
+      return prefs(context).getBoolean(PREF_MONITORING_ACTIVE, false)
+    }
 
     fun start(context: Context, packages: List<String>, shieldEndsAtMs: Long) {
       val intent = Intent(context, AppShieldMonitorService::class.java).apply {

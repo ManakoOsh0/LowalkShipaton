@@ -1,19 +1,46 @@
-/** Statistics screen UI models — period charts + mocked gamification sections. */
+/** Statistics screen UI models — period charts + consistency sections. */
 
 export type StatsPeriod = "week" | "month" | "year";
 
 export type PeriodChartBar = {
   label: string;
+  /** Session count for the bucket (kept for streak / share consumers). */
   value: number;
+  /** Estimated focus minutes for the same bucket (stats chart metric). */
+  focusMinutes: number;
   dateIso?: string;
+};
+
+export type PeriodTrend = {
+  /** Percent change vs previous period; null when previous had no focus time. */
+  percentChange: number | null;
+  direction: "up" | "down" | "flat" | "new";
+  comparisonLabel: string;
+};
+
+export type PeriodDayStat = {
+  dateIso: string;
+  label: string;
+  focusMinutes: number;
+  sessions: number;
+  isToday?: boolean;
 };
 
 export type PeriodStats = {
   period: StatsPeriod;
   bars: PeriodChartBar[];
   totalSessions: number;
+  totalFocusMinutes: number;
+  avgFocusMinutes: number;
+  /** Large hero label, e.g. "Avg Focus Time". */
+  heroLabel: string;
+  /** Formatted hero value, e.g. "11h 59m". */
+  heroValue: string;
+  trend: PeriodTrend;
+  dayBreakdown: PeriodDayStat[];
   summaryLabel: string;
   sectionTitle: string;
+  activityTitle: string;
 };
 
 export type WeeklyProgress = {

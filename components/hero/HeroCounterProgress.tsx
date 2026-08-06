@@ -2,14 +2,23 @@
  * HeroCounterProgress — dense vertical segment track for session countdowns.
  * Filled segments are solid ink; unfilled segments use a TRMNL halftone dither.
  */
-import { View } from "react-native";
+import { useEffect } from "react";
+import { StyleSheet, View } from "react-native";
+import type { SharedValue } from "react-native-reanimated";
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
+} from "react-native-reanimated";
 
+import { useReduceMotion } from "@/hooks/useHeroMotion";
 import {
-  HERO_COUNTER_SEGMENT_COUNT,
-  HERO_COUNTER_SEGMENT_GAP,
-  HERO_COUNTER_SEGMENT_HEIGHT,
-  TRMNL_THEME,
+    HERO_COUNTER_SEGMENT_COUNT,
+    HERO_COUNTER_SEGMENT_GAP,
+    HERO_COUNTER_SEGMENT_HEIGHT,
+    TRMNL_THEME,
 } from "@/lib/heroEink";
+import { HERO_MOTION } from "@/lib/heroMotion";
 
 type HeroCounterProgressProps = {
   progressRatio: number;
@@ -59,26 +68,43 @@ function DitheredSegment() {
   );
 }
 
-function CounterSegment({ filled }: { filled: boolean }) {
-  if (filled) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          height: HERO_COUNTER_SEGMENT_HEIGHT,
-          borderRadius: 999,
-          backgroundColor: TRMNL_THEME.textPrimary,
-        }}
-      />
-    );
-  }
+function AnimatedCounterSegment({
+  index,
+  animatedRatio,
+}: {
+  index: number;
+  animatedRatio: SharedValue<number>;
+}) {
+  const fillStyle = useAnimatedStyle(() => {
+    const filled =
+      animatedRatio.value * HERO_COUNTER_SEGMENT_COUNT >= index + 1;
 
-  return <DitheredSegment />;
+    return { opacity: filled ? 1 : 0 };
+  });
+
+  return (
+    <View style={styles.segmentSlot}>
+      <DitheredSegment />
+      <Animated.View style={[StyleSheet.absoluteFill, fillStyle]}>
+        <View style={styles.filledSegment} />
+      </Animated.View>
+    </View>
+  );
 }
 
 export function HeroCounterProgress({ progressRatio }: HeroCounterProgressProps) {
+  const reduceMotion = useReduceMotion();
   const clamped = Math.min(Math.max(progressRatio, 0), 1);
-  const filledCount = Math.round(clamped * HERO_COUNTER_SEGMENT_COUNT);
+  const animatedRatio = useSharedValue(clamped);
+
+  useEffect(() => {
+    animatedRatio.value = reduceMotion
+      ? clamped
+      : withTiming(clamped, {
+          duration: HERO_MOTION.progressMs,
+          easing: HERO_MOTION.progressEasing,
+        });
+  }, [animatedRatio, clamped, reduceMotion]);
 
   return (
     <View
@@ -90,8 +116,25 @@ export function HeroCounterProgress({ progressRatio }: HeroCounterProgressProps)
       }}
     >
       {Array.from({ length: HERO_COUNTER_SEGMENT_COUNT }, (_, index) => (
-        <CounterSegment key={index} filled={index < filledCount} />
+        <AnimatedCounterSegment
+          key={index}
+          index={index}
+          animatedRatio={animatedRatio}
+        />
       ))}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  segmentSlot: {
+    flex: 1,
+    height: HERO_COUNTER_SEGMENT_HEIGHT,
+  },
+  filledSegment: {
+    flex: 1,
+    height: HERO_COUNTER_SEGMENT_HEIGHT,
+    borderRadius: 999,
+    backgroundColor: TRMNL_THEME.accent,
+  },
+});

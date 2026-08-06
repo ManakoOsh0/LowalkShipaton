@@ -4,11 +4,14 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { BlockedApp } from "@/types/blockedApp";
 
-import { isBlockedAppsEditingLocked } from "@/lib/blockedAppsGuard";
+import { isBlockedAppsRemovalLocked } from "@/lib/blockedAppsGuard";
+
+type BlockedAppInput = { name: string; packageName?: string | null };
 
 type BlockedAppsState = {
   apps: BlockedApp[];
-  addApp: (input: { name: string; packageName?: string | null }) => void;
+  addApp: (input: BlockedAppInput) => void;
+  addApps: (inputs: BlockedAppInput[]) => void;
   removeApp: (id: string) => void;
 };
 
@@ -24,33 +27,60 @@ function createBlockedApp(input: {
   };
 }
 
+function isDuplicateBlockedApp(
+  apps: BlockedApp[],
+  trimmedName: string,
+  packageName: string | null,
+): boolean {
+  return apps.some((app) => {
+    if (packageName && app.packageName) {
+      return app.packageName === packageName;
+    }
+    return app.name.toLowerCase() === trimmedName.toLowerCase();
+  });
+}
+
+function appendBlockedApps(
+  existing: BlockedApp[],
+  inputs: BlockedAppInput[],
+): BlockedApp[] {
+  const next = [...existing];
+  for (const input of inputs) {
+    const trimmed = input.name.trim();
+    if (!trimmed) continue;
+    const packageName = input.packageName?.trim() || null;
+    if (isDuplicateBlockedApp(next, trimmed, packageName)) continue;
+    next.push(createBlockedApp({ name: trimmed, packageName }));
+  }
+  return next;
+}
+
 /** Distracting apps list — package names drive native shielding when available. */
 export const useBlockedAppsStore = create<BlockedAppsState>()(
   persist(
     (set) => ({
       apps: [],
       addApp: (input) => {
-        if (isBlockedAppsEditingLocked()) return;
         const trimmed = input.name.trim();
         if (!trimmed) return;
-        const packageName = input.packageName?.trim() || null;
 
         set((state) => {
-          const exists = state.apps.some((app) => {
-            if (packageName && app.packageName) {
-              return app.packageName === packageName;
-            }
-            return app.name.toLowerCase() === trimmed.toLowerCase();
-          });
-          if (exists) return state;
+          const next = appendBlockedApps(state.apps, [input]);
+          if (next.length === state.apps.length) return state;
+          return { apps: next };
+        });
+      },
+      addApps: (inputs) => {
+        if (inputs.length === 0) return;
 
-          return {
-            apps: [...state.apps, createBlockedApp({ name: trimmed, packageName })],
-          };
+        set((state) => {
+          const next = appendBlockedApps(state.apps, inputs);
+          if (next.length === state.apps.length) return state;
+          return { apps: next };
         });
       },
       removeApp: (id) => {
-        if (isBlockedAppsEditingLocked()) return;
+        if (isBlockedAppsRemovalLocked()) return;
         set((state) => ({
           apps: state.apps.filter((app) => app.id !== id),
         }));

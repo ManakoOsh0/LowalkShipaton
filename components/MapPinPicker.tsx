@@ -6,17 +6,21 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { GeofenceMapView, type GeofenceMapViewHandle } from "@/components/GeofenceMapView";
 import { GeofenceRadiusSelector } from "@/components/GeofenceRadiusSelector";
+import { InlineFieldError } from "@/components/form/InlineFieldError";
+import { useModalAnimationType } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import {
   buildGeocodePlaceId,
@@ -46,13 +50,13 @@ type MapPinPickerProps = {
   onConfirm: (place: PlaceSelection, radiusMeters: number) => void;
 };
 
-/** Neighborhood / campus zoom — close enough to spot buildings after panning. */
+/** Pin-drop map height — fixed slot inside the scroll area so the form can scroll on smaller screens. */
 const AREA_VIEWPORT_ZOOM = 14;
+const MAP_HEIGHT = 280;
 
 type InitialMapState = {
   viewport: MapViewport | null;
   coarsePosition: { latitude: number; longitude: number } | null;
-  hint: string;
   areaResolved: boolean;
 };
 
@@ -96,9 +100,6 @@ async function resolveInitialMapState(initialQuery: string): Promise<InitialMapS
         viewport,
         coarsePosition: null,
         areaResolved: true,
-        hint: viewport.label
-          ? `Showing ${viewport.label} — tap the building to drop a pin.`
-          : "Tap the building to drop a pin on your venue.",
       };
     }
   }
@@ -118,9 +119,6 @@ async function resolveInitialMapState(initialQuery: string): Promise<InitialMapS
       },
       coarsePosition: positionResult.position,
       areaResolved: true,
-      hint: label
-        ? `Showing near ${label} — tap the building to drop a pin.`
-        : "Tap the building to drop a pin on your venue.",
     };
   }
 
@@ -128,7 +126,19 @@ async function resolveInitialMapState(initialQuery: string): Promise<InitialMapS
     viewport: null,
     coarsePosition: null,
     areaResolved: false,
-    hint: "Enter your city, suburb, or campus below to find the map.",
+  };
+}
+
+function inputStyle(colors: ReturnType<typeof useThemeColors>) {
+  return {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: "Poppins-Regular" as const,
+    fontSize: 15,
+    color: colors.foreground,
   };
 }
 
@@ -142,6 +152,7 @@ export function MapPinPicker({
   onConfirm,
 }: MapPinPickerProps) {
   const colors = useThemeColors();
+  const modalAnimationType = useModalAnimationType("slide");
   const mapRef = useRef<GeofenceMapViewHandle>(null);
 
   const [name, setName] = useState(initialName);
@@ -167,7 +178,7 @@ export function MapPinPicker({
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [viewportHint, setViewportHint] = useState<string | null>(null);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const resetPin = () => {
     setCenter(null);
@@ -176,18 +187,12 @@ export function MapPinPicker({
     mapRef.current?.clearPin();
   };
 
-  const applyAreaViewport = (viewport: MapViewport, hint?: string) => {
+  const applyAreaViewport = (viewport: MapViewport) => {
     resetPin();
     setMapViewport(viewport);
     setAreaResolved(true);
     setAreaSuggestions([]);
     setMapKey((key) => key + 1);
-    setViewportHint(
-      hint ??
-        (viewport.label
-          ? `Showing ${viewport.label} — tap the building to drop a pin.`
-          : "Tap the building to drop a pin on your venue."),
-    );
   };
 
   useEffect(() => {
@@ -201,21 +206,33 @@ export function MapPinPicker({
     setZoom(null);
     setResolvedAddress(null);
     setError(null);
-    setViewportHint(null);
     setAreaResolved(false);
     setMapViewport(null);
+    setIsKeyboardVisible(false);
 
     void (async () => {
       setIsInitializing(true);
       const initial = await resolveInitialMapState(initialQuery);
       setCoarsePosition(initial.coarsePosition);
-      setViewportHint(initial.hint);
       if (initial.areaResolved && initial.viewport) {
-        applyAreaViewport(initial.viewport, initial.hint);
+        applyAreaViewport(initial.viewport);
       }
       setIsInitializing(false);
     })();
   }, [visible, initialName, initialQuery, initialRadiusMeters]);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!visible) return;
@@ -232,7 +249,7 @@ export function MapPinPicker({
         const result = await geocodeSearch(trimmed);
         setIsLoadingAreaSuggestions(false);
         if (result.success) {
-          setAreaSuggestions(result.data.slice(0, 5));
+          setAreaSuggestions(result.data.slice(0, 4));
         } else {
           setAreaSuggestions([]);
         }
@@ -263,7 +280,7 @@ export function MapPinPicker({
   const handleAreaSearch = async () => {
     const trimmed = areaQuery.trim();
     if (trimmed.length < 3) {
-      setError("Enter at least 3 characters — e.g. Hatfield, Pretoria campus.");
+      setError("Enter at least 3 characters — e.g. Hatfield or Pretoria campus.");
       return;
     }
 
@@ -310,9 +327,6 @@ export function MapPinPicker({
         zoom: AREA_VIEWPORT_ZOOM,
         label: label ?? undefined,
       },
-      label
-        ? `Showing near ${label} — tap the building to drop a pin. (Map only — not your venue.)`
-        : "Tap the building to drop a pin on your venue.",
     );
     setIsJumpingToArea(false);
   };
@@ -346,7 +360,7 @@ export function MapPinPicker({
     }
     if (!resolvedAddress && !isResolvingAddress) {
       setError(
-        "We could not identify this spot. Zoom in on the building, or use “Set location when I arrive” instead.",
+        "We could not identify this spot. Zoom in on the building, or use “When I arrive” instead.",
       );
       return;
     }
@@ -389,7 +403,7 @@ export function MapPinPicker({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+    <Modal visible={visible} animationType={modalAnimationType} presentationStyle="fullScreen">
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View
           style={{
@@ -422,107 +436,193 @@ export function MapPinPicker({
           </Pressable>
         </View>
 
-        <View
-          style={{
-            paddingHorizontal: 16,
-            paddingBottom: 12,
-            gap: 8,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
-          }}
-        >
-          <Text
-            style={{
-              fontFamily: "Poppins-SemiBold",
-              fontSize: 14,
-              color: colors.foreground,
-            }}
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 12, gap: 10 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            automaticallyAdjustKeyboardInsets
+            showsVerticalScrollIndicator
           >
-            Step 1 — Find your area
-          </Text>
-          <Text
-            style={{
-              fontFamily: "Poppins-Regular",
-              fontSize: 13,
-              lineHeight: 18,
-              color: colors.muted,
-            }}
-          >
-            Enter your city, suburb, or campus so the map opens in the right place.
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TextInput
-              value={areaQuery}
-              onChangeText={(value) => {
-                setAreaQuery(value);
-                setError(null);
-              }}
-              onSubmitEditing={() => void handleAreaSearch()}
-              returnKeyType="search"
-              placeholder="e.g. Hatfield, Pretoria · UCT campus"
-              placeholderTextColor={colors.muted}
-              autoCapitalize="words"
-              autoCorrect={false}
+            <Text
               style={{
-                flex: 1,
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: colors.border,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                fontFamily: "Poppins-Regular",
-                fontSize: 15,
-                color: colors.foreground,
-              }}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Find area on map"
-              onPress={() => void handleAreaSearch()}
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 14,
-                backgroundColor: colors.primary,
-                paddingHorizontal: 14,
-                paddingVertical: 12,
-                minWidth: 52,
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 13,
+                color: colors.muted,
               }}
             >
-              {isSearchingArea ? (
-                <ActivityIndicator color="#F0EDE9" />
-              ) : (
-                <Text
+              Find your area
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TextInput
+                value={areaQuery}
+                onChangeText={(value) => {
+                  setAreaQuery(value);
+                  setError(null);
+                }}
+                onSubmitEditing={() => void handleAreaSearch()}
+                returnKeyType="search"
+                placeholder="City, suburb, or campus"
+                placeholderTextColor={colors.muted}
+                autoCapitalize="words"
+                autoCorrect={false}
+                style={[inputStyle(colors), { flex: 1, backgroundColor: colors.background }]}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Find area on map"
+                onPress={() => void handleAreaSearch()}
+                style={{
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 14,
+                  backgroundColor: colors.primary,
+                  paddingHorizontal: 14,
+                  minWidth: 52,
+                }}
+              >
+                {isSearchingArea ? (
+                  <ActivityIndicator color="#F0EDE9" />
+                ) : (
+                  <Text
+                    style={{
+                      fontFamily: "Poppins-Bold",
+                      fontSize: 14,
+                      color: "#F0EDE9",
+                    }}
+                  >
+                    Go
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+
+            <View style={{ gap: 8 }}>
+              <Text
+                style={{
+                  fontFamily: "Poppins-SemiBold",
+                  fontSize: 13,
+                  color: colors.muted,
+                }}
+              >
+                Venue name
+              </Text>
+              <TextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Main Library"
+                placeholderTextColor={colors.muted}
+                style={[inputStyle(colors), { backgroundColor: colors.background }]}
+              />
+            </View>
+
+            {isLoadingAreaSuggestions ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : null}
+
+            {areaSuggestions.length > 0 ? (
+              <View style={{ gap: 6 }}>
+                {areaSuggestions.map((suggestion) => (
+                  <Pressable
+                    key={suggestion.placeId}
+                    accessibilityRole="button"
+                    onPress={() => handleSelectAreaSuggestion(suggestion)}
+                    style={{
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      paddingHorizontal: 12,
+                      paddingVertical: 10,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: "Poppins-SemiBold",
+                        fontSize: 14,
+                        color: colors.foreground,
+                      }}
+                    >
+                      {suggestion.primaryText}
+                    </Text>
+                    {suggestion.secondaryText ? (
+                      <Text
+                        style={{
+                          marginTop: 2,
+                          fontFamily: "Poppins-Regular",
+                          fontSize: 12,
+                          color: colors.muted,
+                        }}
+                      >
+                        {suggestion.secondaryText}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void handleJumpToMyArea()}
+              disabled={isJumpingToArea}
+            >
+              <Text
+                style={{
+                  fontFamily: "Poppins-SemiBold",
+                  fontSize: 13,
+                  color: colors.primary,
+                }}
+              >
+                {isJumpingToArea ? "Finding your area…" : "Use my current area"}
+              </Text>
+            </Pressable>
+
+            <View
+              style={{
+                height: MAP_HEIGHT,
+                borderRadius: 14,
+                overflow: "hidden",
+              }}
+            >
+              {isInitializing ? (
+                <View
                   style={{
-                    fontFamily: "Poppins-Bold",
-                    fontSize: 14,
-                    color: "#F0EDE9",
+                    flex: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: colors.border,
                   }}
                 >
-                  Go
-                </Text>
-              )}
-            </Pressable>
-          </View>
-
-          {isLoadingAreaSuggestions ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : null}
-
-          {areaSuggestions.length > 0 ? (
-            <View style={{ gap: 6 }}>
-              {areaSuggestions.map((suggestion) => (
-                <Pressable
-                  key={suggestion.placeId}
-                  accessibilityRole="button"
-                  onPress={() => handleSelectAreaSuggestion(suggestion)}
+                  <ActivityIndicator color={colors.primary} />
+                </View>
+              ) : areaResolved && mapViewport ? (
+                <GeofenceMapView
+                  ref={mapRef}
+                  mode="pindrop"
+                  viewport={mapViewport}
+                  center={center}
+                  radiusMeters={radiusMeters}
+                  mapKey={mapKey}
+                  height={MAP_HEIGHT}
+                  onCenterChange={({ latitude, longitude, zoom: nextZoom }) => {
+                    setZoom(nextZoom);
+                    setError(null);
+                    if (latitude !== undefined && longitude !== undefined) {
+                      setCenter({ latitude, longitude });
+                    }
+                  }}
+                />
+              ) : (
+                <View
                   style={{
-                    borderRadius: 12,
+                    flex: 1,
+                    alignItems: "center",
+                    justifyContent: "center",
                     borderWidth: 1,
                     borderColor: colors.border,
-                    paddingHorizontal: 12,
-                    paddingVertical: 10,
+                    paddingHorizontal: 24,
+                    gap: 6,
                   }}
                 >
                   <Text
@@ -530,254 +630,101 @@ export function MapPinPicker({
                       fontFamily: "Poppins-SemiBold",
                       fontSize: 14,
                       color: colors.foreground,
+                      textAlign: "center",
                     }}
                   >
-                    {suggestion.primaryText}
+                    Map appears after area search
                   </Text>
-                  {suggestion.secondaryText ? (
-                    <Text
-                      style={{
-                        marginTop: 2,
-                        fontFamily: "Poppins-Regular",
-                        fontSize: 12,
-                        color: colors.muted,
-                      }}
-                    >
-                      {suggestion.secondaryText}
-                    </Text>
-                  ) : null}
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void handleJumpToMyArea()}
-            disabled={isJumpingToArea}
-          >
-            <Text
-              style={{
-                fontFamily: "Poppins-SemiBold",
-                fontSize: 13,
-                color: colors.primary,
-              }}
-            >
-              {isJumpingToArea
-                ? "Finding your area…"
-                : "Or jump to my current area (map only — not your venue)"}
-            </Text>
-          </Pressable>
-        </View>
-
-        <ScrollView
-          style={{ flexGrow: 0, flexShrink: 0 }}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 10, gap: 6 }}
-          keyboardShouldPersistTaps="handled"
-          nestedScrollEnabled
-        >
-          <Text
-            style={{
-              fontFamily: "Poppins-SemiBold",
-              fontSize: 14,
-              color: colors.foreground,
-            }}
-          >
-            Step 2 — Name & pin your venue
-          </Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Venue name (e.g. Main Library)"
-            placeholderTextColor={colors.muted}
-            style={{
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-              fontFamily: "Poppins-Regular",
-              fontSize: 15,
-              color: colors.foreground,
-            }}
-          />
-
-          {viewportHint ? (
-            <Text
-              style={{
-                fontFamily: "Poppins-Regular",
-                fontSize: 13,
-                color: colors.muted,
-              }}
-            >
-              {viewportHint}
-            </Text>
-          ) : null}
-
-          {center ? (
-            <View style={{ gap: 4 }}>
-              {isResolvingAddress ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : resolvedAddress ? (
-                <Text
-                  style={{
-                    fontFamily: "Poppins-Regular",
-                    fontSize: 13,
-                    color: colors.foreground,
-                  }}
-                >
-                  {resolvedAddress}
-                </Text>
-              ) : (
-                <Text
-                  style={{
-                    fontFamily: "Poppins-Regular",
-                    fontSize: 13,
-                    color: colors.muted,
-                  }}
-                >
-                  Identifying this spot…
-                </Text>
+                  <Text
+                    style={{
+                      fontFamily: "Poppins-Regular",
+                      fontSize: 13,
+                      lineHeight: 18,
+                      color: colors.muted,
+                      textAlign: "center",
+                    }}
+                  >
+                    Search above — e.g. Hatfield, Sandton, or your campus name.
+                  </Text>
+                </View>
               )}
-              {zoom !== null && zoom < MIN_PIN_CONFIRM_ZOOM ? (
+            </View>
+
+            {center ? (
+              <View style={{ gap: 2 }}>
+                {isResolvingAddress ? (
+                  <Text
+                    style={{
+                      fontFamily: "Poppins-Regular",
+                      fontSize: 12,
+                      color: colors.muted,
+                    }}
+                  >
+                    Identifying this spot…
+                  </Text>
+                ) : resolvedAddress ? (
+                  <Text
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={{
+                      fontFamily: "Poppins-Regular",
+                      fontSize: 12,
+                      color: colors.muted,
+                    }}
+                  >
+                    {resolvedAddress}
+                  </Text>
+                ) : null}
+                {zoom !== null && zoom < MIN_PIN_CONFIRM_ZOOM ? (
+                  <InlineFieldError message="Zoom in closer until you can see the building." />
+                ) : null}
+              </View>
+            ) : null}
+
+            <GeofenceRadiusSelector
+              radiusMeters={radiusMeters}
+              onRadiusChange={setRadiusMeters}
+              suggestedPresetId={suggestedPresetId}
+            />
+
+            {error ? <InlineFieldError message={error} /> : null}
+          </ScrollView>
+
+          {!isKeyboardVisible ? (
+            <View
+              style={{
+                paddingHorizontal: 16,
+                paddingTop: 10,
+                paddingBottom: 12,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                backgroundColor: colors.background,
+              }}
+            >
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void handleConfirm()}
+                disabled={isConfirming || isResolvingAddress}
+                style={{
+                  alignItems: "center",
+                  borderRadius: 14,
+                  backgroundColor: colors.primary,
+                  paddingVertical: 14,
+                  opacity: isConfirming || isResolvingAddress ? 0.7 : 1,
+                }}
+              >
                 <Text
                   style={{
-                    fontFamily: "Poppins-Regular",
-                    fontSize: 13,
-                    color: colors.error,
+                    fontFamily: "Poppins-Bold",
+                    fontSize: 16,
+                    color: "#F0EDE9",
                   }}
                 >
-                  Zoom in closer until you can see the building.
+                  {isConfirming ? "Saving…" : "Use this pin"}
                 </Text>
-              ) : null}
+              </Pressable>
             </View>
           ) : null}
-
-          {error ? (
-            <Text
-              style={{
-                fontFamily: "Poppins-Regular",
-                fontSize: 13,
-                color: colors.error,
-              }}
-            >
-              {error}
-            </Text>
-          ) : null}
-        </ScrollView>
-
-        <View style={{ flex: 1, minHeight: 260, marginHorizontal: 16 }}>
-          {isInitializing ? (
-            <View
-              style={{
-                flex: 1,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 14,
-                backgroundColor: colors.border,
-              }}
-            >
-              <ActivityIndicator color={colors.primary} />
-            </View>
-          ) : areaResolved && mapViewport ? (
-            <GeofenceMapView
-              ref={mapRef}
-              mode="pindrop"
-              viewport={mapViewport}
-              center={center}
-              radiusMeters={radiusMeters}
-              mapKey={mapKey}
-              height="flex"
-              onCenterChange={({ latitude, longitude, zoom: nextZoom }) => {
-                setCenter({ latitude, longitude });
-                setZoom(nextZoom);
-                setError(null);
-              }}
-            />
-          ) : (
-            <View
-              style={{
-                flex: 1,
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 14,
-                borderWidth: 1,
-                borderColor: colors.border,
-                paddingHorizontal: 24,
-                gap: 8,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 15,
-                  color: colors.foreground,
-                  textAlign: "center",
-                }}
-              >
-                Map will appear here
-              </Text>
-              <Text
-                style={{
-                  fontFamily: "Poppins-Regular",
-                  fontSize: 13,
-                  lineHeight: 19,
-                  color: colors.muted,
-                  textAlign: "center",
-                }}
-              >
-                Search for your city, suburb, or campus above — e.g. &quot;Hatfield&quot;,
-                &quot;Stellenbosch campus&quot;, or &quot;Sandton&quot;.
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-          <GeofenceRadiusSelector
-            radiusMeters={radiusMeters}
-            onRadiusChange={setRadiusMeters}
-            suggestedPresetId={suggestedPresetId}
-          />
-        </View>
-
-        <View style={{ padding: 16, gap: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-          <Text
-            style={{
-              fontFamily: "Poppins-Regular",
-              fontSize: 12,
-              color: colors.muted,
-              textAlign: "center",
-            }}
-          >
-            {!areaResolved
-              ? "Find your area first, then tap the building on the map."
-              : center
-                ? "Drag the purple circle to fine-tune, then save."
-                : "Tap the building on the map to place your pin."}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void handleConfirm()}
-            disabled={isConfirming || isResolvingAddress}
-            style={{
-              alignItems: "center",
-              borderRadius: 14,
-              backgroundColor: colors.primary,
-              paddingVertical: 14,
-              opacity: isConfirming || isResolvingAddress ? 0.7 : 1,
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: "Poppins-Bold",
-                fontSize: 16,
-                color: "#F0EDE9",
-              }}
-            >
-              {isConfirming ? "Saving…" : "Use this pin"}
-            </Text>
-          </Pressable>
         </View>
       </SafeAreaView>
     </Modal>

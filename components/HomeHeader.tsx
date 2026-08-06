@@ -1,16 +1,20 @@
 /**
- * Home screen header — weekday, date subtitle, and streak count.
+ * Home screen header — weekday, date subtitle, and streak pill (opens Activity).
  */
 import { Text, View } from "react-native";
 
+import { NeuCard } from "@/components/NeuCard";
 import { StreakFlame } from "@/components/StreakFlame";
-import { PILL_RADIUS } from "@/lib/cardStyle";
 import { useThemeColors } from "@/hooks/useThemeColors";
-
-const SCREEN_PADDING = 16;
+import { PILL_RADIUS } from "@/lib/cardStyle";
+import { SCREEN_PADDING } from "@/lib/layout";
+import { textStyle } from "@/lib/typography";
+import { FONT_FAMILY } from "@/theme/fonts";
 
 type HomeHeaderProps = {
   streak: number;
+  /** Opens Activity — the streak pill is the single stats entry point. */
+  onStreakPress?: () => void;
 };
 
 function formatWeekday(date = new Date()): string {
@@ -21,58 +25,44 @@ function formatDateSubtitle(date = new Date()): string {
   return date.toLocaleDateString(undefined, { day: "numeric", month: "long" });
 }
 
-function StreakPill({ streak }: { streak: number }) {
+function StreakBadge({ streak, onPress }: { streak: number; onPress?: () => void }) {
   const colors = useThemeColors();
   const label = `${streak} day streak`;
 
   return (
-    <View
-      accessibilityLabel={label}
-      style={{
+    <NeuCard
+      borderRadius={PILL_RADIUS}
+      shadowVariant="sm"
+      style={{ alignSelf: "flex-start" }}
+      contentStyle={{
         flexDirection: "row",
         alignItems: "center",
-        gap: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: PILL_RADIUS,
-        backgroundColor: colors.card,
-        borderWidth: 1,
-        borderColor: colors.cardStroke,
-        borderCurve: "continuous",
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
       }}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={onPress ? `${label}. View activity.` : label}
     >
-      <StreakFlame height={20} />
-
-      <View style={{ flexDirection: "row", alignItems: "baseline", gap: 4 }}>
-        <Text
-          selectable
-          style={{
-            fontFamily: "Poppins-SemiBold",
-            fontSize: 15,
-            lineHeight: 20,
-            marginTop: 2,
-            color: colors.foreground,
-            fontVariant: ["tabular-nums"],
-          }}
-        >
-          {streak}
-        </Text>
-        <Text
-          style={{
-            fontFamily: "Poppins-Medium",
-            fontSize: 12,
-            lineHeight: 16,
-            color: colors.foregroundSubtle,
-          }}
-        >
-          day streak
-        </Text>
-      </View>
-    </View>
+      <StreakFlame height={18} color={colors.streak} />
+      <Text
+        selectable
+        style={{
+          fontFamily: FONT_FAMILY.bold,
+          fontSize: 16,
+          lineHeight: 20,
+          color: colors.streak,
+          fontVariant: ["tabular-nums"],
+        }}
+      >
+        {streak}
+      </Text>
+    </NeuCard>
   );
 }
 
-export function HomeHeader({ streak }: HomeHeaderProps) {
+export function HomeHeader({ streak, onStreakPress }: HomeHeaderProps) {
   const colors = useThemeColors();
   const today = new Date();
   const weekday = formatWeekday(today);
@@ -84,8 +74,8 @@ export function HomeHeader({ streak }: HomeHeaderProps) {
       accessibilityLabel={`${weekday}, ${dateSubtitle}`}
       style={{
         paddingHorizontal: SCREEN_PADDING,
-        paddingTop: 14,
-        paddingBottom: 20,
+        paddingTop: 10,
+        paddingBottom: 12,
         gap: 2,
       }}
     >
@@ -98,30 +88,19 @@ export function HomeHeader({ streak }: HomeHeaderProps) {
         }}
       >
         <Text
-          style={{
+          style={textStyle("h3", colors.foreground, {
             flexShrink: 1,
-            fontFamily: "Poppins-Bold",
-            fontSize: 22,
-            lineHeight: 28,
-            color: colors.foreground,
-          }}
+            fontFamily: FONT_FAMILY.bold,
+          })}
+          numberOfLines={1}
         >
           {weekday}
         </Text>
 
-        <StreakPill streak={streak} />
+        <StreakBadge streak={streak} onPress={onStreakPress} />
       </View>
 
-      <Text
-        style={{
-          fontFamily: "Poppins-Regular",
-          fontSize: 13,
-          lineHeight: 18,
-          color: colors.muted,
-        }}
-      >
-        {dateSubtitle}
-      </Text>
+      <Text style={textStyle("bodySm", colors.muted)}>{dateSubtitle}</Text>
     </View>
   );
 }

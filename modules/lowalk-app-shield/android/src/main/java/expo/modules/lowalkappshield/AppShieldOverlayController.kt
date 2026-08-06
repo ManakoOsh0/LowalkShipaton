@@ -2,16 +2,18 @@ package expo.modules.lowalkappshield
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.PixelFormat
 import android.os.Build
 import android.provider.Settings
+import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.view.WindowManager
-import android.graphics.PixelFormat
 
 /**
  * Draws a full-screen focus shield over whatever app is currently open
- * (SYSTEM_ALERT_WINDOW). This is intentionally not a React Native Modal inside Lowalk.
+ * (SYSTEM_ALERT_WINDOW). Primary enforcement path on Android 10+.
  */
 object AppShieldOverlayController {
   private var overlayView: View? = null
@@ -26,13 +28,16 @@ object AppShieldOverlayController {
 
   fun show(context: Context, appLabel: String, onGoHome: () -> Unit) {
     if (!canDrawOverlays(context)) return
+
+    val appContext = context.applicationContext
     if (overlayView != null) return
 
-    val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-    val copy = ShieldOverlayContextStore.read(context)
+    val windowManager =
+      appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    val copy = ShieldOverlayContextStore.read(appContext)
 
-    val root = ShieldOverlayUi.build(context, copy) {
-      hide(context)
+    val root = ShieldOverlayUi.build(appContext, copy, appLabel) {
+      hide(appContext)
       onGoHome()
     }
 
@@ -49,10 +54,37 @@ object AppShieldOverlayController {
       WindowManager.LayoutParams.MATCH_PARENT,
       type,
       WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-      PixelFormat.TRANSLUCENT,
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+        WindowManager.LayoutParams.FLAG_FULLSCREEN or
+        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+      PixelFormat.OPAQUE,
     ).apply {
       gravity = Gravity.TOP or Gravity.START
+      x = 0
+      y = 0
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        layoutInDisplayCutoutMode =
+          WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+      }
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        val windowMetrics = windowManager.currentWindowMetrics
+        val systemBarInsets = windowMetrics.windowInsets.getInsetsIgnoringVisibility(
+          WindowInsets.Type.systemBars(),
+        )
+        width = windowMetrics.bounds.width()
+        height = windowMetrics.bounds.height() + systemBarInsets.top + systemBarInsets.bottom
+        y = -systemBarInsets.top
+        fitInsetsTypes = 0
+      } else {
+        @Suppress("DEPRECATION")
+        val displayMetrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(displayMetrics)
+        width = displayMetrics.widthPixels
+        height = displayMetrics.heightPixels
+      }
     }
 
     try {
@@ -65,7 +97,9 @@ object AppShieldOverlayController {
 
   fun hide(context: Context) {
     val view = overlayView ?: return
-    val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    val appContext = context.applicationContext
+    val windowManager =
+      appContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     try {
       windowManager.removeView(view)
     } catch (_: Exception) {

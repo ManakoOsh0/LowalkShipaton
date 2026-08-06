@@ -1,11 +1,16 @@
 /**
- * Step 2 of Focus Node create/edit — venue selection only.
+ * Step 2 of Focus Node create/edit — inline venue search with recent places.
  */
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 
-import { PlacePicker } from "@/components/PlacePicker";
+import { ScrollEdgeFade } from "@/components/ScrollEdgeFade";
+import { FormSectionCard } from "@/components/form/FormSectionCard";
+import { InlineFieldError } from "@/components/form/InlineFieldError";
+import { PlaceGeofenceEditor } from "@/components/PlaceGeofenceEditor";
+import { PlaceSearchCore } from "@/components/PlaceSearchCore";
 import { defaultRadiusForKind, presetIdForKind } from "@/lib/geo";
+import { useScheduleStore } from "@/store/useScheduleStore";
 import type { ThemeColors } from "@/theme/tokens";
 import type { Anchor } from "@/types/anchor";
 import type { FocusNodeKind } from "@/types/focusNode";
@@ -16,185 +21,285 @@ function placeFieldCopy(kind: FocusNodeKind): { label: string; emptyHint: string
     case "gym":
       return {
         label: "Gym venue",
-        emptyHint: "Search for a gym (e.g. Virgin Active Hatfield)",
+        emptyHint: "Virgin Active Hatfield",
       };
     case "library":
       return {
         label: "Library venue",
-        emptyHint: "Search for a library (e.g. Merensky Library)",
+        emptyHint: "Merensky Library",
       };
     case "class":
       return {
         label: "Building / campus place",
-        emptyHint: "Search for a building (e.g. IT Building)",
+        emptyHint: "IT Building",
       };
     default:
       return {
         label: "Place",
-        emptyHint: "Search for a place on the map",
+        emptyHint: "Search for a place",
       };
   }
+}
+
+function anchorToPlace(anchor: Anchor): PlaceSelection {
+  const latitude = anchor.sourceLatitude ?? anchor.latitude;
+  const longitude = anchor.sourceLongitude ?? anchor.longitude;
+
+  return {
+    placeId:
+      anchor.placeId ??
+      `geo:${latitude.toFixed(5)},${longitude.toFixed(5)}:${anchor.name.trim().toLowerCase()}`,
+    name: anchor.name,
+    formattedAddress: anchor.formattedAddress ?? "",
+    latitude,
+    longitude,
+  };
 }
 
 type FocusNodeLocationStepProps = {
   kind: FocusNodeKind;
   summaryLine: string;
-  selectedAnchor: Anchor | null;
   selectedPlace: PlaceSelection | null;
   anchors: Anchor[];
   selectedAnchorId: string | null;
-  onSelectAnchor: (anchor: Anchor) => void;
   onPlaceSelected: (place: PlaceSelection, anchorId: string) => void;
+  locationError?: string;
   colors: ThemeColors;
 };
 
 export function FocusNodeLocationStep({
   kind,
   summaryLine,
-  selectedAnchor,
   selectedPlace,
   anchors,
   selectedAnchorId,
-  onSelectAnchor,
   onPlaceSelected,
+  locationError,
   colors,
 }: FocusNodeLocationStepProps) {
-  const [placePickerVisible, setPlacePickerVisible] = useState(false);
+  const resolveAnchorForPlace = useScheduleStore((state) => state.resolveAnchorForPlace);
   const placeCopy = placeFieldCopy(kind);
+  const defaultRadius = defaultRadiusForKind(kind);
+  const suggestedPresetId = presetIdForKind(kind);
 
-  const usableAnchors = anchors.filter(
-    (anchor) => !(anchor.latitude === 0 && anchor.longitude === 0),
-  );
+  const [previewPlace, setPreviewPlace] = useState<PlaceSelection | null>(null);
+  const [previewRadius, setPreviewRadius] = useState(defaultRadius);
+
+  const usableAnchors = anchors
+    .filter((anchor) => !(anchor.latitude === 0 && anchor.longitude === 0))
+    .slice(0, 5);
+
+  const showRecentPlaces = usableAnchors.length > 0;
+
+  const syncPreviewToParent = (place: PlaceSelection, radius: number) => {
+    const anchorId = resolveAnchorForPlace(place, radius);
+    onPlaceSelected(place, anchorId);
+  };
+
+  const handlePendingPlaceChange = (place: PlaceSelection | null) => {
+    setPreviewPlace(place);
+    if (!place) return;
+    const existing = anchors.find((anchor) => anchor.placeId === place.placeId) ?? null;
+    const radius = existing?.radiusMeters ?? defaultRadius;
+    setPreviewRadius(radius);
+    syncPreviewToParent(place, radius);
+  };
+
+  const handlePreviewPlaceChange = (place: PlaceSelection) => {
+    setPreviewPlace(place);
+    syncPreviewToParent(place, previewRadius);
+  };
+
+  const handlePreviewRadiusChange = (radius: number) => {
+    setPreviewRadius(radius);
+    if (previewPlace) {
+      syncPreviewToParent(previewPlace, radius);
+    }
+  };
+
+  const handleSelectRecentAnchor = (anchor: Anchor) => {
+    const place = anchorToPlace(anchor);
+    syncPreviewToParent(place, anchor.radiusMeters);
+  };
+
+  const handleChangePlace = () => {
+    setPreviewPlace(null);
+  };
+
+  const isAdjustingGeofence = previewPlace && !previewPlace.deferred;
 
   return (
-    <View style={{ gap: 16 }}>
-      {summaryLine ? (
-        <View
-          style={{
-            borderRadius: 14,
-            backgroundColor: colors.background,
-            borderWidth: 1,
-            borderColor: colors.border,
-            paddingHorizontal: 14,
-            paddingVertical: 12,
-          }}
-        >
-          <Text
-            style={{
-              fontFamily: "Poppins-Regular",
-              fontSize: 13,
-              lineHeight: 18,
-              color: colors.muted,
-            }}
-          >
-            {summaryLine}
-          </Text>
-        </View>
-      ) : null}
-
-      <Text
-        style={{
-          fontFamily: "Poppins-SemiBold",
-          fontSize: 13,
-          lineHeight: 18,
-          color: colors.muted,
-        }}
-      >
-        {placeCopy.label}
-      </Text>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={placeCopy.label}
-        onPress={() => setPlacePickerVisible(true)}
-        style={{
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.background,
-          paddingHorizontal: 14,
-          paddingVertical: 14,
-        }}
-      >
-        <Text
-          style={{
-            fontFamily: selectedAnchor ? "Poppins-SemiBold" : "Poppins-Regular",
-            fontSize: 15,
-            color: selectedAnchor ? colors.foreground : colors.muted,
-          }}
-        >
-          {selectedAnchor?.name ?? placeCopy.emptyHint}
-        </Text>
-        {selectedAnchor?.formattedAddress ? (
-          <Text
-            style={{
-              marginTop: 4,
-              fontFamily: "Poppins-Regular",
-              fontSize: 13,
-              color: colors.muted,
-            }}
-          >
-            {selectedAnchor.formattedAddress}
-          </Text>
-        ) : null}
-      </Pressable>
-
-      {usableAnchors.length > 0 ? (
-        <View style={{ gap: 8 }}>
-          <Text
-            style={{
-              fontFamily: "Poppins-SemiBold",
-              fontSize: 13,
-              lineHeight: 18,
-              color: colors.muted,
-            }}
-          >
-            Recent places
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {usableAnchors.map((anchor) => {
-              const selected = selectedAnchorId === anchor.id;
-              return (
-                <Pressable
-                  key={anchor.id}
-                  onPress={() => onSelectAnchor(anchor)}
+    <View style={{ flex: 1, minHeight: 0, gap: 12 }}>
+      {isAdjustingGeofence ? (
+        <View style={{ gap: 12 }}>
+          <View style={{ gap: 4 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text
                   style={{
-                    borderRadius: 12,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    backgroundColor: selected ? colors.primary : colors.background,
-                    borderWidth: 1,
-                    borderColor: selected ? colors.primary : colors.border,
+                    fontFamily: "Poppins-SemiBold",
+                    fontSize: 16,
+                    color: colors.foreground,
                   }}
                 >
+                  {previewPlace.name}
+                </Text>
+                {previewPlace.formattedAddress ? (
                   <Text
                     style={{
-                      fontFamily: "Poppins-SemiBold",
-                      fontSize: 12,
-                      color: selected ? "#F0EDE9" : colors.foreground,
+                      fontFamily: "Poppins-Regular",
+                      fontSize: 13,
+                      lineHeight: 18,
+                      color: colors.muted,
                     }}
                   >
-                    {anchor.name}
+                    {previewPlace.formattedAddress}
                   </Text>
-                </Pressable>
-              );
-            })}
+                ) : null}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleChangePlace}
+                hitSlop={8}
+              >
+                <Text
+                  style={{
+                    fontFamily: "Poppins-SemiBold",
+                    fontSize: 14,
+                    color: colors.primary,
+                  }}
+                >
+                  Change
+                </Text>
+              </Pressable>
+            </View>
+            <Text
+              style={{
+                fontFamily: "Poppins-Regular",
+                fontSize: 13,
+                lineHeight: 18,
+                color: colors.muted,
+              }}
+            >
+              Drag the circle to align the fence, then pick a radius.
+            </Text>
           </View>
-        </View>
-      ) : null}
 
-      <PlacePicker
-        visible={placePickerVisible}
-        initialPlace={selectedPlace}
-        radiusMeters={defaultRadiusForKind(kind)}
-        suggestedPresetId={presetIdForKind(kind)}
-        searchHint={placeCopy.emptyHint}
-        onClose={() => setPlacePickerVisible(false)}
-        onSelect={(place, anchorId) => {
-          onPlaceSelected(place, anchorId);
-          setPlacePickerVisible(false);
-        }}
-      />
+          <PlaceGeofenceEditor
+            place={previewPlace}
+            radiusMeters={previewRadius}
+            suggestedPresetId={suggestedPresetId}
+            showPlaceHeader={false}
+            onPlaceChange={handlePreviewPlaceChange}
+            onRadiusChange={handlePreviewRadiusChange}
+          />
+
+          {locationError ? <InlineFieldError message={locationError} /> : null}
+        </View>
+      ) : (
+        <ScrollEdgeFade edgeColor={colors.surface}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ gap: 20, paddingBottom: 32 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator
+            nestedScrollEnabled={false}
+          >
+          <FormSectionCard title="Location">
+            {summaryLine ? (
+              <Text
+                style={{
+                  fontFamily: "Poppins-Regular",
+                  fontSize: 13,
+                  lineHeight: 18,
+                  color: colors.muted,
+                  paddingTop: 12,
+                  paddingBottom: 4,
+                }}
+              >
+                {summaryLine}
+              </Text>
+            ) : null}
+
+            <View style={{ gap: 12, paddingVertical: 8 }}>
+              <PlaceSearchCore
+                key={previewPlace ? "search-reset" : "search"}
+                initialPlace={selectedPlace}
+                radiusMeters={defaultRadius}
+                suggestedPresetId={suggestedPresetId}
+                searchHint={placeCopy.emptyHint}
+                geofenceEditor="external"
+                onPendingPlaceChange={handlePendingPlaceChange}
+                onSelect={(place, anchorId) => {
+                  onPlaceSelected(place, anchorId);
+                  setPreviewPlace(null);
+                }}
+              />
+            </View>
+          </FormSectionCard>
+
+          {showRecentPlaces ? (
+            <FormSectionCard title="Recent places">
+              <View style={{ gap: 10, paddingTop: 10, paddingBottom: 14 }}>
+                <Text
+                  style={{
+                    fontFamily: "Poppins-Regular",
+                    fontSize: 13,
+                    lineHeight: 18,
+                    color: colors.muted,
+                  }}
+                >
+                  Reuse a venue you have saved before.
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {usableAnchors.map((anchor) => {
+                    const selected = selectedAnchorId === anchor.id;
+                    return (
+                      <Pressable
+                        key={anchor.id}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        onPress={() => handleSelectRecentAnchor(anchor)}
+                        style={({ pressed }) => ({
+                          borderRadius: 12,
+                          borderCurve: "continuous",
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          backgroundColor: selected ? colors.primary : colors.background,
+                          borderWidth: 1,
+                          borderColor: selected ? colors.primary : colors.border,
+                          opacity: pressed ? 0.88 : 1,
+                        })}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            fontFamily: "Poppins-SemiBold",
+                            fontSize: 13,
+                            color: selected ? "#F0EDE9" : colors.foreground,
+                          }}
+                        >
+                          {anchor.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </FormSectionCard>
+          ) : null}
+
+          {locationError ? <InlineFieldError message={locationError} /> : null}
+          </ScrollView>
+        </ScrollEdgeFade>
+      )}
     </View>
   );
 }

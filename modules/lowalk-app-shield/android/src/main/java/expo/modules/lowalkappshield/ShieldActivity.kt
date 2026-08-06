@@ -8,15 +8,23 @@ import android.os.Bundle
 import android.view.View
 
 /**
- * Full-screen opaque shield — separate task in recents (like dedicated screen-time blockers).
- * Launched over blocked apps instead of a translucent SYSTEM_ALERT_WINDOW overlay.
+ * Full-screen opaque shield fallback when overlay permission is unavailable.
+ * Separate task in recents — used only when SYSTEM_ALERT_WINDOW is not granted.
  */
 class ShieldActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    window.statusBarColor = Color.BLACK
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+      setShowWhenLocked(true)
+      setTurnScreenOn(true)
+    }
+    val dawnPathBackground = Color.parseColor("#141210")
+    window.statusBarColor = dawnPathBackground
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      window.navigationBarColor = Color.BLACK
+      window.navigationBarColor = dawnPathBackground
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      window.setDecorFitsSystemWindows(false)
     }
     setContentView(buildContent())
   }
@@ -38,15 +46,14 @@ class ShieldActivity : Activity() {
   }
 
   private fun buildContent(): View {
+    val blockedLabel = intent.getStringExtra(EXTRA_BLOCKED_LABEL).orEmpty()
     val copy = ShieldOverlayContextStore.read(this)
-    return ShieldOverlayUi.build(this, copy) {
-      val launch = packageManager.getLaunchIntentForPackage(packageName) ?: return@build
-      launch.addFlags(
-        Intent.FLAG_ACTIVITY_NEW_TASK or
-          Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or
-          Intent.FLAG_ACTIVITY_SINGLE_TOP,
-      )
-      startActivity(launch)
+    return ShieldOverlayUi.build(this, copy, blockedLabel) {
+      val home = Intent(Intent.ACTION_MAIN).apply {
+        addCategory(Intent.CATEGORY_HOME)
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+      }
+      startActivity(home)
       finish()
     }
   }

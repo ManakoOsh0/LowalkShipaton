@@ -1,16 +1,27 @@
-/* TRMNL Classic — 2-bit grayscale hero card tokens */
+/* TRMNL Classic — soft framed hero card tokens */
 
 @theme {
   --color-trmnl-bg: #000000;
-  --color-trmnl-paper: #f4f4f0;
+  --color-trmnl-paper: #f0f0f0;
   --color-trmnl-border: #ffffff;
   --color-trmnl-ink: #000000;
   --color-trmnl-inverse: #ffffff;
   --color-trmnl-muted: #8e8e93;
+  --color-trmnl-muted-well: #2a2a2a;
+  --color-trmnl-accent: #f26430;
+  --color-trmnl-well-top: #c6cac2;
+  --color-trmnl-well-bottom: #b4b8b0;
+  --color-trmnl-well: #babeb6;
+  --color-trmnl-plaque: #d0d4cb;
+  --color-trmnl-plaque-border: rgba(0, 0, 0, 0.06);
+  --color-trmnl-well-border: rgba(0, 0, 0, 0.1);
+  --color-trmnl-raised: #e0e0e0;
+  --color-trmnl-shell-stroke: rgba(0, 0, 0, 0.06);
 
   --font-block-kie: "BlockKie";
   --font-nico-clean: "NicoClean-Regular";
   --font-nico-pups: "NicoPups-Regular";
 
-  --radius-trmnl: 22px;
+  --radius-trmnl: 32px;
+  --radius-trmnl-plaque: 18px;
 }

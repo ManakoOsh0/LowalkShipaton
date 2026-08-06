@@ -5,11 +5,12 @@ import { Pressable, Text } from "react-native";
 
 import { HeroEinkFlash } from "@/components/HeroEinkFlash";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
-import { useBlockedAppsEditingLocked } from "@/hooks/useBlockedAppsEditingLocked";
+import { useBlockedAppsRemovalLocked } from "@/hooks/useBlockedAppsRemovalLocked";
 import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import {
   formatTrmnlActionLabel,
+  HERO_ACTIVE_BLOCKED_HEIGHT,
   HERO_EINK_BUTTON_RADIUS,
   HERO_EINK_FOOTER_HEIGHT,
   TRMNL_THEME,
@@ -30,11 +31,13 @@ export function HeroBlockedAppsStrip({
 }: HeroBlockedAppsStripProps) {
   const colors = useThemeColors();
   const apps = useBlockedAppsStore((state) => state.apps);
-  const editingLocked = useBlockedAppsEditingLocked();
+  const removalLocked = useBlockedAppsRemovalLocked();
   const hasApps = apps.length > 0;
 
-  const label = editingLocked
-    ? "Blocked apps locked"
+  const label = removalLocked
+    ? hasApps
+      ? `Manage blocked apps (${apps.length})`
+      : "Add blocked apps"
     : hasApps
       ? `Blocked apps (${apps.length})`
       : "Choose distracting apps";
@@ -45,12 +48,11 @@ export function HeroBlockedAppsStrip({
     return (
       <HeroEinkFlash
         accessibilityLabel={label}
-        disabled={editingLocked}
-        onPress={editingLocked ? undefined : onEditPress}
+        onPress={onEditPress}
         baseBackgroundColor={TRMNL_THEME.paper}
         style={{
           marginTop: embedded ? 0 : 14,
-          height: compact ? HERO_EINK_FOOTER_HEIGHT : undefined,
+          height: compact ? (eink ? HERO_ACTIVE_BLOCKED_HEIGHT : HERO_EINK_FOOTER_HEIGHT) : undefined,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
@@ -59,7 +61,7 @@ export function HeroBlockedAppsStrip({
           borderColor: TRMNL_THEME.textPrimary,
           paddingHorizontal: 14,
           paddingVertical: compact ? 0 : 12,
-          opacity: editingLocked ? 0.5 : 1,
+          opacity: 1,
         }}
       >
         {({ inverted }) => (
@@ -79,9 +81,7 @@ export function HeroBlockedAppsStrip({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: editingLocked }}
-      disabled={editingLocked}
-      onPress={editingLocked ? undefined : onEditPress}
+      onPress={onEditPress}
       style={({ pressed }) => ({
         marginTop: embedded ? 0 : 14,
         height: compact ? 44 : undefined,
@@ -95,7 +95,7 @@ export function HeroBlockedAppsStrip({
         backgroundColor: compact ? colors.surface : colors.card,
         paddingHorizontal: 14,
         paddingVertical: compact ? 0 : 12,
-        opacity: pressed && !editingLocked ? 0.85 : editingLocked ? 0.6 : 1,
+        opacity: pressed ? 0.85 : 1,
       })}
     >
       <Text

@@ -13,20 +13,23 @@ import { Appearance } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ArrivalCelebrationHost } from "@/components/ArrivalConfirmationModal";
+import { AnchoringSheetHost } from "@/components/AnchoringSheetHost";
 import { BlockingOverlayHost } from "@/components/BlockingOverlay";
 import { FirstRunPermissionsHost } from "@/components/FirstRunPermissionsHost";
+import { LeaveSessionWarningHost } from "@/components/LeaveSessionWarningModal";
+import { SessionCompleteHost } from "@/components/SessionCompleteScreen";
+import { SessionPenaltyHost } from "@/components/SessionPenaltyModal";
+import { ShareOverlayHost } from "@/components/share/ShareOverlayComposer";
 import { StreakCelebrationHost } from "@/components/StreakCelebrationModal";
 import { SessionPresenceProvider } from "@/components/SessionPresenceProvider";
 import { useAppFonts } from "@/hooks/useAppFonts";
+import { useNotificationResponses } from "@/hooks/useNotificationResponses";
 import { useSessionReminders } from "@/hooks/useSessionReminders";
-import { useWakeAlarmScheduler } from "@/hooks/useWakeAlarmScheduler";
-import { useWakeChallengeLifecycle } from "@/hooks/useWakeChallengeLifecycle";
 import { colors } from "@/theme/tokens";
 
 function AppLifecycleHooks() {
   useSessionReminders();
-  useWakeAlarmScheduler();
-  useWakeChallengeLifecycle();
+  useNotificationResponses();
   return null;
 }
 
@@ -63,7 +66,12 @@ export default function RootLayout() {
           />
           <BlockingOverlayHost />
           <ArrivalCelebrationHost />
+          <LeaveSessionWarningHost />
+          <SessionPenaltyHost />
+          <AnchoringSheetHost />
+          <SessionCompleteHost />
           <StreakCelebrationHost />
+          <ShareOverlayHost />
           <FirstRunPermissionsHost />
         </SessionPresenceProvider>
       </SafeAreaProvider>

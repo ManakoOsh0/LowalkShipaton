@@ -5,21 +5,21 @@
 import { useEffect } from "react";
 import { LayoutChangeEvent, Text, View } from "react-native";
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
 } from "react-native-reanimated";
 
 import { NeuCard } from "@/components/NeuCard";
-import type { DailyGoal } from "@/types/dashboard";
+import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { HERO_MOTION } from "@/lib/heroMotion";
+import type { DailyGoal } from "@/types/dashboard";
 
 const SCREEN_PADDING = 16;
 const PILL_RADIUS = 28;
 const BAR_HEIGHT = 5;
 const MIN_FILL_WIDTH = 8;
-const PROGRESS_ANIMATION_MS = 450;
 
 type AnimatedProgressBarProps = {
   progress: number;
@@ -32,23 +32,29 @@ function AnimatedProgressBar({
   trackColor,
   fillColor,
 }: AnimatedProgressBarProps) {
+  const reduceMotion = useReduceMotion();
   const trackWidth = useSharedValue(0);
   const animatedProgress = useSharedValue(0);
 
   useEffect(() => {
-    animatedProgress.value = withTiming(progress, {
-      duration: PROGRESS_ANIMATION_MS,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [animatedProgress, progress]);
+    animatedProgress.value = reduceMotion
+      ? progress
+      : withTiming(progress, {
+          duration: HERO_MOTION.progressCardMs,
+          easing: HERO_MOTION.progressEasing,
+        });
+  }, [animatedProgress, progress, reduceMotion]);
 
   const fillStyle = useAnimatedStyle(() => {
     if (trackWidth.value <= 0 || animatedProgress.value <= 0) {
-      return { width: 0 };
+      return { transform: [{ scaleX: 0 }] };
     }
 
+    const minScale = MIN_FILL_WIDTH / trackWidth.value;
+    const scale = Math.max(animatedProgress.value, minScale);
+
     return {
-      width: Math.max(trackWidth.value * animatedProgress.value, MIN_FILL_WIDTH),
+      transform: [{ scaleX: scale }],
     };
   });
 
@@ -68,8 +74,10 @@ function AnimatedProgressBar({
         style={[
           {
             height: BAR_HEIGHT,
+            width: "100%",
             borderRadius: BAR_HEIGHT / 2,
             backgroundColor: fillColor,
+            transformOrigin: "left center",
           },
           fillStyle,
         ]}
@@ -99,12 +107,11 @@ export function DailyGoalCard({ completed, target }: DailyGoalCardProps) {
       borderRadius={PILL_RADIUS}
       style={{
         marginHorizontal: SCREEN_PADDING,
-        marginTop: 4,
       }}
       contentStyle={{
         paddingHorizontal: 18,
-        paddingVertical: 14,
-        gap: 10,
+        paddingVertical: 12,
+        gap: 8,
       }}
     >
       <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between" }}>
@@ -136,7 +143,7 @@ export function DailyGoalCard({ completed, target }: DailyGoalCardProps) {
       <AnimatedProgressBar
         progress={progressRatio}
         trackColor={colors.border}
-        fillColor={isComplete ? colors.success : colors.primary}
+        fillColor={colors.success}
       />
     </NeuCard>
   );

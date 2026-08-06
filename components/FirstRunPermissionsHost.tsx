@@ -1,24 +1,36 @@
 /**
- * First-run permissions sheet — Always location and Usage Access for app shielding.
- * Mission-tied copy so users understand why these system grants matter.
+ * First-run permissions sheet — location, notifications, Usage Access, and overlay for shielding.
  */
 import { useEffect, useState } from "react";
 import { Modal, Platform, Pressable, Text, View } from "react-native";
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
+  hasOverlayPermission,
   hasUsageStatsPermission,
   isAppShieldSupported,
+  openOverlaySettings,
   openUsageAccessSettings,
 } from "lowalk-app-shield";
+import { useModalAnimationType, useReduceMotion } from "@/hooks/useHeroMotion";
+import { HERO_MOTION } from "@/lib/heroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import {
   requestBackgroundLocationPermission,
   requestForegroundLocationPermission,
 } from "@/services/location";
+import { ensureNotificationPermission } from "@/services/sessionReminders";
 import { useUserStore } from "@/store/useUserStore";
 
-type OnboardingStep = "location" | "usage" | "done";
+type OnboardingStep = "location" | "notifications" | "usage" | "overlay" | "done";
 
 export function FirstRunPermissionsHost() {
   const insets = useSafeAreaInsets();
@@ -28,6 +40,32 @@ export function FirstRunPermissionsHost() {
   const [hydrated, setHydrated] = useState(() => useUserStore.persist.hasHydrated());
   const [step, setStep] = useState<OnboardingStep>("location");
   const [busy, setBusy] = useState(false);
+  const reduceMotion = useReduceMotion();
+  const modalAnimationType = useModalAnimationType("fade");
+  const cardY = useSharedValue(reduceMotion ? 0 : 48);
+  const cardOpacity = useSharedValue(reduceMotion ? 1 : 0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      cardY.value = 0;
+      cardOpacity.value = 1;
+      return;
+    }
+
+    cardY.value = withTiming(0, {
+      duration: HERO_MOTION.sheetEnterMs,
+      easing: Easing.out(Easing.cubic),
+    });
+    cardOpacity.value = withTiming(1, {
+      duration: HERO_MOTION.sheetEnterMs,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [cardOpacity, cardY, reduceMotion]);
+
+  const cardStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: cardY.value }],
+    opacity: cardOpacity.value,
+  }));
 
   useEffect(() => {
     const unsub = useUserStore.persist.onFinishHydration(() => {
@@ -51,6 +89,21 @@ export function FirstRunPermissionsHost() {
     setStep("done");
   };
 
+  const advanceAfterUsage = async () => {
+    if (!isAppShieldSupported()) {
+      finish();
+      return;
+    }
+
+    const overlayOk = await hasOverlayPermission();
+    if (!overlayOk) {
+      setStep("overlay");
+      return;
+    }
+
+    finish();
+  };
+
   const advanceAndroidShieldSteps = async () => {
     if (!isAppShieldSupported()) {
       finish();
@@ -63,7 +116,7 @@ export function FirstRunPermissionsHost() {
       return;
     }
 
-    finish();
+    await advanceAfterUsage();
   };
 
   const handleLocationContinue = async () => {
@@ -71,6 +124,16 @@ export function FirstRunPermissionsHost() {
     try {
       await requestForegroundLocationPermission();
       await requestBackgroundLocationPermission();
+    } finally {
+      setBusy(false);
+    }
+    setStep("notifications");
+  };
+
+  const handleNotificationsContinue = async () => {
+    setBusy(true);
+    try {
+      await ensureNotificationPermission();
     } finally {
       setBusy(false);
     }
@@ -88,29 +151,63 @@ export function FirstRunPermissionsHost() {
       setBusy(false);
     }
 
+    await advanceAfterUsage();
+  };
+
+  const handleOverlayContinue = async () => {
+    setBusy(true);
+    try {
+      const granted = await hasOverlayPermission();
+      if (!granted) {
+        await openOverlaySettings();
+      }
+    } finally {
+      setBusy(false);
+    }
+
     finish();
   };
 
   const title =
     step === "location"
       ? "Stay verified at your venue"
-      : "Detect blocked apps";
+      : step === "notifications"
+        ? "Session reminders"
+        : step === "usage"
+          ? "Detect blocked apps"
+          : "Cover blocked apps";
 
   const body =
     step === "location"
       ? "Lowalk needs location — including Always / background — so your focus session can pause or resume when you leave or return, even if the phone is locked."
-      : Platform.OS === "android"
-        ? "Allow Usage Access so Lowalk can detect when you open a blocked app and show the focus shield screen."
-        : "Distraction shielding will be available when native enforcement ships on this platform.";
+      : step === "notifications"
+        ? "Allow notifications so Lowalk can remind you before sessions start, alert you when you leave your venue, and celebrate when you hit your daily goal."
+        : step === "usage"
+          ? "Allow Usage Access so Lowalk can detect when you open a blocked app during a focus session."
+          : Platform.OS === "android"
+            ? "Allow Display over other apps so Lowalk can show the full-screen focus shield on top of distracting apps."
+            : "Distraction shielding will be available when native enforcement ships on this platform.";
 
   const cta =
-    step === "location" ? "Allow location" : "Open Usage Access settings";
+    step === "location"
+      ? "Allow location"
+      : step === "notifications"
+        ? "Allow notifications"
+        : step === "usage"
+          ? "Open Usage Access settings"
+          : "Open Display over other apps";
 
   const onContinue =
-    step === "location" ? handleLocationContinue : handleUsageContinue;
+    step === "location"
+      ? handleLocationContinue
+      : step === "notifications"
+        ? handleNotificationsContinue
+        : step === "usage"
+          ? handleUsageContinue
+          : handleOverlayContinue;
 
   return (
-    <Modal visible transparent animationType="fade" statusBarTranslucent>
+    <Modal visible transparent animationType={modalAnimationType} statusBarTranslucent>
       <View
         style={{
           flex: 1,
@@ -120,36 +217,46 @@ export function FirstRunPermissionsHost() {
           paddingHorizontal: 16,
         }}
       >
-        <View
-          style={{
-            borderRadius: 24,
-            backgroundColor: colors.background,
-            paddingHorizontal: 20,
-            paddingTop: 22,
-            paddingBottom: 18,
-            gap: 14,
-          }}
+        <Animated.View
+          style={[
+            {
+              borderRadius: 24,
+              backgroundColor: colors.background,
+              paddingHorizontal: 20,
+              paddingTop: 22,
+              paddingBottom: 18,
+              gap: 14,
+            },
+            cardStyle,
+          ]}
         >
-          <Text
-            style={{
-              fontFamily: "Poppins-Bold",
-              fontSize: 22,
-              lineHeight: 28,
-              color: colors.foreground,
-            }}
+          <Animated.View
+            key={step}
+            entering={reduceMotion ? undefined : FadeIn.duration(200)}
+            exiting={reduceMotion ? undefined : FadeOut.duration(120)}
+            style={{ gap: 14 }}
           >
-            {title}
-          </Text>
-          <Text
-            style={{
-              fontFamily: "Poppins-Regular",
-              fontSize: 14,
-              lineHeight: 20,
-              color: colors.muted,
-            }}
-          >
-            {body}
-          </Text>
+            <Text
+              style={{
+                fontFamily: "Poppins-Bold",
+                fontSize: 22,
+                lineHeight: 28,
+                color: colors.foreground,
+              }}
+            >
+              {title}
+            </Text>
+            <Text
+              style={{
+                fontFamily: "Poppins-Regular",
+                fontSize: 14,
+                lineHeight: 20,
+                color: colors.muted,
+              }}
+            >
+              {body}
+            </Text>
+          </Animated.View>
 
           <Pressable
             accessibilityRole="button"
@@ -192,7 +299,7 @@ export function FirstRunPermissionsHost() {
               Not now
             </Text>
           </Pressable>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );

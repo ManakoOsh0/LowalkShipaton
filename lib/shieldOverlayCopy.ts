@@ -1,53 +1,48 @@
-import { formatSessionDetailLabel } from "@/lib/sessionPenalty";
-import type { FocusNodeKind } from "@/types/focusNode";
-import type { ActiveSessionSnapshot } from "@/types/session";
+/** Fixed shield overlay copy — headline is built per blocked app at show time. */
+
+export const SHIELD_CLOSE_LABEL = "Close";
+
+export const SHIELD_OVERLAY_SUBTITLE =
+  "To stop blocking, check in at your focus zone and complete your focus session";
+
+/** @deprecated Use SHIELD_CLOSE_LABEL */
+export const SHIELD_OPEN_LOWALK_LABEL = SHIELD_CLOSE_LABEL;
+
+export type ShieldOverlayPhase =
+  | "pre_class"
+  | "traveling"
+  | "arriving"
+  | "in_session"
+  | "away"
+  | "penalty";
 
 export type ShieldOverlayCopy = {
-  nodeKind: FocusNodeKind;
-  /** Motivational line tied to the scheduled activity. */
+  nodeKind: string;
+  phase: ShieldOverlayPhase;
+  headline: string;
   subtitle: string;
-  /** Primary CTA label — typically "Open {session title}". */
+  detail?: string;
   ctaLabel: string;
 };
 
-function truncateTitle(title: string, max = 22): string {
-  const trimmed = title.trim();
-  if (trimmed.length <= max) return trimmed;
-  return `${trimmed.slice(0, max - 1)}…`;
+export function formatShieldBlockedHeadline(appName: string): string {
+  const name = appName.trim() || "This app";
+  return `${name} blocked by Lowalk`;
 }
 
-/** Dynamic shield copy from the active session and Focus Node kind. */
-export function getShieldOverlayCopy(
-  session: ActiveSessionSnapshot,
-  kind: FocusNodeKind,
-): ShieldOverlayCopy {
-  const title = session.nodeTitle.trim() || "your session";
-  const shortTitle = truncateTitle(title);
-  const timing = formatSessionDetailLabel(session);
+type ShieldOverlayCopyInput = {
+  appName?: string;
+};
 
-  let subtitle: string;
-  switch (kind) {
-    case "gym":
-      subtitle = `Time for ${shortTitle}!`;
-      break;
-    case "library":
-      subtitle = `Back to the books at ${shortTitle}!`;
-      break;
-    case "class":
-      subtitle = `Class time — finish ${shortTitle}!`;
-      break;
-    default:
-      subtitle = `Time to focus on ${shortTitle}!`;
-      break;
-  }
-
-  if (timing) {
-    subtitle = `${subtitle}\n${timing}`;
-  }
-
+/** Static shield overlay copy; native Android injects the blocked app name into the headline. */
+export function getShieldOverlayCopy({
+  appName = "This app",
+}: ShieldOverlayCopyInput = {}): ShieldOverlayCopy {
   return {
-    nodeKind: kind,
-    subtitle,
-    ctaLabel: `Open ${shortTitle}`,
+    nodeKind: "custom",
+    phase: "in_session",
+    headline: formatShieldBlockedHeadline(appName),
+    subtitle: SHIELD_OVERLAY_SUBTITLE,
+    ctaLabel: SHIELD_CLOSE_LABEL,
   };
 }

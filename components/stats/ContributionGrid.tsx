@@ -10,6 +10,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { StatsCardShell } from "@/components/stats/StatsCardShell";
+import { useReduceMotion } from "@/hooks/useHeroMotion";
+import { HERO_MOTION } from "@/lib/heroMotion";
 import type { ContributionLevel, ContributionWeek } from "@/types/stats";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
@@ -38,11 +40,14 @@ function levelColor(
 
 export function ContributionGrid({ weeks }: ContributionGridProps) {
   const colors = useThemeColors();
-  const opacity = useSharedValue(0);
+  const reduceMotion = useReduceMotion();
+  const opacity = useSharedValue(reduceMotion ? 1 : 0);
 
   useEffect(() => {
-    opacity.value = withTiming(1, { duration: 700 });
-  }, [opacity]);
+    opacity.value = reduceMotion
+      ? 1
+      : withTiming(1, { duration: HERO_MOTION.statsFadeMs });
+  }, [opacity, reduceMotion]);
 
   const fadeStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,
@@ -57,21 +62,10 @@ export function ContributionGrid({ weeks }: ContributionGridProps) {
             fontSize: 16,
             lineHeight: 22,
             color: colors.foreground,
+            marginBottom: 14,
           }}
         >
           Consistency
-        </Text>
-        <Text
-          style={{
-            marginTop: 4,
-            marginBottom: 18,
-            fontFamily: "Poppins-Regular",
-            fontSize: 13,
-            lineHeight: 18,
-            color: colors.muted,
-          }}
-        >
-          Each square is a day. Deeper orange means more sessions completed.
         </Text>
 
         <Animated.View style={[{ flexDirection: "row", gap: 8 }, fadeStyle]}>

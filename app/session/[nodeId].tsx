@@ -4,15 +4,13 @@
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-import { AnchoringFlow } from "@/components/AnchoringFlow";
-import { StreakFlame } from "@/components/StreakFlame";
 import { SessionDetailHero } from "@/components/session/SessionDetailHero";
 import { SessionHistoryHeatmap } from "@/components/session/SessionHistoryHeatmap";
 import { SessionStatTile } from "@/components/session/SessionStatTile";
+import { StreakFlame } from "@/components/StreakFlame";
 import { useSessionDetail } from "@/hooks/useSessionDetail";
 import { getKindAccentColor } from "@/lib/focusNodeKindColors";
 import {
@@ -20,6 +18,7 @@ import {
   computeFocusNodeContributionWeeks,
 } from "@/lib/focusNodeStats";
 import { ROUTES } from "@/lib/routes";
+import { useAnchoringSheetStore } from "@/store/useAnchoringSheetStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
@@ -67,7 +66,7 @@ export default function SessionDetailScreen() {
   const markNodeSkipped = useScheduleStore((state) => state.markNodeSkipped);
   const focusNodes = useScheduleStore((state) => state.focusNodes);
   const anchors = useScheduleStore((state) => state.anchors);
-  const [calibrateVisible, setCalibrateVisible] = useState(false);
+  const showAnchoringSheet = useAnchoringSheetStore((state) => state.show);
 
   const focusNode = useMemo(
     () => focusNodes.find((node) => node.id === resolvedNodeId) ?? null,
@@ -196,7 +195,16 @@ export default function SessionDetailScreen() {
           {canCalibrate && linkedAnchor ? (
             <Pressable
               accessibilityRole="button"
-              onPress={() => setCalibrateVisible(true)}
+              onPress={() => {
+                if (!linkedAnchor || !resolvedNodeId) return;
+                showAnchoringSheet({
+                  nodeId: resolvedNodeId,
+                  nodeTitle: detail.title,
+                  anchorId: linkedAnchor.id,
+                  anchorName: linkedAnchor.name,
+                  mode: "optional",
+                });
+              }}
               style={{
                 alignSelf: "stretch",
                 alignItems: "center",
@@ -237,17 +245,6 @@ export default function SessionDetailScreen() {
           ) : null}
         </View>
       </ScrollView>
-
-      {linkedAnchor && resolvedNodeId ? (
-        <AnchoringFlow
-          visible={calibrateVisible}
-          nodeId={resolvedNodeId}
-          nodeTitle={detail.title}
-          anchorId={linkedAnchor.id}
-          anchorName={linkedAnchor.name}
-          onComplete={() => setCalibrateVisible(false)}
-        />
-      ) : null}
     </SafeAreaView>
   );
 }

@@ -7,7 +7,16 @@ import {
   isAppShieldActive,
   type ShieldScheduleSettings,
 } from "@/lib/shieldSchedule";
+import {
+  getClassEarlyCompleteRemainingMs,
+  getClassNominalStartMs,
+} from "@/lib/classCompletion";
 import { isDurationSessionExpired } from "@/lib/time";
+
+const DEFAULT_SHIELD_SETTINGS: ShieldScheduleSettings = {
+  classPreBufferMinutes: 30,
+  sessionGapMergeMinutes: 30,
+};
 
 /** Grace before a presence penalty locks apps for the Settings tier duration. */
 export const PRESENCE_PENALTY_GRACE_MS = 5 * 60 * 1000;
@@ -72,6 +81,7 @@ export function getAwayGraceRemainingMs(
 export function formatSessionDetailLabel(
   session: ActiveSessionSnapshot,
   now = new Date(),
+  settings: ShieldScheduleSettings = DEFAULT_SHIELD_SETTINGS,
 ): string {
   const nowMs = now.getTime();
 
@@ -103,15 +113,17 @@ export function formatSessionDetailLabel(
     return onSiteLabel;
   }
 
+  const nominalStartMs = getClassNominalStartMs(session, settings);
+  if (nowMs < nominalStartMs) {
+    const startsInMs = nominalStartMs - nowMs;
+    return `Head to venue · class starts in ${formatDurationClock(startsInMs)}`;
+  }
+
   const sessionRemainingMs = Math.max(new Date(session.endsAt).getTime() - nowMs, 0);
   const sessionLabel = `${formatDurationClock(sessionRemainingMs)} left`;
 
   if (!session.presenceVerified) {
-    const untilStartMs = Math.max(
-      new Date(session.endsAt).getTime() - nowMs,
-      0,
-    );
-    return `Head to venue · class ends in ${formatDurationClock(untilStartMs)}`;
+    return `Head to venue · ${sessionLabel}`;
   }
 
   if (session.penaltyShieldEndsAt && session.penaltyMinutes) {
@@ -124,6 +136,14 @@ export function formatSessionDetailLabel(
   }
 
   const graceRemaining = getAwayGraceRemainingMs(session, nowMs);
+  const earlyCompleteRemaining = getClassEarlyCompleteRemainingMs(
+    session,
+    settings,
+    nowMs,
+  );
+  if (session.awaySince && earlyCompleteRemaining != null && earlyCompleteRemaining > 0) {
+    return `${sessionLabel} · Return within ${formatDurationClock(earlyCompleteRemaining)}`;
+  }
   if (session.awaySince && graceRemaining != null && graceRemaining > 0) {
     return `${sessionLabel} · Return within ${formatDurationClock(graceRemaining)}`;
   }

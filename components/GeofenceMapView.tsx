@@ -9,8 +9,8 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 import type { MapViewport } from "@/services/geocode";
 
 export type GeofenceMapCenter = {
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   zoom: number;
 };
 
@@ -55,25 +55,27 @@ function buildGeofenceMapHtml(
   const hasInitialPin = (isPindrop || isAdjustable) && fixedLat != null && fixedLng != null;
   const hint = isPindrop
     ? hasInitialPin
-      ? "Drag the purple circle to adjust your geofence."
+      ? "Drag the circle to fine-tune your geofence."
       : "Tap the building to drop a pin."
     : isAdjustable
-      ? "Drag the purple circle to fine-tune your geofence."
-      : "Purple circle shows how much of the venue is covered.";
+      ? "Drag the circle to fine-tune your geofence."
+      : "Circle shows how much of the venue is covered.";
 
   return `<!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    html, body, #map { height: 100%; margin: 0; padding: 0; touch-action: none; }
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    body { overflow: hidden; -webkit-user-select: none; user-select: none; }
+    #map, .leaflet-container { touch-action: none; }
     .map-wrap { position: relative; height: 100%; }
     .hint {
       position: absolute; z-index: 1000; left: 12px; right: 12px; top: 12px;
       background: rgba(252,252,248,0.95); color: #1A1A1A; padding: 10px 12px;
-      border-radius: 10px; font-family: sans-serif; font-size: 13px;
+      border-radius: 10px; font-family: sans-serif; font-size: 13px; line-height: 1.35;
       box-shadow: 0 2px 8px rgba(0,0,0,0.15); pointer-events: none;
     }
     .geofence-handle {
@@ -116,12 +118,21 @@ function buildGeofenceMapHtml(
     var hintEl = document.getElementById('map-hint');
 
     var map = L.map('map', {
-      zoomControl: true,
+      zoomControl: false,
       dragging: ${isPannable ? "true" : "false"},
-      scrollWheelZoom: ${isPannable ? "true" : "false"},
+      scrollWheelZoom: false,
       doubleClickZoom: ${isPannable ? "true" : "false"},
-      touchZoom: ${isPannable ? "true" : "false"}
+      touchZoom: ${isPannable ? "true" : "false"},
+      tap: false,
+      bounceAtZoomLimits: false,
+      zoomAnimation: true,
+      fadeAnimation: true,
+      markerZoomAnimation: true,
+      zoomSnap: 0,
+      zoomDelta: 0.5
     }).setView([${latitude}, ${longitude}], ${zoom});
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -132,7 +143,7 @@ function buildGeofenceMapHtml(
       if (!hintEl) return;
       if (isPindrop) {
         hintEl.textContent = hasPin
-          ? 'Drag the purple circle to adjust your geofence.'
+          ? 'Drag the circle to fine-tune your geofence.'
           : 'Tap the building to drop a pin.';
       }
     }
@@ -267,7 +278,25 @@ function buildGeofenceMapHtml(
       });
     }
 
-    map.on('zoomend', emitCenter);
+    function emitZoom() {
+      if (isPindrop && !hasPin) {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'zoom',
+            zoom: map.getZoom()
+          }));
+        }
+        return;
+      }
+      emitCenter();
+    }
+
+    map.whenReady(function () {
+      map.invalidateSize();
+      setTimeout(function () { map.invalidateSize(); }, 120);
+    });
+
+    map.on('zoomend', emitZoom);
     updateHint();
   </script>
 </body>
@@ -336,6 +365,10 @@ export const GeofenceMapView = forwardRef<GeofenceMapViewHandle, GeofenceMapView
       if (!onCenterChange) return;
       try {
         const payload = JSON.parse(event.nativeEvent.data) as MapMessagePayload;
+        if (payload.type === "zoom" && typeof payload.zoom === "number") {
+          onCenterChange({ zoom: payload.zoom });
+          return;
+        }
         if (
           payload.type === "center" &&
           typeof payload.latitude === "number" &&
@@ -386,12 +419,16 @@ export const GeofenceMapView = forwardRef<GeofenceMapViewHandle, GeofenceMapView
           originWhitelist={["*"]}
           source={{ html }}
           onMessage={handleMessage}
-          style={{ flex: 1 }}
+          style={{ flex: 1, backgroundColor: "transparent" }}
           javaScriptEnabled
           domStorageEnabled
           scrollEnabled={false}
           bounces={false}
           overScrollMode="never"
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          showsVerticalScrollIndicator={false}
+          textInteractionEnabled={false}
           setSupportMultipleWindows={false}
           {...(Platform.OS === "android" ? { androidLayerType: "hardware" as const } : {})}
         />

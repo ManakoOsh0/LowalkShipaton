@@ -1,7 +1,6 @@
 /**
  * Custom bottom tab bar — flat card-toned bar with a centred quick-action FAB.
  */
-import { Ionicons } from "@expo/vector-icons";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { HomeSmile, Settings } from "@solar-icons/react-native/Bold";
 import {
@@ -13,9 +12,9 @@ import { ComponentType, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { QuickActionHourglassIcon } from "@/components/QuickActionHourglassIcon";
 import { QuickActionsMenu } from "@/components/QuickActionsMenu";
 import type { QuickActionId } from "@/data/quickActions";
-import { useBlockedAppsEditingLocked } from "@/hooks/useBlockedAppsEditingLocked";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { ROUTES } from "@/lib/routes";
 import type { IconProps } from "@solar-icons/react-native/lib/types";
@@ -30,6 +29,8 @@ const FAB_NESTLE = 14;
 /** Extra nudge downward without changing bar height. */
 const FAB_OFFSET_DOWN = 8;
 const MENU_GAP_ABOVE_FAB = 14;
+/** Hourglass tilt when the quick-actions menu is open. */
+const FAB_ICON_TILT_DEG = 45;
 
 type TabRoute = {
   routeName: string;
@@ -104,8 +105,6 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const blockedAppsEditingLocked = useBlockedAppsEditingLocked();
-
   const [menuOpen, setMenuOpen] = useState(false);
 
   const bottomPad = Math.max(insets.bottom, 10);
@@ -116,7 +115,6 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
   const handleQuickActionSelect = (actionId: QuickActionId) => {
     setMenuOpen(false);
     if (actionId === "blocked-apps") {
-      if (blockedAppsEditingLocked) return;
       router.push(ROUTES.blockedApps);
       return;
     }
@@ -148,7 +146,6 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
         bottomOffset={menuBottomOffset}
         onClose={() => setMenuOpen(false)}
         onSelect={handleQuickActionSelect}
-        disabledActionIds={blockedAppsEditingLocked ? ["blocked-apps"] : []}
       />
 
       <View
@@ -205,11 +202,15 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
                 transform: [{ scale: pressed ? 0.96 : 1 }],
               })}
             >
-              <Ionicons
-                name={menuOpen ? "close" : "add"}
-                size={30}
-                color={FAB_COLOR}
-              />
+              <View
+                style={{
+                  transform: [
+                    { rotate: menuOpen ? `${FAB_ICON_TILT_DEG}deg` : "0deg" },
+                  ],
+                }}
+              >
+                <QuickActionHourglassIcon size={30} color={FAB_COLOR} />
+              </View>
             </Pressable>
           </View>
         </View>

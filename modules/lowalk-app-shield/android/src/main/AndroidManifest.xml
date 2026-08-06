@@ -9,6 +9,8 @@
     tools:ignore="QueryAllPackagesPermission" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
   <!-- Android 11+ package visibility — required to list launcher apps for the picker. -->
   <queries>
@@ -18,12 +20,43 @@
     </intent>
   </queries>
   <application>
-    <activity
-      android:name="expo.modules.lowalkappshield.ShieldActivity"
+    <service
+      android:name="expo.modules.lowalkappshield.AppShieldMonitorService"
       android:exported="false"
-      android:excludeFromRecents="false"
-      android:launchMode="singleTask"
-      android:taskAffinity="expo.modules.lowalkappshield.shield"
-      android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+      android:foregroundServiceType="specialUse">
+      <property
+        android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+        android:value="Focus session distraction shielding" />
+    </service>
+
+    <receiver
+      android:name="expo.modules.lowalkappshield.HeroWidgetProvider"
+      android:exported="true"
+      android:label="Lowalk Focus">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/hero_widget_info" />
+    </receiver>
+
+    <receiver
+      android:name="expo.modules.lowalkappshield.HeroWidgetBootReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+        <action android:name="android.intent.action.TIME_SET" />
+      </intent-filter>
+    </receiver>
+
+    <receiver
+      android:name="expo.modules.lowalkappshield.ShieldAlarmReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="expo.modules.lowalkappshield.action.SHIELD_TICK" />
+      </intent-filter>
+    </receiver>
   </application>
 </manifest>

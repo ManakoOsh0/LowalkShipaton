@@ -1,26 +1,25 @@
 /**
- * Step 1 of Focus Node create/edit — identity and schedule only (no venue).
+ * Step 1 of Focus Node create/edit — identity and schedule in grouped cards.
  */
 import { Pressable, Text, TextInput, View } from "react-native";
 
-import {
-  ScheduleSessionTimeField,
-  ScheduleTimeRangeField,
-} from "@/components/ScheduleTimeFields";
+import { FocusNodeKindIcon } from "@/components/FocusNodeKindIcon";
+import { InlineFieldError } from "@/components/form/InlineFieldError";
+import { FormSectionCard } from "@/components/form/FormSectionCard";
+import { ScheduleWhenCard } from "@/components/ScheduleWhenCard";
+import { getKindAccentColor, getKindTintColor } from "@/lib/focusNodeKindColors";
+import { ICON_TILE_RADIUS_MD } from "@/lib/cardStyle";
 import type { ThemeColors } from "@/theme/tokens";
 import type { FocusNodeKind, Weekday } from "@/types/focusNode";
 
-const WEEKDAY_OPTIONS: { value: Weekday; label: string }[] = [
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-  { value: 0, label: "Sun" },
-];
-
 const KIND_OPTIONS: FocusNodeKind[] = ["class", "gym", "library", "custom"];
+
+const KIND_LABELS: Record<FocusNodeKind, string> = {
+  class: "Class",
+  gym: "Gym",
+  library: "Library",
+  custom: "Custom",
+};
 
 function inputStyle(colors: ThemeColors) {
   return {
@@ -36,21 +35,6 @@ function inputStyle(colors: ThemeColors) {
   };
 }
 
-function FieldLabel({ label, color }: { label: string; color: string }) {
-  return (
-    <Text
-      style={{
-        fontFamily: "Poppins-SemiBold",
-        fontSize: 13,
-        lineHeight: 18,
-        color,
-      }}
-    >
-      {label}
-    </Text>
-  );
-}
-
 type FocusNodeDetailsStepProps = {
   kind: FocusNodeKind;
   showTypePicker: boolean;
@@ -58,8 +42,9 @@ type FocusNodeDetailsStepProps = {
   onTitleChange: (value: string) => void;
   roomLabel: string;
   onRoomLabelChange: (value: string) => void;
-  weekday: Weekday;
-  onWeekdayChange: (value: Weekday) => void;
+  weekdays: Weekday[];
+  onWeekdaysChange: (value: Weekday[]) => void;
+  allowMultipleWeekdays?: boolean;
   startTime: string;
   onStartTimeChange: (value: string) => void;
   endTime: string;
@@ -67,6 +52,7 @@ type FocusNodeDetailsStepProps = {
   durationHours: number;
   onDurationHoursChange: (value: number) => void;
   onKindChange: (value: FocusNodeKind) => void;
+  titleError?: string;
   colors: ThemeColors;
 };
 
@@ -77,8 +63,9 @@ export function FocusNodeDetailsStep({
   onTitleChange,
   roomLabel,
   onRoomLabelChange,
-  weekday,
-  onWeekdayChange,
+  weekdays,
+  onWeekdaysChange,
+  allowMultipleWeekdays = false,
   startTime,
   onStartTimeChange,
   endTime,
@@ -86,121 +73,134 @@ export function FocusNodeDetailsStep({
   durationHours,
   onDurationHoursChange,
   onKindChange,
+  titleError,
   colors,
 }: FocusNodeDetailsStepProps) {
   const usesClassSchedule = kind === "class";
+  const titleLabel = usesClassSchedule ? "Class name" : "Title";
 
   return (
-    <View style={{ gap: 16 }}>
-      <FieldLabel
-        label={usesClassSchedule ? "Class name" : "Title"}
-        color={colors.muted}
-      />
-      <TextInput
-        value={title}
-        onChangeText={onTitleChange}
-        placeholder={usesClassSchedule ? "e.g. Stats Lecture" : "e.g. Library Session"}
-        placeholderTextColor={colors.muted}
-        style={inputStyle(colors)}
-      />
-
+    <View style={{ gap: 20 }}>
       {showTypePicker ? (
-        <>
-          <FieldLabel label="Type" color={colors.muted} />
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        <FormSectionCard title="Type">
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              paddingVertical: 12,
+              gap: 8,
+            }}
+          >
             {KIND_OPTIONS.map((option) => {
               const selected = option === kind;
+              const accent = getKindAccentColor(option);
               return (
                 <Pressable
                   key={option}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={KIND_LABELS[option]}
                   onPress={() => onKindChange(option)}
                   style={{
-                    borderRadius: 12,
-                    paddingHorizontal: 14,
-                    paddingVertical: 8,
-                    backgroundColor: selected ? colors.primary : colors.background,
-                    borderWidth: 1,
-                    borderColor: selected ? colors.primary : colors.border,
+                    flex: 1,
+                    alignItems: "center",
+                    gap: 6,
+                    paddingVertical: 4,
+                    opacity: selected ? 1 : 0.72,
                   }}
                 >
-                  <Text
+                  <View
                     style={{
-                      fontFamily: "Poppins-SemiBold",
-                      fontSize: 13,
-                      color: selected ? "#F0EDE9" : colors.foreground,
-                      textTransform: "capitalize",
+                      width: 44,
+                      height: 44,
+                      borderRadius: ICON_TILE_RADIUS_MD,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: selected ? getKindTintColor(option, 0.28) : getKindTintColor(option),
+                      borderWidth: selected ? 2 : 1,
+                      borderColor: selected ? accent : colors.border,
                     }}
                   >
-                    {option}
+                    <FocusNodeKindIcon kind={option} size={22} color={accent} />
+                  </View>
+                  <Text
+                    style={{
+                      fontFamily: selected ? "Poppins-SemiBold" : "Poppins-Regular",
+                      fontSize: 11,
+                      color: selected ? colors.foreground : colors.muted,
+                    }}
+                  >
+                    {KIND_LABELS[option]}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
-        </>
+        </FormSectionCard>
       ) : null}
 
-      {usesClassSchedule ? (
-        <>
-          <FieldLabel label="Room / hall" color={colors.muted} />
-          <TextInput
-            value={roomLabel}
-            onChangeText={onRoomLabelChange}
-            placeholder="e.g. IT 4-1"
-            placeholderTextColor={colors.muted}
-            style={inputStyle(colors)}
-          />
-        </>
-      ) : null}
-
-      <FieldLabel label="Day" color={colors.muted} />
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {WEEKDAY_OPTIONS.map((option) => {
-          const selected = option.value === weekday;
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => onWeekdayChange(option.value)}
+      <FormSectionCard
+        title="What"
+        footer={titleError ? <InlineFieldError message={titleError} /> : null}
+      >
+        <View style={{ gap: 12, paddingVertical: 8 }}>
+          <View style={{ gap: 6 }}>
+            <Text
               style={{
-                borderRadius: 12,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                backgroundColor: selected ? colors.primary : colors.background,
-                borderWidth: 1,
-                borderColor: selected ? colors.primary : colors.border,
+                fontFamily: "Poppins-Regular",
+                fontSize: 13,
+                lineHeight: 18,
+                color: colors.muted,
               }}
             >
+              {titleLabel}
+            </Text>
+            <TextInput
+              value={title}
+              onChangeText={onTitleChange}
+              placeholder={usesClassSchedule ? "e.g. Stats Lecture" : "e.g. Library Session"}
+              placeholderTextColor={colors.muted}
+              style={inputStyle(colors)}
+            />
+          </View>
+
+          {usesClassSchedule ? (
+            <View style={{ gap: 6 }}>
               <Text
                 style={{
-                  fontFamily: "Poppins-SemiBold",
+                  fontFamily: "Poppins-Regular",
                   fontSize: 13,
-                  color: selected ? "#F0EDE9" : colors.foreground,
+                  lineHeight: 18,
+                  color: colors.muted,
                 }}
               >
-                {option.label}
+                Room (optional)
               </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+              <TextInput
+                value={roomLabel}
+                onChangeText={onRoomLabelChange}
+                placeholder="e.g. IT 4-1"
+                placeholderTextColor={colors.muted}
+                style={inputStyle(colors)}
+              />
+            </View>
+          ) : null}
+        </View>
+      </FormSectionCard>
 
-      {usesClassSchedule ? (
-        <ScheduleTimeRangeField
-          startTime={startTime}
-          endTime={endTime}
-          onChangeStartTime={onStartTimeChange}
-          onChangeEndTime={onEndTimeChange}
-          colors={colors}
-        />
-      ) : (
-        <ScheduleSessionTimeField
-          startTime={startTime}
-          durationHours={durationHours}
-          onChangeStartTime={onStartTimeChange}
-          onChangeDurationHours={onDurationHoursChange}
-          colors={colors}
-        />
-      )}
+      <ScheduleWhenCard
+        weekdays={weekdays}
+        onWeekdaysChange={onWeekdaysChange}
+        allowMultipleWeekdays={allowMultipleWeekdays}
+        startTime={startTime}
+        onStartTimeChange={onStartTimeChange}
+        endTime={endTime}
+        onEndTimeChange={onEndTimeChange}
+        durationHours={durationHours}
+        onDurationHoursChange={onDurationHoursChange}
+        usesClassSchedule={usesClassSchedule}
+        colors={colors}
+      />
     </View>
   );
 }

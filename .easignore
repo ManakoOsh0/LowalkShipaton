@@ -1,0 +1,22 @@
+# Agent / IDE tooling (symlinks break EAS archive on Windows)
+.agents/
+.claude/
+.vscode/
+
+# Local EAS debug artifacts
+.eas-inspect/
+.eas-log*
+.eas-latest.json
+.eas-log-decoded.txt
+.eas-log-decompressed.txt
+.eas-log2.bin
+.eas-log2.txt
+.eas-log4.txt
+.eas-log5.txt
+.eas-build*.log
+.eas-build-view.json
+
+# Docs / plans not needed for builds
+plans/
+AGENTS.md
+PRODUCT.md

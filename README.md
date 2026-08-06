@@ -1,50 +1,97 @@
-# Welcome to your Expo app 👋
+# Lowalk
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Lowalk helps you show up where you planned to be, stay for your focus session, and build consistent real-world routines. The app separates **what you're doing** (Focus Node) from **where you're doing it** (Anchor), with optional app shielding during active sessions.
 
-## Get started
+## Features
 
-1. Install dependencies
+- Schedule Focus Nodes (class, study, gym, work) with linked location anchors
+- Geofence-based presence verification and session timers
+- Native Android app shielding via the `lowalk-app-shield` module
+- Local-first storage — no account or cloud sync required
 
-   ```bash
-   npm install
-   ```
+See [PRODUCT.md](./PRODUCT.md) for the full product specification.
 
-2. Start the app
+## Prerequisites
 
-   ```bash
-   npx expo start
-   ```
+- Node.js 20+
+- npm
+- [Expo CLI](https://docs.expo.dev/get-started/installation/)
+- Android Studio (for emulator or dev builds)
+- [EAS CLI](https://docs.expo.dev/build/setup/) (`npm install -g eas-cli`) for native builds
 
-In the output, you'll find options to open the app in a
+> **Note:** Lowalk uses a custom native module for app shielding. It requires a **development build** — Expo Go is not supported.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Getting started
 
 ```bash
-npm run reset-project
+git clone https://github.com/karabobuilds/lowalk.git
+cd lowalk
+npm install
+cp .env.example .env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Start the Metro bundler with the dev client:
 
-## Learn more
+```bash
+npm run start:dev
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## Android development build
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Build and install a development client on a device or emulator:
 
-## Join the community
+```bash
+npm run build:dev:android
+```
 
-Join our community of developers creating universal apps.
+Or with EAS directly:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+eas build --profile development --platform android
+```
+
+Preview APK (internal distribution):
+
+```bash
+npm run build:preview:android
+```
+
+## Project structure
+
+```
+app/              Expo Router screens
+components/       Reusable UI
+hooks/            React hooks
+lib/              Business logic and helpers
+modules/          Native modules (lowalk-app-shield)
+store/            Zustand state
+assets/           Fonts, images, icons
+```
+
+## Environment variables
+
+Copy `.env.example` to `.env` and fill in any values you need. Never commit `.env`.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `EXPO_PUBLIC_PRESENCE_DEBUG` | No | Set to `1` for location diagnostics in preview builds |
+| `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` | When IAP ships | RevenueCat public SDK key (Android) |
+| `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` | When IAP ships | RevenueCat public SDK key (iOS) |
+
+Use [EAS Secrets](https://docs.expo.dev/build-reference/variables/) for production build keys.
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm start` | Start Expo |
+| `npm run start:dev` | Start with dev client |
+| `npm run android` | Start on Android dev client |
+| `npm run lint` | Run ESLint |
+| `npm run test:class-completion` | Run class completion unit tests |
+| `npm run build:dev:android` | EAS development build (Android) |
+| `npm run build:preview:android` | EAS preview APK (Android) |
+
+## License
+
+MIT — see [LICENSE](./LICENSE).

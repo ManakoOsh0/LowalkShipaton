@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="widget_paper">#DDDDDD</color>
+  <color name="widget_shell_stroke">#D0D0D0</color>
+  <color name="widget_well">#C1C4BB</color>
+  <color name="widget_plaque">#D8DBD4</color>
+  <color name="widget_ink">#000000</color>
+  <color name="widget_muted">#5C5C58</color>
+  <color name="widget_muted_light">#8E8E93</color>
+  <color name="widget_accent">#F26430</color>
+  <color name="widget_dashboard_bg">#141210</color>
+</resources>

@@ -10,6 +10,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { StatsCardShell } from "@/components/stats/StatsCardShell";
+import { useReduceMotion } from "@/hooks/useHeroMotion";
+import { HERO_MOTION } from "@/lib/heroMotion";
 import type { WeeklyProgress } from "@/types/stats";
 import { useThemeColors } from "@/hooks/useThemeColors";
 
@@ -19,14 +21,21 @@ type WeeklyProgressCardProps = {
 
 export function WeeklyProgressCard({ progress }: WeeklyProgressCardProps) {
   const colors = useThemeColors();
+  const reduceMotion = useReduceMotion();
   const fill = useSharedValue(0);
 
   useEffect(() => {
-    fill.value = withTiming(progress.percent, { duration: 900 });
-  }, [fill, progress.percent]);
+    const targetScale = progress.percent / 100;
+    fill.value = reduceMotion
+      ? targetScale
+      : withTiming(targetScale, {
+          duration: HERO_MOTION.progressCardMs,
+          easing: HERO_MOTION.progressEasing,
+        });
+  }, [fill, progress.percent, reduceMotion]);
 
   const barStyle = useAnimatedStyle(() => ({
-    width: `${fill.value}%`,
+    transform: [{ scaleX: fill.value }],
   }));
 
   return (
@@ -55,8 +64,10 @@ export function WeeklyProgressCard({ progress }: WeeklyProgressCardProps) {
             style={[
               {
                 height: "100%",
+                width: "100%",
                 borderRadius: 999,
                 backgroundColor: colors.skyDeep,
+                transformOrigin: "left center",
               },
               barStyle,
             ]}

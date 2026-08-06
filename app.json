@@ -13,7 +13,8 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Lowalk uses your location to verify you are at your Focus Node and to set up location anchors.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Lowalk needs background location to pause or complete your focus session when you leave or return to your Focus Node.",
-        "NSCameraUsageDescription": "Lowalk uses the camera to count push-ups on your device. Video is not recorded or uploaded.",
+        "NSPhotoLibraryUsageDescription": "Lowalk uses your photos to create shareable focus session cards.",
+        "NSPhotoLibraryAddUsageDescription": "Lowalk saves your share cards to your photo library.",
         "UIBackgroundModes": [
           "location"
         ]
@@ -39,12 +40,8 @@
         "android.permission.PACKAGE_USAGE_STATS",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.QUERY_ALL_PACKAGES",
-        "android.permission.CAMERA",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.USE_EXACT_ALARM",
-        "android.permission.VIBRATE",
-        "android.permission.WAKE_LOCK"
+        "android.permission.VIBRATE"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -105,16 +102,16 @@
       ],
       "./modules/lowalk-app-shield/app.plugin.js",
       [
-        "react-native-vision-camera",
+        "expo-image-picker",
         {
-          "cameraPermissionText": "Lowalk uses the camera to count push-ups on your device. Video is not recorded or uploaded.",
-          "enableFrameProcessors": true
+          "photosPermission": "Lowalk uses your photos to create shareable focus session cards."
         }
       ],
       [
-        "expo-screen-orientation",
+        "expo-media-library",
         {
-          "initialOrientation": "DEFAULT"
+          "photosPermission": "Lowalk saves your share cards to your photo library.",
+          "savePhotosPermission": "Lowalk saves your share cards to your photo library."
         }
       ]
     ],

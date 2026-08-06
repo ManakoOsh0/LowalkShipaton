@@ -8,14 +8,15 @@ import type { ScheduleItem } from "@/types/dashboard";
 
 type ScheduleCardProps = ScheduleItem & {
   onPress?: () => void;
+  onLongPress?: () => void;
 };
 
 export function ScheduleCard(props: ScheduleCardProps) {
-  const { onPress, ...item } = props;
+  const { onPress, onLongPress, ...item } = props;
 
   return (
     <NeuCard borderRadius={CARD_RADIUS_XL} contentStyle={{ padding: 0 }}>
-      <ScheduleRow {...item} onPress={onPress} />
+      <ScheduleRow {...item} onPress={onPress} onLongPress={onLongPress} />
     </NeuCard>
   );
 }

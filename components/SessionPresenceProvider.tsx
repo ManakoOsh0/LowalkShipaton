@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { SessionPresenceContext } from "@/contexts/SessionPresenceContext";
 import { useAppShielding } from "@/hooks/useAppShielding";
+import { useWidgetScheduleSync } from "@/hooks/useWidgetScheduleSync";
 import { useBackgroundPresence } from "@/hooks/useBackgroundPresence";
 import { useSessionPresenceEngine } from "@/hooks/useSessionPresenceEngine";
 
@@ -9,7 +10,8 @@ import { useSessionPresenceEngine } from "@/hooks/useSessionPresenceEngine";
 export function SessionPresenceProvider({ children }: { children: ReactNode }) {
   const presence = useSessionPresenceEngine();
   useBackgroundPresence();
-  useAppShielding();
+  useAppShielding(presence);
+  useWidgetScheduleSync(presence);
 
   return (
     <SessionPresenceContext.Provider value={presence}>

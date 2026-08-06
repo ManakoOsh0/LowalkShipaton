@@ -1,35 +1,41 @@
-import type { DailyGoal, HeroCardData, ScheduleItem, WeekDaySchedule } from "@/types/dashboard";
 import type { Anchor } from "@/types/anchor";
+import type { DailyGoal, HeroCardData, ScheduleItem, WeekDaySchedule } from "@/types/dashboard";
 import type { FocusNode, FocusNodeKind, Weekday } from "@/types/focusNode";
 import type { ActiveSessionSnapshot } from "@/types/session";
 
 import { computeFocusNodeInsights } from "@/lib/focusNodeStats";
 
-import {
-  buildTravelStats,
-  formatCountdownMmSs,
-  formatStartsInLabel,
-  TIME_TO_LEAVE_MINUTES,
-} from "@/lib/heroCard";
-import { formatSessionDetailLabel } from "@/lib/sessionPenalty";
-import { formatDurationClock } from "@/lib/shieldSchedule";
-import {
-  formatTimeLabel,
-  getScheduleDurationLabel,
-  getScheduleTimeLabel,
-  getScheduleWindow,
-  isScheduleWindowPassed,
-  isWithinScheduleWindow,
-  minutesToTodayDate,
-  toIsoDateString,
-} from "@/lib/time";
+import { getClassEarlyCompleteRemainingMs, getClassSessionCountdown } from "@/lib/classCompletion";
 import type { Coordinates } from "@/lib/geo";
 import {
-  distanceOutsideGeofenceMeters,
-  hasUsableCoordinates,
-  PRESENCE_VERIFICATION_SECONDS,
-  resolveAnchorForNode,
+    distanceOutsideGeofenceMeters,
+    hasUsableCoordinates,
+    PRESENCE_VERIFICATION_SECONDS,
+    resolveAnchorForNode,
 } from "@/lib/geo";
+import {
+    buildTravelStats,
+    formatCountdownMmSs,
+    formatStartsInLabel,
+    TIME_TO_LEAVE_MINUTES,
+} from "@/lib/heroCard";
+import { buildEndTimeLabel, enrichHeroCardData } from "@/lib/heroIntel";
+import { formatSessionDetailLabel, getAwayGraceRemainingMs } from "@/lib/sessionPenalty";
+import {
+    DEFAULT_CLASS_PRE_BUFFER_MINUTES,
+    DEFAULT_SESSION_GAP_MERGE_MINUTES,
+    formatDurationClock,
+    type ShieldScheduleSettings,
+} from "@/lib/shieldSchedule";
+import {
+    getScheduleDurationLabel,
+    getScheduleTimeLabel,
+    getScheduleWindow,
+    isScheduleWindowPassed,
+    isWithinScheduleWindow,
+    minutesToTodayDate,
+    toIsoDateString
+} from "@/lib/time";
 import type { SessionDetailData, SessionOccurrenceStatus } from "@/types/sessionDetail";
 
 const SCHEDULE_ACCENTS: Record<FocusNodeKind, ScheduleItem["accent"]> = {
@@ -244,9 +250,11 @@ function buildUpNextHeroData(
   options?: {
     travelStats?: HeroCardData["travelStats"];
     startsInLabel?: string;
+    leaveByLabel?: string | null;
   },
 ): HeroCardData {
   const minutesUntilStart = minutesUntilScheduleStart(nextNode.schedule, referenceDate);
+  const nodeKind = normalizeNodeKind(nextNode.kind);
 
   return {
     state: "up_next",
@@ -267,11 +275,25 @@ function buildUpNextHeroData(
       startsInLabel:
         options?.startsInLabel ??
         `Starts in ${formatStartsInLabel(Math.max(minutesUntilStart, 0))}`,
+      endTimeLabel: buildEndTimeLabel(nextNode.schedule),
+      kindLabel:
+        nodeKind === "class"
+          ? "CLASS"
+          : nodeKind === "gym"
+            ? "GYM"
+            : nodeKind === "library"
+              ? "LIBRARY"
+              : "FOCUS",
+      leaveByLabel: options?.leaveByLabel ?? null,
     },
   };
 }
 
-function activeSessionCountdown(session: ActiveSessionSnapshot, now: Date): {
+function activeSessionCountdown(
+  session: ActiveSessionSnapshot,
+  now: Date,
+  settings: ShieldScheduleSettings,
+): {
   subtitle: string;
   countdownLabel: string;
   progressRatio: number | null;
@@ -291,6 +313,37 @@ function activeSessionCountdown(session: ActiveSessionSnapshot, now: Date): {
         session.requiredOnSiteMs > 0
           ? Math.min(session.onSiteAccumulatedMs / session.requiredOnSiteMs, 1)
           : null,
+    };
+  }
+
+  if (session.scheduleType === "class") {
+    const { countdownMs, progressRatio, phase } = getClassSessionCountdown(
+      session,
+      settings,
+      nowMs,
+    );
+    const remainingMinutes = Math.max(0, Math.ceil(countdownMs / 60_000));
+
+    if (phase === "pre_class") {
+      return {
+        subtitle:
+          remainingMinutes === 1
+            ? "Class starts in 1 minute."
+            : `Class starts in ${remainingMinutes} minutes.`,
+        countdownLabel: formatDurationClock(countdownMs),
+        progressRatio,
+      };
+    }
+
+    return {
+      subtitle:
+        remainingMinutes <= 0
+          ? "Almost done — stay inside to finish."
+          : remainingMinutes === 1
+            ? "1 minute remaining."
+            : `${remainingMinutes} minutes remaining.`,
+      countdownLabel: formatDurationClock(countdownMs),
+      progressRatio,
     };
   }
 
@@ -343,12 +396,16 @@ function isWeeklyScheduleComplete(nodes: FocusNode[], referenceDate: Date): bool
   return scheduled > 0 && finished >= scheduled;
 }
 
-export function selectHeroCardData(
+function computeHeroCardData(
   nodes: FocusNode[],
   anchors: Anchor[],
   activeSession: ActiveSessionSnapshot | null,
   presence: PresenceContext | null = null,
   referenceDate = new Date(),
+  shieldSettings: ShieldScheduleSettings = {
+    classPreBufferMinutes: DEFAULT_CLASS_PRE_BUFFER_MINUTES,
+    sessionGapMergeMinutes: DEFAULT_SESSION_GAP_MERGE_MINUTES,
+  },
 ): HeroCardData {
   const todayWeekday = referenceDate.getDay();
   const todayIso = toIsoDateString(referenceDate);
@@ -374,16 +431,66 @@ export function selectHeroCardData(
       ? { latitude: anchor.latitude, longitude: anchor.longitude }
       : { latitude: null, longitude: null };
 
-    if (activeSession.awaySince || activeSession.penaltyShieldEndsAt) {
-      return {
+    if (activeSession.penaltyShieldEndsAt) {
+      const nowMs = referenceDate.getTime();
+      const penaltyEndMs = new Date(activeSession.penaltyShieldEndsAt).getTime();
+      if (nowMs < penaltyEndMs) {
+        const lockRemainingMs = Math.max(penaltyEndMs - nowMs, 0);
+        const penaltyMinutes = activeSession.penaltyMinutes ?? 30;
+        return {
+          state: "on_the_way",
+          title: "Apps locked.",
+          subtitle: `+${penaltyMinutes}m penalty · return to ${activeSession.zoneLabel}`,
+          icon: "traveller",
+          action: null,
+          nodeId: activeSession.nodeId,
+          countdownLabel: formatDurationClock(lockRemainingMs),
+          ...coords,
+        };
+      }
+    }
+
+    if (activeSession.awaySince) {
+      const nowMs = referenceDate.getTime();
+      const earlyCompleteRemaining = getClassEarlyCompleteRemainingMs(
+        activeSession,
+        shieldSettings,
+        nowMs,
+      );
+      if (earlyCompleteRemaining != null && earlyCompleteRemaining > 0) {
+        return {
           state: "on_the_way",
           title: "Stepped out.",
-          subtitle: `Return to ${activeSession.zoneLabel} to continue.`,
+          subtitle: `Return within ${formatDurationClock(earlyCompleteRemaining)}`,
           icon: "traveller",
           action: null,
           nodeId: activeSession.nodeId,
           ...coords,
         };
+      }
+
+      const grace = getAwayGraceRemainingMs(activeSession, nowMs);
+      if (grace != null && grace > 0) {
+        return {
+          state: "on_the_way",
+          title: "Stepped out.",
+          subtitle: `Return within ${formatDurationClock(grace)}`,
+          icon: "traveller",
+          action: null,
+          nodeId: activeSession.nodeId,
+          ...coords,
+        };
+      }
+
+      return {
+        state: "on_the_way",
+        title: "Stepped out.",
+        subtitle: `Return to ${activeSession.zoneLabel} now`,
+        icon: "traveller",
+        action: null,
+        nodeId: activeSession.nodeId,
+        ...coords,
+      };
     }
 
     if (!activeSession.presenceVerified) {
@@ -431,7 +538,7 @@ export function selectHeroCardData(
             ? "On your way to the venue."
             : presence?.locationUnavailable
               ? "Enable location so we can guide you there."
-              : formatSessionDetailLabel(activeSession, referenceDate);
+              : formatSessionDetailLabel(activeSession, referenceDate, shieldSettings);
 
         return buildUpNextHeroData(travellingNode, anchors, referenceDate, {
           travelStats: metersAway != null ? buildTravelStats(metersAway) : null,
@@ -444,7 +551,7 @@ export function selectHeroCardData(
           title: "On your way.",
           subtitle: presence?.locationUnavailable
             ? "Enable location so we can guide you there."
-            : formatSessionDetailLabel(activeSession, referenceDate),
+            : formatSessionDetailLabel(activeSession, referenceDate, shieldSettings),
           icon: "traveller",
           action: null,
           travelStats: metersAway != null ? buildTravelStats(metersAway) : null,
@@ -453,7 +560,7 @@ export function selectHeroCardData(
         };
     }
 
-    const timer = activeSessionCountdown(activeSession, referenceDate);
+    const timer = activeSessionCountdown(activeSession, referenceDate, shieldSettings);
     return {
         state: "active",
         title: activeSession.nodeTitle,
@@ -509,25 +616,25 @@ export function selectHeroCardData(
 
       if (isMondayMorning) {
         return {
-            state: "on_the_way",
-            title: "Fresh start.",
-            subtitle: "A new week is open.\nLet's earn Focus Coins back together.",
-            icon: "seedling",
-            action: null,
-            nodeId: nextNode.id,
-          };
+          ...buildUpNextHeroData(nextNode, anchors, referenceDate),
+          state: "on_the_way",
+          title: "Fresh start.",
+          subtitle: "A new week is open.\nLet's earn Focus Coins back together.",
+          icon: "seedling",
+          action: null,
+        };
       }
 
       if (minutesUntilStart > 0 && minutesUntilStart <= TIME_TO_LEAVE_MINUTES) {
         return {
-            state: "on_the_way",
-            title: "Time to head out.",
-            subtitle: `${nextNode.title} starts in ${formatStartsInLabel(minutesUntilStart)}.`,
-            icon: "walk",
-            action: null,
-            nodeId: nextNode.id,
-            ...coords,
-          };
+          ...buildUpNextHeroData(nextNode, anchors, referenceDate),
+          state: "on_the_way",
+          title: "Time to head out.",
+          subtitle: `${nextNode.title} starts in ${formatStartsInLabel(minutesUntilStart)}.`,
+          icon: "walk",
+          action: null,
+          ...coords,
+        };
       }
 
       return buildUpNextHeroData(nextNode, anchors, referenceDate);
@@ -535,13 +642,13 @@ export function selectHeroCardData(
 
     if (!anchor) {
       return {
-          state: "on_the_way",
-          title: "Add a place for this session",
-          subtitle: "Edit the Focus Node and search for a venue.",
-          icon: "traveller",
-          action: null,
-          nodeId: nextNode.id,
-        };
+        ...buildUpNextHeroData(nextNode, anchors, referenceDate),
+        state: "on_the_way",
+        title: "Add a place for this session",
+        subtitle: "Edit the Focus Node and search for a venue.",
+        icon: "traveller",
+        action: null,
+      };
     }
 
     if (!hasUsableCoordinates(anchor)) {
@@ -622,6 +729,43 @@ export function selectHeroCardData(
     icon: "sunrise",
     action: null,
   };
+}
+
+export function selectHeroCardData(
+  nodes: FocusNode[],
+  anchors: Anchor[],
+  activeSession: ActiveSessionSnapshot | null,
+  presence: PresenceContext | null = null,
+  referenceDate = new Date(),
+  shieldSettings: ShieldScheduleSettings = {
+    classPreBufferMinutes: DEFAULT_CLASS_PRE_BUFFER_MINUTES,
+    sessionGapMergeMinutes: DEFAULT_SESSION_GAP_MERGE_MINUTES,
+  },
+): HeroCardData {
+  const hero = computeHeroCardData(
+    nodes,
+    anchors,
+    activeSession,
+    presence,
+    referenceDate,
+    shieldSettings,
+  );
+
+  return enrichHeroCardData(hero, {
+    nodes,
+    anchors,
+    activeSession,
+    presence,
+    referenceDate,
+    dailyGoal: selectDailyGoal(nodes, referenceDate),
+    schedule: selectTodaySchedule(
+      nodes,
+      anchors,
+      activeSession?.nodeId ?? null,
+      referenceDate,
+    ),
+    shieldSettings,
+  });
 }
 
 export function selectTodaySchedule(

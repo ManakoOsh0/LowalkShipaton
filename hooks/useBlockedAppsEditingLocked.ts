@@ -1,18 +1,6 @@
-import { useEffect, useState } from "react";
+import { useBlockedAppsRemovalLocked } from "@/hooks/useBlockedAppsRemovalLocked";
 
-import { isBlockedAppsEditingLocked } from "@/lib/blockedAppsGuard";
-
-/** Reactive hook — re-evaluates every second while shield windows can change. */
+/** @deprecated Use useBlockedAppsRemovalLocked — only removals are locked during focus. */
 export function useBlockedAppsEditingLocked(): boolean {
-  const [locked, setLocked] = useState(isBlockedAppsEditingLocked);
-
-  useEffect(() => {
-    setLocked(isBlockedAppsEditingLocked());
-    const interval = setInterval(() => {
-      setLocked(isBlockedAppsEditingLocked());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return locked;
+  return useBlockedAppsRemovalLocked();
 }

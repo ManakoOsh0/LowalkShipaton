@@ -2,9 +2,11 @@
  * Dev-only control — cycle Hero Card states from Settings.
  * Uses the same forced-state store as the state preview chips.
  */
+import { useRouter } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 
 import { ALL_HERO_STATES, HERO_STATE_LABELS } from "@/lib/heroCard";
+import { ROUTES } from "@/lib/routes";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { useHeroPreviewStore } from "@/store/useHeroPreviewStore";
 import type { HeroCardState } from "@/types/dashboard";
@@ -31,12 +33,22 @@ type HeroPreviewControlsProps = {
 
 export function HeroPreviewControls({ embedded = false }: HeroPreviewControlsProps) {
   const colors = useThemeColors();
+  const router = useRouter();
   const forcedState = useHeroPreviewStore((state) => state.forcedState);
   const setForcedState = useHeroPreviewStore((state) => state.setForcedState);
+  const setForcedVariant = useHeroPreviewStore((state) => state.setForcedVariant);
 
   if (!__DEV__) return null;
 
   const label = forcedState ? HERO_STATE_LABELS[forcedState] : "Live";
+
+  const applyPreviewState = (state: HeroCardState | null) => {
+    setForcedVariant(null);
+    setForcedState(state);
+    if (state != null) {
+      router.push(ROUTES.home);
+    }
+  };
 
   const controls = (
     <>
@@ -66,7 +78,9 @@ export function HeroPreviewControls({ embedded = false }: HeroPreviewControlsPro
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Previous hero state"
-          onPress={() => setForcedState(stepState(forcedState, -1))}
+          onPress={() => {
+            applyPreviewState(stepState(forcedState, -1));
+          }}
           hitSlop={8}
           style={{
             borderRadius: 999,
@@ -104,7 +118,9 @@ export function HeroPreviewControls({ embedded = false }: HeroPreviewControlsPro
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Next hero state"
-          onPress={() => setForcedState(stepState(forcedState, 1))}
+          onPress={() => {
+            applyPreviewState(stepState(forcedState, 1));
+          }}
           hitSlop={8}
           style={{
             borderRadius: 999,
@@ -129,7 +145,10 @@ export function HeroPreviewControls({ embedded = false }: HeroPreviewControlsPro
       {forcedState ? (
         <Pressable
           accessibilityRole="button"
-          onPress={() => setForcedState(null)}
+          onPress={() => {
+            setForcedVariant(null);
+            setForcedState(null);
+          }}
           hitSlop={8}
           style={{ alignSelf: "center", paddingVertical: 2 }}
         >

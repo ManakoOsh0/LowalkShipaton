@@ -45,6 +45,18 @@ app-example
 
 # EAS local debug artifacts
 .eas-inspect/
-.eas-log.bin
+.eas-log*
+.eas-latest.json
+.eas-dev-build-log*.txt
+.eas-preview-build-log.bin
 .eas-build*.log
 .eas-build-view.json
+
+# Agent / IDE tooling (not needed for builds or judges)
+.agents/
+.claude/
+.vscode/
+plans/
+AGENTS.md
+CLAUDE.md
+skills-lock.json

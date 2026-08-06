@@ -20,7 +20,7 @@ export type ActiveSessionSnapshot = {
   requiredOnSiteMs: number | null;
   /** ISO when the user left the geofence during an in-venue phase. */
   awaySince: string | null;
-  /** Extra app-block window after a presence penalty (classes). */
+  /** Extra app-block window after missing the away grace window. */
   penaltyShieldEndsAt: string | null;
   /** Locked minutes applied from Settings when the grace window was missed. */
   penaltyMinutes: number | null;

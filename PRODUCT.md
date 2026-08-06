@@ -86,7 +86,7 @@ The selected radius determines when the user is considered inside or outside a l
 ## Focus Coins (Skips) & Streak
 
 ### Focus Coins = Skips
-Focus Coins are the same thing as **skips** — currency you earn by showing up and spend to bypass focus enforcement (e.g. opening a blocked app during a lock window). The header coin balance is your available skip count.
+Focus Coins are the same thing as **skips** — currency you earn by showing up and spend to bypass focus enforcement (e.g. opening a blocked app during a lock window). Your saved balance is shown in **Settings** and on the **Hero card** intel row.
 
 **Earning:** Complete **every session on today's schedule** (e.g. `1 / 1` or `4 / 4` on the Daily Goal card — the target always matches how many Focus Nodes you scheduled for that day) to earn **+1 Focus Coin** for that calendar day.
 
@@ -105,11 +105,14 @@ When you hit your daily target, a **streak celebration** modal appears (similar 
 The Home screen should answer exactly one question: *"What should I do next?"* Keep it intentionally minimal and free of dashboard clutter.
 
 ### Layout Hierarchy:
-1. **Header:** Displays Lowalk logo, Focus Coin balance, and Streak count. Coins are always visible here and must *never* be duplicated inside other screen cards.
+1. **Header:** Displays weekday, date, and streak count. Focus Coins are **not** shown in the header.
 2. **Daily Goal Card:** Displays today's numerical performance (e.g. `1 / 1 Sessions Completed` or `2 / 3`) and a clean horizontal progress bar. The target always matches today's scheduled Focus Nodes. It *never* displays Focus Coins.
-3. **Dynamic Hero Card:** The primary status area and session timer. Only **one** instance exists on the dashboard, changing state dynamically (e.g., *No sessions today, Upcoming session, Walking to location, Verifying presence, Focus active, Session paused, Completed*). During an active session it displays the countdown and a **Blocked Apps** button to manage distracting applications.
-4. **Schedule Cards:** Rendered as a lightweight, scannable checklist tracking the day's nodes, showing an icon, title, scheduled time, and completion status.
-5. **Floating Action Button (FAB):** Triggers a quick-action tray showing templates (`Class`, `Study`, `Gym`) and a `Custom` creation flow button.
+3. **Dynamic Hero Card:** The primary status area and session timer. Only **one** instance exists on the dashboard, changing state dynamically (e.g., *No sessions today, Upcoming session, Walking to location, Verifying presence, Focus active, Session paused, Completed*). During active sessions it displays the countdown and a **Blocked Apps** button to manage distracting applications. Outside active sessions, the Hero intel row shows saved Focus Coins plus today's earn progress (e.g. `3 saved · 1 more today`).
+4. **Settings — Focus Rewards:** Displays the user's saved Focus Coin balance and a short explanation of how to earn coins.
+5. **Schedule Cards:** Rendered as a lightweight, scannable checklist tracking the day's nodes, showing an icon, title, scheduled time, and completion status.
+6. **Floating Action Button (FAB):** Triggers a quick-action tray showing templates (`Class`, `Study`, `Gym`) and a `Custom` creation flow button.
+
+**Focus Coin visibility:** Balance lives on **Settings** and the **Hero card** intel row. Earn feedback uses the streak celebration modal (and optional background notification when the app is not in the foreground). Coins must not appear on the Daily Goal card or home header.
 
 ---
 
@@ -121,9 +124,21 @@ Lowalk separates **when apps are blocked** (calendar) from **whether you showed 
 | Node type | Shield starts | Shield ends | Geofence role |
 |-----------|---------------|-------------|---------------|
 | **Gym / Library** | Scheduled `startTime` — anywhere | After required **on-site duration** is accumulated inside the geofence, or at **local midnight** (missed) | Proof of arrival + completion |
-| **Class** | `startTime − 30m` (configurable) — anywhere | Scheduled `endTime` (+ away penalty if applicable) | Proof of arrival + completion |
+| **Class** | `startTime − 30m` (configurable) — anywhere | Scheduled `endTime` (+ away penalty if applicable), or earlier on verified departure | Proof of arrival + completion |
 
 If two sessions are less than **30 minutes** apart, the shield **does not lift** between them.
+
+#### Class completion rules
+
+A class counts as complete when **either**:
+
+1. **Scheduled end** — the user is verified inside the geofence when the nominal `endTime` passes, with no active away penalty; or
+2. **Verified early departure** — after leaving the venue, if on-site attendance during the nominal class window meets a tiered threshold:
+   - **≥ 80%** of scheduled class duration on-site → auto-complete after **2 minutes** away
+   - **≥ 50%** of scheduled class duration on-site → auto-complete after **5 minutes** away (replaces penalty)
+   - **Below 50%** → no auto-complete; existing away grace and penalty rules apply
+
+Pre-buffer time (before nominal `startTime`) does **not** count toward on-site attendance. Gym and library sessions still require the full configured on-site duration.
 
 ### 1. The Blocking Overlay
 When a shielded application is opened during an active lock window, a standalone full-screen layout overlays it. It contains a motivational quote, the remaining focus session time counter, a button navigating to the Home screen (Hero Card), and a Close button. It **never** contains a Skip button or Ads.

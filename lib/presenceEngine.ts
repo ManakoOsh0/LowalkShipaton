@@ -10,6 +10,10 @@ import {
   type Coordinates,
 } from "@/lib/geo";
 import {
+  resolveClassCompletionOutcome,
+  shouldCompleteClassOnDeparture,
+} from "@/lib/classCompletion";
+import {
   getNodeShieldInterval,
   selectPrimaryObligationNode,
   type ShieldScheduleSettings,
@@ -44,6 +48,31 @@ function getShieldSettings(): ShieldScheduleSettings {
     classPreBufferMinutes: user.classPreBufferMinutes,
     sessionGapMergeMinutes: user.sessionGapMergeMinutes,
   };
+}
+
+/** Finalize a verified class before swapping sessions or clearing at expiry. */
+function finalizeClassSessionIfEligible(
+  session: ActiveSessionSnapshot,
+  insideGeofence: boolean,
+  now: number,
+  focusNodes: FocusNode[],
+): void {
+  const store = useScheduleStore.getState();
+  const settings = getShieldSettings();
+  const todayIso = toIsoDateString(new Date(now));
+  const node = focusNodes.find((item) => item.id === session.nodeId);
+
+  if (node?.completedDates.includes(todayIso)) {
+    store.setActiveSession(null);
+    return;
+  }
+
+  const outcome = resolveClassCompletionOutcome(session, settings, now, insideGeofence);
+  if (outcome === "complete") {
+    store.completeActiveSession();
+  } else {
+    store.setActiveSession(null);
+  }
 }
 
 /** Resolves whether GPS tracking should run and which anchor drives presence checks. */
@@ -134,6 +163,34 @@ export function runPresenceTick(
     settings,
     now,
   );
+
+  const sessionBeforeSwitch = useScheduleStore.getState().activeSession;
+  const nodeBeforeSwitch = sessionBeforeSwitch
+    ? focusNodes.find((node) => node.id === sessionBeforeSwitch.nodeId) ?? null
+    : null;
+  const anchorBeforeSwitch = resolveAnchorForNode(nodeBeforeSwitch?.anchorId ?? null, anchors);
+  const insideBeforeSwitch =
+    accurateEnough &&
+    Boolean(position && anchorBeforeSwitch && hasUsableCoordinates(anchorBeforeSwitch)) &&
+    isInsideGeofence(position!, anchorBeforeSwitch!);
+
+  if (
+    !anchoringRequest &&
+    obligationNode &&
+    sessionBeforeSwitch &&
+    sessionBeforeSwitch.nodeId !== obligationNode.id &&
+    sessionBeforeSwitch.scheduleType === "class" &&
+    sessionBeforeSwitch.presenceVerified
+  ) {
+    finalizeClassSessionIfEligible(
+      sessionBeforeSwitch,
+      insideBeforeSwitch,
+      now,
+      focusNodes,
+    );
+    activeSession = useScheduleStore.getState().activeSession;
+    focusNodes = useScheduleStore.getState().focusNodes;
+  }
 
   if (!anchoringRequest && obligationNode) {
     const interval = getNodeShieldInterval(obligationNode, settings, new Date(now));
@@ -228,11 +285,21 @@ export function runPresenceTick(
 
   const sessionAfterAway = useScheduleStore.getState().activeSession;
   if (
-    sessionAfterAway?.scheduleType === "class" &&
-    sessionAfterAway.presenceVerified &&
+    sessionAfterAway?.presenceVerified &&
     sessionAfterAway.awaySince &&
     !sessionAfterAway.penaltyShieldEndsAt
   ) {
+    if (shouldCompleteClassOnDeparture(sessionAfterAway, settings, now)) {
+      const todayIso = toIsoDateString(new Date(now));
+      const completedNode = focusNodes.find((node) => node.id === sessionAfterAway.nodeId);
+      if (completedNode?.completedDates.includes(todayIso)) {
+        useScheduleStore.getState().setActiveSession(null);
+      } else {
+        useScheduleStore.getState().completeActiveSession();
+      }
+      return;
+    }
+
     const awayMs = now - new Date(sessionAfterAway.awaySince).getTime();
     if (awayMs >= PRESENCE_PENALTY_GRACE_MS) {
       useScheduleStore.getState().applyPresencePenalty();
@@ -273,7 +340,7 @@ export function runPresenceTick(
   if (penaltyEnd > now) return;
 
   if (!insideGeofence) {
-    useScheduleStore.getState().setActiveSession(null);
+    finalizeClassSessionIfEligible(sessionForExpiry, false, now, focusNodes);
     return;
   }
 

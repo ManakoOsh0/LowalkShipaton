@@ -1,29 +1,39 @@
 /**
- * Optional calibration — shifts the geofence center to the user's current seat.
- * Presence already works from searched venue coords; this reduces false exits in large buildings.
+ * AnchoringFlow — on-site GPS capture and geofence setup.
+ * Shared header + step dots persist across hold, nearby-match, and map-adjust steps.
  */
-import { useState } from "react";
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Image } from "expo-image";
+import { useEffect, useMemo, useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 
+import { AnchorGeofenceEditor } from "@/components/AnchorGeofenceEditor";
+import {
+  AnchoringSheetHeader,
+  AnchoringStepDots,
+} from "@/components/AnchoringSheetHeader";
+import { BottomSheet } from "@/components/BottomSheet";
+import { HoldToConfirmButton } from "@/components/HoldToConfirmButton";
+import { SheetActionButton } from "@/components/SheetActionButton";
+import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import {
-  ANCHOR_RADIUS_PRESETS,
   findNearbyAnchor,
+  getOpenStreetMapPreviewUrl,
+  haversineDistanceMeters,
+  presetIdForKind,
   type Coordinates,
 } from "@/lib/geo";
+import { sheetStepEntering, sheetStepExiting } from "@/lib/heroMotion";
+import { CARD_RADIUS_SM } from "@/lib/cardStyle";
 import { getCurrentPosition } from "@/services/location";
 import { useScheduleStore } from "@/store/useScheduleStore";
+import type { AnchoringSheetMode } from "@/store/useAnchoringSheetStore";
 
-type AnchoringStep = "intro" | "nearby" | "radius" | "custom";
+type AnchoringStep = "hold" | "nearby" | "map";
+
+const DEFAULT_RADIUS_METERS = 30;
+const NEARBY_MAP_PREVIEW_HEIGHT = 140;
 
 type AnchoringFlowProps = {
   visible: boolean;
@@ -31,10 +41,19 @@ type AnchoringFlowProps = {
   nodeTitle: string;
   anchorId: string;
   anchorName: string;
-  /** required = deferred venue first arrival; optional = fine-tune seat alignment. */
-  mode?: "required" | "optional";
+  mode?: AnchoringSheetMode;
   onComplete: () => void;
 };
+
+function formatNearbyDistance(meters: number): string {
+  if (meters < 10) return "Right where you're standing";
+  const rounded = Math.max(5, Math.round(meters / 5) * 5);
+  return `${rounded}m from this spot`;
+}
+
+function stepActiveIndex(step: AnchoringStep): number {
+  return step === "hold" ? 0 : 1;
+}
 
 export function AnchoringFlow({
   visible,
@@ -46,31 +65,116 @@ export function AnchoringFlow({
   onComplete,
 }: AnchoringFlowProps) {
   const colors = useThemeColors();
+  const reduceMotion = useReduceMotion();
+  const focusNodes = useScheduleStore((state) => state.focusNodes);
   const anchors = useScheduleStore((state) => state.anchors);
   const calibrateAnchor = useScheduleStore((state) => state.calibrateAnchor);
   const linkNodeToAnchor = useScheduleStore((state) => state.linkNodeToAnchor);
 
-  const [step, setStep] = useState<AnchoringStep>("intro");
+  const [step, setStep] = useState<AnchoringStep>("hold");
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
-  const [capturedPosition, setCapturedPosition] = useState<Coordinates | null>(null);
   const [nearbyAnchorId, setNearbyAnchorId] = useState<string | null>(null);
-  const [customRadius, setCustomRadius] = useState("35");
+  const [mapCenter, setMapCenter] = useState<Coordinates | null>(null);
+  const [radiusMeters, setRadiusMeters] = useState(DEFAULT_RADIUS_METERS);
+
+  const focusNode = useMemo(
+    () => focusNodes.find((node) => node.id === nodeId) ?? null,
+    [focusNodes, nodeId],
+  );
+
+  const suggestedPresetId = useMemo(
+    () => presetIdForKind(focusNode?.kind ?? "custom"),
+    [focusNode?.kind],
+  );
 
   const nearbyAnchor = nearbyAnchorId
     ? anchors.find((anchor) => anchor.id === nearbyAnchorId) ?? null
     : null;
 
+  const nearbyDistanceLabel = useMemo(() => {
+    if (!nearbyAnchor || !mapCenter) return null;
+    const meters = haversineDistanceMeters(mapCenter, {
+      latitude: nearbyAnchor.latitude,
+      longitude: nearbyAnchor.longitude,
+    });
+    return formatNearbyDistance(meters);
+  }, [mapCenter, nearbyAnchor]);
+
+  const isRequired = mode === "required";
+
+  const headerContent = useMemo(() => {
+    if (step === "nearby" && nearbyAnchor) {
+      return {
+        badge: "Nearby place found",
+        anchorName: nearbyAnchor.name,
+        hintLine: nearbyDistanceLabel
+          ? `${nearbyDistanceLabel} — reuse this anchor or set a new spot`
+          : "Reuse this anchor or set a new spot",
+      };
+    }
+
+    if (step === "map") {
+      return {
+        badge: "Adjust your spot",
+        anchorName,
+        hintLine: "Drag the pin to your seat, then pick a radius",
+      };
+    }
+
+    return {
+      badge: isRequired ? "Set your anchor" : "Fine-tune location",
+      anchorName,
+      hintLine: isRequired ? undefined : "We'll use GPS to refine your geofence",
+    };
+  }, [anchorName, isRequired, nearbyAnchor, nearbyDistanceLabel, step]);
+
   const resetFlow = () => {
-    setStep("intro");
+    setStep("hold");
     setIsCapturing(false);
+    setIsSaving(false);
     setCaptureError(null);
-    setCapturedPosition(null);
     setNearbyAnchorId(null);
-    setCustomRadius("35");
+    setMapCenter(null);
+    setRadiusMeters(DEFAULT_RADIUS_METERS);
   };
 
-  const handleCapture = async () => {
+  const handleDismiss = () => {
+    resetFlow();
+    onComplete();
+  };
+
+  const finishAndClose = () => {
+    resetFlow();
+    onComplete();
+  };
+
+  useEffect(() => {
+    if (!visible) {
+      resetFlow();
+    }
+  }, [visible]);
+
+  const advanceAfterCapture = (position: Coordinates) => {
+    setMapCenter(position);
+
+    const currentAnchor = anchors.find((anchor) => anchor.id === anchorId);
+    const nearby = findNearbyAnchor(anchors, position, undefined, {
+      preferPlaceId: currentAnchor?.placeId,
+      excludeAnchorId: anchorId,
+    });
+
+    if (nearby) {
+      setNearbyAnchorId(nearby.id);
+      setStep("nearby");
+      return;
+    }
+
+    setStep("map");
+  };
+
+  const handleHoldComplete = async () => {
     setIsCapturing(true);
     setCaptureError(null);
 
@@ -82,136 +186,89 @@ export function AnchoringFlow({
       return;
     }
 
-    setCapturedPosition(result.position);
-    const currentAnchor = anchors.find((anchor) => anchor.id === anchorId);
-    const nearby = findNearbyAnchor(anchors, result.position, undefined, {
-      preferPlaceId: currentAnchor?.placeId,
-      excludeAnchorId: anchorId,
-    });
-    if (nearby) {
-      setNearbyAnchorId(nearby.id);
-      setStep("nearby");
-      return;
-    }
-
-    setStep("radius");
+    advanceAfterCapture(result.position);
   };
 
-  const finishCalibration = (radiusMeters: number) => {
-    if (!capturedPosition) return;
+  const finishCalibration = () => {
+    if (!mapCenter || isSaving) return;
 
+    setIsSaving(true);
     const calibrated = calibrateAnchor(anchorId, {
-      latitude: capturedPosition.latitude,
-      longitude: capturedPosition.longitude,
+      latitude: mapCenter.latitude,
+      longitude: mapCenter.longitude,
       radiusMeters,
     });
+    setIsSaving(false);
 
     if (calibrated) {
-      resetFlow();
-      onComplete();
+      finishAndClose();
     }
   };
 
   const handleUseNearbyAnchor = () => {
-    if (!nearbyAnchorId) return;
+    if (!nearbyAnchorId || isSaving) return;
 
+    setIsSaving(true);
     const linked = linkNodeToAnchor(nodeId, nearbyAnchorId);
+    setIsSaving(false);
+
     if (linked) {
-      resetFlow();
-      onComplete();
+      finishAndClose();
     }
   };
-
-  const handleCreateNewAnchor = () => {
-    setNearbyAnchorId(null);
-    setStep("radius");
-  };
-
-  const handleCustomRadius = () => {
-    const parsed = Number(customRadius);
-    if (!Number.isFinite(parsed) || parsed < 10 || parsed > 200) {
-      setCaptureError("Enter a radius between 10 and 200 meters.");
-      return;
-    }
-
-    finishCalibration(Math.round(parsed));
-  };
-
-  if (!visible) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "flex-end",
-            paddingHorizontal: 20,
-            paddingTop: 12,
-          }}
-        >
-          {mode === "optional" ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                resetFlow();
-                onComplete();
+    <BottomSheet
+      visible={visible}
+      onClose={handleDismiss}
+      dismissible={!isRequired}
+      dismissOnBackdrop={!isRequired}
+      scrollable={step === "map"}
+    >
+      <View style={{ paddingHorizontal: 4, paddingBottom: 8, gap: 16 }}>
+        {!isRequired && step === "hold" ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={handleDismiss}
+            hitSlop={8}
+            style={{ alignSelf: "flex-end", marginBottom: -4 }}
+          >
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 15,
+                color: colors.primary,
               }}
-              hitSlop={8}
             >
-              <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 15,
-                  color: colors.primary,
-                }}
-              >
-                Cancel
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-        <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text
-            style={{
-              fontFamily: "Poppins-Bold",
-              fontSize: 22,
-              lineHeight: 28,
-              color: colors.foreground,
-            }}
-          >
-            {mode === "required" ? "Set your location" : "Align geofence to my seat"}
-          </Text>
-          <Text
-            style={{
-              marginTop: 8,
-              fontFamily: "Poppins-Regular",
-              fontSize: 15,
-              lineHeight: 22,
-              color: colors.muted,
-            }}
-          >
-            {mode === "required"
-              ? `You're at ${anchorName} for ${nodeTitle}. Stand where you spend this session so Lowalk can verify presence.`
-              : `Optional fine-tune for ${nodeTitle} at ${anchorName}. Stand where you usually sit so Lowalk does not flag false exits inside a large building.`}
-          </Text>
+              Cancel
+            </Text>
+          </Pressable>
+        ) : null}
 
-          {step === "intro" && (
-            <View style={{ marginTop: 24, gap: 16 }}>
-              <Text
-                style={{
-                  fontFamily: "Poppins-Regular",
-                  fontSize: 15,
-                  lineHeight: 22,
-                  color: colors.foreground,
-                }}
-              >
-                Stand precisely where you spend this session, then capture your current
-                position.
-              </Text>
+        <AnchoringSheetHeader
+          badge={headerContent.badge}
+          anchorName={headerContent.anchorName}
+          nodeTitle={nodeTitle}
+          hintLine={headerContent.hintLine}
+          pulsing={isCapturing}
+        />
+
+        <AnchoringStepDots activeIndex={stepActiveIndex(step)} />
+
+        <Animated.View
+          key={step}
+          entering={sheetStepEntering(reduceMotion)}
+          exiting={sheetStepExiting(reduceMotion)}
+          style={{ gap: 16 }}
+        >
+          {step === "hold" ? (
+            <>
+              <HoldToConfirmButton
+                label="Hold to set location"
+                onComplete={() => void handleHoldComplete()}
+                loading={isCapturing}
+                disabled={isCapturing}
+              />
 
               {captureError ? (
                 <Text
@@ -220,245 +277,78 @@ export function AnchoringFlow({
                     fontSize: 14,
                     lineHeight: 20,
                     color: colors.error,
+                    textAlign: "center",
                   }}
                 >
                   {captureError}
                 </Text>
               ) : null}
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => void handleCapture()}
-                disabled={isCapturing}
-                style={{
-                  alignItems: "center",
-                  borderRadius: 14,
-                  backgroundColor: colors.primary,
-                  paddingVertical: 14,
-                  opacity: isCapturing ? 0.7 : 1,
-                }}
-              >
-                {isCapturing ? (
-                  <ActivityIndicator color="#F0EDE9" />
-                ) : (
-                  <Text
-                    style={{
-                      fontFamily: "Poppins-Bold",
-                      fontSize: 16,
-                      color: "#F0EDE9",
-                    }}
-                  >
-                    Capture my location
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          )}
-
-          {step === "nearby" && nearbyAnchor ? (
-            <View style={{ marginTop: 24, gap: 16 }}>
-              <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 16,
-                  lineHeight: 22,
-                  color: colors.foreground,
-                }}
-              >
-                Use existing location?
-              </Text>
-              <Text
-                style={{
-                  fontFamily: "Poppins-Regular",
-                  fontSize: 15,
-                  lineHeight: 22,
-                  color: colors.muted,
-                }}
-              >
-                You are near {nearbyAnchor.name}. Reuse it to avoid mapping the same venue
-                twice.
-              </Text>
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleUseNearbyAnchor}
-                style={{
-                  alignItems: "center",
-                  borderRadius: 14,
-                  backgroundColor: colors.primary,
-                  paddingVertical: 14,
-                }}
-              >
-                <Text
-                  style={{
-                    fontFamily: "Poppins-Bold",
-                    fontSize: 16,
-                    color: "#F0EDE9",
-                  }}
-                >
-                  Use {nearbyAnchor.name}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleCreateNewAnchor}
-                style={{
-                  alignItems: "center",
-                  borderRadius: 14,
-                  backgroundColor: colors.surface,
-                  paddingVertical: 14,
-                }}
-              >
-                <Text
-                  style={{
-                    fontFamily: "Poppins-SemiBold",
-                    fontSize: 16,
-                    color: colors.foreground,
-                  }}
-                >
-                  Create a new anchor here
-                </Text>
-              </Pressable>
-            </View>
+            </>
           ) : null}
 
-          {step === "radius" ? (
-            <View style={{ marginTop: 24, gap: 12 }}>
-              <Text
+          {step === "nearby" && nearbyAnchor && mapCenter ? (
+            <>
+              <View
                 style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 16,
-                  lineHeight: 22,
-                  color: colors.foreground,
-                }}
-              >
-                How large is this space?
-              </Text>
-
-              {ANCHOR_RADIUS_PRESETS.map((preset) => (
-                <Pressable
-                  key={preset.id}
-                  accessibilityRole="button"
-                  onPress={() => finishCalibration(preset.radiusMeters)}
-                  style={{
-                    borderRadius: 14,
-                    backgroundColor: colors.surface,
-                    paddingHorizontal: 16,
-                    paddingVertical: 14,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: "Poppins-SemiBold",
-                      fontSize: 15,
-                      color: colors.foreground,
-                    }}
-                  >
-                    {preset.label}
-                  </Text>
-                  <Text
-                    style={{
-                      marginTop: 2,
-                      fontFamily: "Poppins-Regular",
-                      fontSize: 13,
-                      color: colors.muted,
-                    }}
-                  >
-                    {preset.description}
-                  </Text>
-                </Pressable>
-              ))}
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setStep("custom")}
-                style={{
-                  borderRadius: 14,
-                  backgroundColor: colors.surface,
-                  paddingHorizontal: 16,
-                  paddingVertical: 14,
-                }}
-              >
-                <Text
-                  style={{
-                    fontFamily: "Poppins-SemiBold",
-                    fontSize: 15,
-                    color: colors.foreground,
-                  }}
-                >
-                  Custom radius
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {step === "custom" ? (
-            <View style={{ marginTop: 24, gap: 12 }}>
-              <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 16,
-                  color: colors.foreground,
-                }}
-              >
-                Custom radius (meters)
-              </Text>
-              <TextInput
-                value={customRadius}
-                onChangeText={setCustomRadius}
-                keyboardType="number-pad"
-                placeholder="35"
-                placeholderTextColor={colors.muted}
-                style={{
-                  borderRadius: 12,
+                  height: NEARBY_MAP_PREVIEW_HEIGHT,
+                  borderRadius: CARD_RADIUS_SM,
+                  borderCurve: "continuous",
+                  overflow: "hidden",
                   borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingHorizontal: 14,
-                  paddingVertical: 12,
-                  fontFamily: "Poppins-Regular",
-                  fontSize: 16,
-                  color: colors.foreground,
-                  backgroundColor: colors.card,
+                  borderColor: colors.cardStroke,
                 }}
+              >
+                <Image
+                  source={{
+                    uri: getOpenStreetMapPreviewUrl(
+                      nearbyAnchor.latitude,
+                      nearbyAnchor.longitude,
+                    ),
+                  }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  accessibilityLabel={`Map preview of ${nearbyAnchor.name}`}
+                />
+              </View>
+
+              <SheetActionButton
+                label="Use this place"
+                onPress={handleUseNearbyAnchor}
+                loading={isSaving}
+                disabled={isSaving}
               />
 
-              {captureError ? (
-                <Text
-                  style={{
-                    fontFamily: "Poppins-Regular",
-                    fontSize: 14,
-                    color: colors.error,
-                  }}
-                >
-                  {captureError}
-                </Text>
-              ) : null}
-
-              <Pressable
-                accessibilityRole="button"
-                onPress={handleCustomRadius}
-                style={{
-                  alignItems: "center",
-                  borderRadius: 14,
-                  backgroundColor: colors.primary,
-                  paddingVertical: 14,
-                }}
-              >
-                <Text
-                  style={{
-                    fontFamily: "Poppins-Bold",
-                    fontSize: 16,
-                    color: "#F0EDE9",
-                  }}
-                >
-                  Save anchor
-                </Text>
-              </Pressable>
-            </View>
+              <SheetActionButton
+                label="Set a new spot"
+                variant="secondary"
+                onPress={() => setStep("map")}
+                disabled={isSaving}
+              />
+            </>
           ) : null}
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+
+          {step === "map" && mapCenter ? (
+            <>
+              <AnchorGeofenceEditor
+                latitude={mapCenter.latitude}
+                longitude={mapCenter.longitude}
+                radiusMeters={radiusMeters}
+                anchorName={anchorName}
+                suggestedPresetId={suggestedPresetId}
+                onCenterChange={setMapCenter}
+                onRadiusChange={setRadiusMeters}
+              />
+
+              <SheetActionButton
+                label="Save anchor"
+                onPress={finishCalibration}
+                loading={isSaving}
+                disabled={isSaving}
+              />
+            </>
+          ) : null}
+        </Animated.View>
+      </View>
+    </BottomSheet>
   );
 }

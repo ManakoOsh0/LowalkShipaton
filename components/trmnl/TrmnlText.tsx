@@ -4,10 +4,10 @@
  */
 import { Platform, Text, type TextProps } from "react-native";
 
-import { TRMNL_VARIANT_STYLES, type TrmnlTextVariant } from "@/lib/trmnlTypography";
 import { TRMNL_THEME } from "@/lib/heroEink";
+import { TRMNL_VARIANT_STYLES, type TrmnlTextVariant } from "@/lib/trmnlTypography";
 
-type TrmnlTextColor = "ink" | "inverse" | "muted";
+type TrmnlTextColor = "ink" | "inverse" | "muted" | "mutedWell";
 
 type TrmnlTextProps = TextProps & {
   variant: TrmnlTextVariant;
@@ -19,6 +19,7 @@ const COLOR_MAP: Record<TrmnlTextColor, string> = {
   ink: TRMNL_THEME.textPrimary,
   inverse: TRMNL_THEME.textInverse,
   muted: TRMNL_THEME.muted,
+  mutedWell: TRMNL_THEME.mutedOnWell,
 };
 
 export function TrmnlText({

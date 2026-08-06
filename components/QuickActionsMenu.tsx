@@ -5,16 +5,29 @@
 import * as Haptics from "expo-haptics";
 import { ComponentType } from "react";
 import { Dimensions, Modal, Pressable, Text, View } from "react-native";
-import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, Keyframe } from "react-native-reanimated";
 
 import { quickActionTemplates, type QuickActionId } from "@/data/quickActions";
 import { NeuCard } from "@/components/NeuCard";
 import { ICON_TILE_RADIUS_SM } from "@/lib/cardStyle";
+import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import type { IconProps } from "@solar-icons/react-native/lib/types";
 
 const MENU_WIDTH = 248;
 const ICON_BADGE_SIZE = 36;
+const QUICK_MENU_ENTER_MS = 180;
+
+const quickMenuEntering = new Keyframe({
+  0: {
+    opacity: 0,
+    transform: [{ scale: 0.94 }, { translateY: 10 }],
+  },
+  100: {
+    opacity: 1,
+    transform: [{ scale: 1 }, { translateY: 0 }],
+  },
+}).duration(QUICK_MENU_ENTER_MS);
 
 type QuickActionsMenuProps = {
   visible: boolean;
@@ -106,9 +119,15 @@ export function QuickActionsMenu({
   disabledActionIds = [],
 }: QuickActionsMenuProps) {
   const colors = useThemeColors();
+  const reduceMotion = useReduceMotion();
   const screenWidth = Dimensions.get("window").width;
   const menuLeft = (screenWidth - MENU_WIDTH) / 2;
   const overlayColor = "rgba(0, 0, 0, 0.55)";
+
+  const backdropEntering = reduceMotion ? undefined : FadeIn.duration(160);
+  const backdropExiting = reduceMotion ? undefined : FadeOut.duration(120);
+  const menuEntering = reduceMotion ? undefined : quickMenuEntering;
+  const menuExiting = reduceMotion ? undefined : FadeOut.duration(120);
 
   const handleSelect = (actionId: QuickActionId) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -126,8 +145,8 @@ export function QuickActionsMenu({
     >
       <View style={{ flex: 1 }}>
         <Animated.View
-          entering={FadeIn.duration(160)}
-          exiting={FadeOut.duration(120)}
+          entering={backdropEntering}
+          exiting={backdropExiting}
           style={{
             position: "absolute",
             top: 0,
@@ -146,13 +165,14 @@ export function QuickActionsMenu({
         </Animated.View>
 
         <Animated.View
-          entering={ZoomIn.duration(180).springify().damping(18).stiffness(260)}
-          exiting={ZoomOut.duration(120)}
+          entering={menuEntering}
+          exiting={menuExiting}
           style={{
             position: "absolute",
             left: menuLeft,
             bottom: bottomOffset,
             width: MENU_WIDTH,
+            transformOrigin: "bottom center",
           }}
         >
           <NeuCard borderRadius={16} shadowVariant="md" contentStyle={{ overflow: "hidden" }}>
