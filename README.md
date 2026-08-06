@@ -24,7 +24,7 @@ See [PRODUCT.md](./PRODUCT.md) for the full product specification.
 ## Getting started
 
 ```bash
-git clone https://github.com/ManakoOsh0/lowalk.git
+git clone https://github.com/ManakoOsh0/LowalkShipaton.git
 cd lowalk
 npm install
 cp .env.example .env
