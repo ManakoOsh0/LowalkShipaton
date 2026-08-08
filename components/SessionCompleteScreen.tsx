@@ -1,21 +1,18 @@
 /**
  * SessionCompleteScreen — full-screen "Done" celebration after finishing a scheduled session.
- * Layout inspired by habit-app completion screens: badge, title, date, streak, and a single CTA.
+ * Layout: badge, title, streak, and a single CTA.
  */
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ArrivalMascotIcon } from "@/components/ArrivalMascotIcon";
 import { FocusNodeKindIcon } from "@/components/FocusNodeKindIcon";
 import { StreakFlame } from "@/components/StreakFlame";
-import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { arrivalMascotEntering } from "@/lib/heroMotion";
 import { PILL_RADIUS } from "@/lib/cardStyle";
 import { ROUTES } from "@/lib/routes";
 import { getKindAccentColor } from "@/lib/focusNodeKindColors";
@@ -25,14 +22,6 @@ import {
 } from "@/store/useSessionCompleteStore";
 import { useHeroCelebrationStore } from "@/store/useHeroCelebrationStore";
 import { useStreakCelebrationStore } from "@/store/useStreakCelebrationStore";
-
-function formatCompletionDate(date = new Date()): string {
-  return date.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
 
 function streakLabel(streak: number): string {
   return `${streak}-day streak`;
@@ -46,7 +35,6 @@ type SessionCompleteContentProps = {
 function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentProps) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
-  const reduceMotion = useReduceMotion();
   const accent = getKindAccentColor(payload.kind);
 
   return (
@@ -94,15 +82,10 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
               backgroundColor: `${colors.success}14`,
             }}
           />
-          <Animated.View entering={arrivalMascotEntering(reduceMotion)}>
-            <ArrivalMascotIcon size={72} color={colors.success} />
-          </Animated.View>
+          <ArrivalMascotIcon size={72} color={colors.success} />
         </View>
 
-        <Animated.View
-          entering={
-            reduceMotion ? undefined : FadeInDown.delay(80).duration(220).springify().damping(16)
-          }
+        <View
           style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}
         >
           <FocusNodeKindIcon kind={payload.kind} size={16} color={colors.muted} />
@@ -116,12 +99,9 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
           >
             {payload.nodeTitle}
           </Text>
-        </Animated.View>
+        </View>
 
-        <Animated.Text
-          entering={
-            reduceMotion ? undefined : FadeInDown.delay(120).duration(240).springify().damping(16)
-          }
+        <Text
           style={{
             fontFamily: "Poppins-Bold",
             fontSize: 44,
@@ -131,24 +111,10 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
           }}
         >
           Done
-        </Animated.Text>
-
-        <Animated.Text
-          entering={reduceMotion ? undefined : FadeIn.delay(180).duration(220)}
-          style={{
-            marginTop: 8,
-            fontFamily: "Poppins-Regular",
-            fontSize: 17,
-            lineHeight: 24,
-            color: colors.foregroundSubtle,
-          }}
-        >
-          {formatCompletionDate()}
-        </Animated.Text>
+        </Text>
 
         {payload.streak > 0 ? (
-          <Animated.View
-            entering={reduceMotion ? undefined : FadeIn.delay(240).duration(220)}
+          <View
             style={{
               marginTop: 20,
               flexDirection: "row",
@@ -174,12 +140,11 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
             >
               {streakLabel(payload.streak)}
             </Text>
-          </Animated.View>
+          </View>
         ) : null}
 
         {payload.hitDailyGoal ? (
-          <Animated.Text
-            entering={reduceMotion ? undefined : FadeIn.delay(300).duration(200)}
+          <Text
             style={{
               marginTop: 12,
               fontFamily: "Poppins-Medium",
@@ -189,11 +154,11 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
             }}
           >
             {payload.coinAwarded ? "Daily goal reached · +1 Focus Coin" : "Daily goal reached"}
-          </Animated.Text>
+          </Text>
         ) : null}
       </View>
 
-      <Animated.View entering={reduceMotion ? undefined : FadeIn.delay(320).duration(240)}>
+      <View>
         <Pressable
           accessibilityRole="button"
           onPress={onDismiss}
@@ -218,14 +183,13 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
             View Today
           </Text>
         </Pressable>
-      </Animated.View>
+      </View>
     </View>
   );
 }
 
 export function SessionCompleteHost() {
   const router = useRouter();
-  const reduceMotion = useReduceMotion();
   const visible = useSessionCompleteStore((state) => state.visible);
   const payload = useSessionCompleteStore((state) => state.payload);
   const hide = useSessionCompleteStore((state) => state.hide);
@@ -258,7 +222,7 @@ export function SessionCompleteHost() {
   return (
     <Modal
       visible
-      animationType={reduceMotion ? "none" : "fade"}
+      animationType="none"
       presentationStyle="fullScreen"
       statusBarTranslucent
       onRequestClose={handleDismiss}

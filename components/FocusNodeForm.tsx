@@ -566,7 +566,10 @@ export function FocusNodeForm({
           ) : (
             <>
               {!canSave ? (
-                <InlineFieldError message="Pick a place or choose “When I arrive”." />
+                <InlineFieldError
+                  centered
+                  message="Pick a place or choose “When I arrive”."
+                />
               ) : null}
               <Pressable
                 accessibilityRole="button"

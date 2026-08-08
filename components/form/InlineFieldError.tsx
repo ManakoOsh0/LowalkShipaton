@@ -7,9 +7,10 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 
 type InlineFieldErrorProps = {
   message: string;
+  centered?: boolean;
 };
 
-export function InlineFieldError({ message }: InlineFieldErrorProps) {
+export function InlineFieldError({ message, centered }: InlineFieldErrorProps) {
   const colors = useThemeColors();
 
   return (
@@ -19,6 +20,7 @@ export function InlineFieldError({ message }: InlineFieldErrorProps) {
         fontSize: 13,
         lineHeight: 18,
         color: colors.error,
+        textAlign: centered ? "center" : undefined,
       }}
     >
       {message}

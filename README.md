@@ -75,10 +75,13 @@ Copy `.env.example` to `.env` and fill in any values you need. Never commit `.en
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `EXPO_PUBLIC_PRESENCE_DEBUG` | No | Set to `1` for location diagnostics in preview builds |
-| `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` | When IAP ships | RevenueCat public SDK key (Android) |
-| `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` | When IAP ships | RevenueCat public SDK key (iOS) |
+| `EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY` | Dev / Shipaton | RevenueCat Test Store public key (`test_...`) |
+| `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` | Production Android | RevenueCat public SDK key (Android) |
+| `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` | Production iOS | RevenueCat public SDK key (iOS) |
 
 Use [EAS Secrets](https://docs.expo.dev/build-reference/variables/) for production build keys.
+
+After installing RevenueCat native modules, rebuild the dev client (`npm run build:dev:android`) — hot reload is not enough.
 
 ## Scripts
 

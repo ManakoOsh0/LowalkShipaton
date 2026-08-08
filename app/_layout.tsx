@@ -25,11 +25,17 @@ import { SessionPresenceProvider } from "@/components/SessionPresenceProvider";
 import { useAppFonts } from "@/hooks/useAppFonts";
 import { useNotificationResponses } from "@/hooks/useNotificationResponses";
 import { useSessionReminders } from "@/hooks/useSessionReminders";
+import { useSubscription } from "@/hooks/useSubscription";
 import { colors } from "@/theme/tokens";
 
 function AppLifecycleHooks() {
   useSessionReminders();
   useNotificationResponses();
+  return null;
+}
+
+function SubscriptionLifecycle() {
+  useSubscription();
   return null;
 }
 
@@ -57,6 +63,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <SessionPresenceProvider>
           <AppLifecycleHooks />
+          <SubscriptionLifecycle />
           <StatusBar style="light" />
           <Stack
             screenOptions={{

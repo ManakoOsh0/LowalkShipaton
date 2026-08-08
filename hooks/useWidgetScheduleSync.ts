@@ -13,6 +13,7 @@ import type { PresenceContext } from "@/store/selectors";
 import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";
 import { useHeroPreviewStore } from "@/store/useHeroPreviewStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
+import { useSubscriptionStore } from "@/store/useSubscriptionStore";
 import { useUserStore } from "@/store/useUserStore";
 import type { HeroCardData } from "@/types/dashboard";
 
@@ -24,6 +25,7 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
   const forcedHeroState = useHeroPreviewStore((state) => state.forcedState);
   const forcedHeroVariant = useHeroPreviewStore((state) => state.forcedVariant);
   const forcedHeroKind = useHeroPreviewStore((state) => state.forcedKind);
+  const isPremium = useSubscriptionStore((state) => state.isPremium);
   const coins = useUserStore((state) => state.coins);
   const streak = useUserStore((state) => state.streak);
   const classPreBufferMinutes = useUserStore((state) => state.classPreBufferMinutes);
@@ -47,7 +49,7 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
   const enabled = Platform.OS === "android" && isAppShieldSupported();
 
   const pushBundle = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled || !isPremium) return;
 
     const dailyGoal = getDailyGoal();
     const mergeHero = (data: HeroCardData) =>
@@ -95,6 +97,7 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
     void syncWidgetSchedule(bundle as unknown as Record<string, unknown>);
   }, [
     activeSession,
+    isPremium,
     blockedAppsCount,
     blockedPackageNamesKey,
     classPreBufferMinutes,

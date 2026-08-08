@@ -10,8 +10,8 @@ import { ScheduleRow } from "@/components/ScheduleRow";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { CARD_RADIUS_LG } from "@/lib/cardStyle";
 import {
-  getKindAccentColor,
-  getKindTintColor,
+    getKindAccentColor,
+    getKindTintColor,
 } from "@/lib/focusNodeKindColors";
 import type { ScheduleItem } from "@/types/dashboard";
 
