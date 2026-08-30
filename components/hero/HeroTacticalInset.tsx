@@ -16,7 +16,7 @@ import Svg, {
 
 import { HeroVerifyingPulse } from "@/components/hero/HeroVerifyingPulse";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
-import { TRMNL_THEME } from "@/lib/heroEink";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import type { HeroTacticalInset as HeroTacticalInsetData } from "@/types/dashboard";
 
 type HeroTacticalInsetProps = {
@@ -65,6 +65,7 @@ function TacticalPin({
   x: number;
   y: number;
 }) {
+  const theme = useHeroTheme();
   const width = label.length * 5.5 + 10;
   const height = 14;
 
@@ -81,9 +82,9 @@ function TacticalPin({
         alignItems: "center",
         justifyContent: "center",
         borderRadius: 2,
-        backgroundColor: inverted ? TRMNL_THEME.paper : TRMNL_THEME.textPrimary,
+        backgroundColor: inverted ? theme.paper : theme.textPrimary,
         borderWidth: 1,
-        borderColor: TRMNL_THEME.textPrimary,
+        borderColor: theme.textPrimary,
       }}
     >
       <TrmnlText
@@ -101,9 +102,11 @@ function TacticalPin({
 function TacticalGrid({
   width,
   patternId,
+  ink,
 }: {
   width: number;
   patternId: string;
+  ink: string;
 }) {
   const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
 
@@ -128,7 +131,7 @@ function TacticalGrid({
           width={3}
           height={3}
         >
-          <Circle cx={1} cy={1} r={0.55} fill="rgba(0,0,0,0.09)" />
+          <Circle cx={1} cy={1} r={0.55} fill={ink} fillOpacity={0.09} />
         </Pattern>
       </Defs>
       {lines.map((line, index) => (
@@ -138,7 +141,8 @@ function TacticalGrid({
           y1={line.y1}
           x2={line.x2}
           y2={line.y2}
-          stroke="rgba(0,0,0,0.06)"
+          stroke={ink}
+          strokeOpacity={0.06}
           strokeWidth={0.75}
         />
       ))}
@@ -157,9 +161,10 @@ function ZoneOverlay({
   patternId: string;
   clipId: string;
 }) {
+  const theme = useHeroTheme();
   const center = computeZoneCenter(width);
   const isVerifying = inset.mode === "verifying";
-  const strokeColor = isVerifying ? TRMNL_THEME.accent : TRMNL_THEME.textPrimary;
+  const strokeColor = isVerifying ? theme.accent : theme.textPrimary;
 
   const circle = (
     <Svg
@@ -175,7 +180,7 @@ function ZoneOverlay({
           width={3}
           height={3}
         >
-          <Circle cx={1} cy={1} r={0.55} fill="rgba(0,0,0,0.11)" />
+          <Circle cx={1} cy={1} r={0.55} fill={theme.textPrimary} fillOpacity={0.11} />
         </Pattern>
         <ClipPath id={clipId}>
           <Circle cx={center.x} cy={center.y} r={ZONE_CIRCLE_R} />
@@ -210,6 +215,7 @@ function ZoneOverlay({
 }
 
 export function HeroTacticalInset({ inset }: HeroTacticalInsetProps) {
+  const theme = useHeroTheme();
   const [layoutWidth, setLayoutWidth] = useState(0);
   const patternId = useId().replace(/:/g, "");
   const zonePatternId = `${patternId}-zone`;
@@ -255,7 +261,7 @@ export function HeroTacticalInset({ inset }: HeroTacticalInsetProps) {
       >
         {layoutWidth > 0 ? (
           <>
-            <TacticalGrid width={layoutWidth} patternId={patternId} />
+            <TacticalGrid width={layoutWidth} patternId={patternId} ink={theme.textPrimary} />
             <ZoneOverlay
               width={layoutWidth}
               inset={inset}

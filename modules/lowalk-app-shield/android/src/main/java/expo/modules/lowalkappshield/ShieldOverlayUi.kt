@@ -11,9 +11,8 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.content.res.ResourcesCompat
 
-/** Shared full-screen shield layout — logo, blocked-app headline, and bottom Close pill. */
+/** Shared full-screen shield layout — blocked-app headline and bottom Close pill. */
 object ShieldOverlayUi {
   private const val DAWN_PATH_BACKGROUND = "#141210"
   private const val DAWN_PATH_FOREGROUND = "#F5F2ED"
@@ -54,7 +53,7 @@ object ShieldOverlayUi {
 
     val centerStack = LinearLayout(context).apply {
       orientation = LinearLayout.VERTICAL
-      gravity = Gravity.CENTER_HORIZONTAL
+      gravity = Gravity.CENTER
       layoutParams = LinearLayout.LayoutParams(
         LinearLayout.LayoutParams.MATCH_PARENT,
         0,
@@ -65,12 +64,22 @@ object ShieldOverlayUi {
     centerStack.addView(buildLogoIcon(context, density))
     centerStack.addView(
       titleText(context, resolveHeadline(copy, blockedAppLabel)).apply {
-        setPadding(0, (28 * density).toInt(), 0, 0)
+        layoutParams = LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply {
+          topMargin = (28 * density).toInt()
+        }
       },
     )
     centerStack.addView(
       bodyText(context, copy.subtitle).apply {
-        setPadding(0, (12 * density).toInt(), 0, 0)
+        layoutParams = LinearLayout.LayoutParams(
+          LinearLayout.LayoutParams.MATCH_PARENT,
+          LinearLayout.LayoutParams.WRAP_CONTENT,
+        ).apply {
+          topMargin = (12 * density).toInt()
+        }
       },
     )
 
@@ -109,19 +118,19 @@ object ShieldOverlayUi {
   private fun buildLogoIcon(context: Context, density: Float): ImageView {
     val iconSize = (124 * density).toInt()
     return ImageView(context).apply {
-      setImageResource(R.drawable.shield_lowalk_logo)
+      setImageResource(R.drawable.lowalk2_logo)
       scaleType = ImageView.ScaleType.FIT_CENTER
-      translationX = -6f * density
+      translationX = 6f * density
       layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
     }
   }
 
   private fun displayBoldTypeface(context: Context): Typeface {
-    return ResourcesCompat.getFont(context, R.font.inter_bold) ?: Typeface.DEFAULT_BOLD
+    return Typeface.DEFAULT_BOLD
   }
 
   private fun textRegularTypeface(context: Context): Typeface {
-    return ResourcesCompat.getFont(context, R.font.inter_regular) ?: Typeface.DEFAULT
+    return Typeface.DEFAULT
   }
 
   private fun titleText(context: Context, text: String): TextView {

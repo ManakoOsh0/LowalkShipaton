@@ -1,4 +1,4 @@
-/* TRMNL Classic — soft framed hero card tokens */
+/* TRMNL Classic — soft framed hero card tokens (Framework 3.2 gap: 5/7/10/16/20/30/40) */
 
 @theme {
   --color-trmnl-bg: #000000;
@@ -22,6 +22,6 @@
   --font-nico-clean: "NicoClean-Regular";
   --font-nico-pups: "NicoPups-Regular";
 
-  --radius-trmnl: 32px;
+  --radius-trmnl: 36px;
   --radius-trmnl-plaque: 18px;
 }

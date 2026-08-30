@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect } from "react";
 
 import { ROUTES } from "@/lib/routes";
+import { useNotificationNavigationStore } from "@/store/useNotificationNavigationStore";
 import {
   areSessionRemindersSupported,
   ensureNotificationHandler,
@@ -19,6 +20,13 @@ function handleNotificationResponse(
 ): void {
   const data = response.notification.request.content.data as NotificationData | undefined;
   const nodeId = typeof data?.nodeId === "string" ? data.nodeId : null;
+  const type = typeof data?.type === "string" ? data.type : null;
+
+  if (type === "pre-buffer" && nodeId) {
+    useNotificationNavigationStore.getState().setPreBufferFocus(nodeId);
+    router.push(ROUTES.home);
+    return;
+  }
 
   if (nodeId) {
     router.push(ROUTES.sessionDetail(nodeId));

@@ -12,10 +12,10 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useReduceMotion } from "@/hooks/useHeroMotion";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import {
   HERO_HALFTONE_PILLAR,
   HERO_HALFTONE_PROGRESS_SEGMENTS,
-  TRMNL_THEME,
 } from "@/lib/heroEink";
 import { halftoneDotVisible } from "@/lib/heroHalftone";
 import { HERO_MOTION } from "@/lib/heroMotion";
@@ -35,6 +35,7 @@ function densityForSegment(index: number, filled: number): number {
 }
 
 function HalftonePillar({ density }: { density: number }) {
+  const theme = useHeroTheme();
   const { rows, cols, dotSize, width, height, radius } = HERO_HALFTONE_PILLAR;
 
   if (density >= 0.98) {
@@ -45,7 +46,7 @@ function HalftonePillar({ density }: { density: number }) {
           height,
           borderRadius: radius,
           borderCurve: "continuous",
-          backgroundColor: TRMNL_THEME.textPrimary,
+          backgroundColor: theme.textPrimary,
         }}
       />
     );
@@ -84,7 +85,7 @@ function HalftonePillar({ density }: { density: number }) {
                   width: dotSize,
                   height: dotSize,
                   borderRadius: dotSize / 2,
-                  backgroundColor: TRMNL_THEME.textPrimary,
+                  backgroundColor: theme.textPrimary,
                 }}
               />
             ) : (

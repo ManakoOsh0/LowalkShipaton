@@ -5,12 +5,12 @@ import { Platform, Text, View } from "react-native";
 
 import { HeroCounterProgress } from "@/components/hero/HeroCounterProgress";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import {
   HERO_DIGITAL_CLOCK_LETTER_SPACING,
   HERO_DIGITAL_CLOCK_LINE_HEIGHT,
   HERO_DIGITAL_CLOCK_SIZE,
   HERO_ZONE_RAILS_HEIGHT,
-  TRMNL_THEME,
 } from "@/lib/heroEink";
 import { FONT_FAMILY } from "@/theme/fonts";
 import type { HeroCenterMetric, HeroContextRail } from "@/types/dashboard";
@@ -38,6 +38,7 @@ function RailColumn({ rail }: { rail: HeroContextRail }) {
 }
 
 function CenterMetric({ center }: { center: HeroCenterMetric }) {
+  const theme = useHeroTheme();
   const showCountdown = Boolean(center.countdownLabel);
   const progressFill = Math.min(Math.max(center.progressRatio ?? 0, 0), 1);
   const showProgress = center.progressRatio != null && center.progressRatio >= 0;
@@ -52,7 +53,7 @@ function CenterMetric({ center }: { center: HeroCenterMetric }) {
             fontFamily: FONT_FAMILY.monoBold,
             fontSize: HERO_DIGITAL_CLOCK_SIZE - 14,
             lineHeight: HERO_DIGITAL_CLOCK_LINE_HEIGHT - 14,
-            color: TRMNL_THEME.textPrimary,
+            color: theme.textPrimary,
             letterSpacing: HERO_DIGITAL_CLOCK_LETTER_SPACING,
             fontVariant: ["tabular-nums"],
             ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),

@@ -1,100 +1,99 @@
 /**
- * HeroSoftFrameShell — soft-touch rubber case for the hero outer frame.
- * Pillow shading via diffuse ambient occlusion — no sharp plastic highlights or grain.
+ * HeroSoftFrameShell — outer case surface. Lighting comes from the active
+ * case style; color still comes from the case swatch.
+ * Recess lives on the well bezel only — no extra cutout lip here.
  */
 import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, View } from "react-native";
 
 import { HeroInsetEdge } from "@/components/hero/HeroInsetEdge";
-import {
-  HERO_BENTO_FRAME_AMBIENT_EDGE,
-  HERO_BENTO_FRAME_AMBIENT_OPACITY,
-  HERO_BENTO_FRAME_AMBIENT_RIM_OPACITY,
-  HERO_BENTO_FRAME_OPENING_LIP_OPACITY,
-  HERO_EINK_FRAME_PADDING,
-  HERO_EINK_FRAME_RADIUS,
-  HERO_EINK_PAPER_RADIUS,
-  TRMNL_THEME,
-} from "@/lib/heroEink";
+import { useHeroCaseStyle } from "@/hooks/useHeroCaseStyle";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 
-const OPENING_LIP_DEPTH = 22;
+const BUMPER_RING_INSET = 3;
 
 export function HeroSoftFrameShell() {
+  const theme = useHeroTheme();
+  const style = useHeroCaseStyle();
+  const crown = `rgba(255, 255, 255, ${style.crownOpacity})`;
+
   return (
     <View
       pointerEvents="none"
       style={[
         StyleSheet.absoluteFill,
         {
-          borderRadius: HERO_EINK_FRAME_RADIUS,
+          borderRadius: style.radius,
           borderCurve: "continuous",
         },
       ]}
     >
       <LinearGradient
-        colors={[TRMNL_THEME.frameShellTop, TRMNL_THEME.frameShellBottom]}
+        colors={[theme.frameShellTop, theme.frameShellBottom]}
         style={{
           ...StyleSheet.absoluteFillObject,
-          borderRadius: HERO_EINK_FRAME_RADIUS,
+          borderRadius: style.radius,
           borderCurve: "continuous",
         }}
       />
 
-      {/* Soft pillow vignette — dark edges only, no specular rim. */}
-      <HeroInsetEdge
-        variant="inset"
-        edgeSize={HERO_BENTO_FRAME_AMBIENT_EDGE}
-        opacity={HERO_BENTO_FRAME_AMBIENT_OPACITY}
-        rimOpacity={HERO_BENTO_FRAME_AMBIENT_RIM_OPACITY}
-      />
+      {style.edgeStrokeOpacity > 0 ? (
+        <View
+          style={{
+            ...StyleSheet.absoluteFillObject,
+            borderRadius: style.radius,
+            borderCurve: "continuous",
+            borderWidth: 1,
+            borderColor: `rgba(0, 0, 0, ${style.edgeStrokeOpacity})`,
+          }}
+        />
+      ) : null}
 
-      {/* LCD cutout occlusion — frame overhang casts a soft shadow inward. */}
-      <View
+      {style.bumperRing ? (
+        <View
+          style={{
+            position: "absolute",
+            top: BUMPER_RING_INSET,
+            left: BUMPER_RING_INSET,
+            right: BUMPER_RING_INSET,
+            bottom: BUMPER_RING_INSET,
+            borderRadius: Math.max(style.radius - BUMPER_RING_INSET, 8),
+            borderCurve: "continuous",
+            borderWidth: 1.5,
+            borderColor: "rgba(0, 0, 0, 0.12)",
+          }}
+        />
+      ) : null}
+
+      <LinearGradient
+        colors={[crown, "transparent"]}
         style={{
           position: "absolute",
-          top: HERO_EINK_FRAME_PADDING,
-          left: HERO_EINK_FRAME_PADDING,
-          right: HERO_EINK_FRAME_PADDING,
-          bottom: HERO_EINK_FRAME_PADDING,
-          borderRadius: HERO_EINK_PAPER_RADIUS,
-          borderCurve: "continuous",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: style.crownEdge,
         }}
-      >
-        <LinearGradient
-          colors={[
-            `rgba(0, 0, 0, ${HERO_BENTO_FRAME_OPENING_LIP_OPACITY})`,
-            "transparent",
-          ]}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: OPENING_LIP_DEPTH,
-            borderTopLeftRadius: HERO_EINK_PAPER_RADIUS,
-            borderTopRightRadius: HERO_EINK_PAPER_RADIUS,
-            borderCurve: "continuous",
-          }}
-        />
-        <LinearGradient
-          colors={[
-            `rgba(0, 0, 0, ${HERO_BENTO_FRAME_OPENING_LIP_OPACITY})`,
-            "transparent",
-          ]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            bottom: 0,
-            width: OPENING_LIP_DEPTH,
-            borderTopLeftRadius: HERO_EINK_PAPER_RADIUS,
-            borderBottomLeftRadius: HERO_EINK_PAPER_RADIUS,
-            borderCurve: "continuous",
-          }}
-        />
-      </View>
+      />
+      <LinearGradient
+        colors={[crown, "transparent"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: style.crownEdge,
+        }}
+      />
+
+      <HeroInsetEdge
+        variant="inset"
+        edgeSize={style.ambientEdge}
+        opacity={style.ambientOpacity}
+        rimOpacity={style.ambientRimOpacity}
+      />
     </View>
   );
 }

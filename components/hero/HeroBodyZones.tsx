@@ -21,7 +21,7 @@ export function HeroRouteSlot({ children }: ZoneProps) {
         height: HERO_ZONE_ROUTE_SLOT_HEIGHT,
         width: "100%",
         flexShrink: 0,
-        justifyContent: "center",
+        justifyContent: "flex-start",
       }}
     >
       {children}

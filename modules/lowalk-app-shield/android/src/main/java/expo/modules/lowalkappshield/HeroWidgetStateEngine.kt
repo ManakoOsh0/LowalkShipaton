@@ -59,6 +59,8 @@ object HeroWidgetStateEngine {
     val dailyGoalTarget: Int,
     val blockedAppsCount: Int,
     val blockedPackageNames: List<String>,
+    /** Estimated lifetime focus minutes synced from JS. */
+    val totalFocusMinutes: Int,
     val todayIso: String,
     val todayWeekday: Int,
     val nodes: List<FocusNode>,
@@ -66,6 +68,7 @@ object HeroWidgetStateEngine {
     val display: WidgetSessionStore.Snapshot,
     val intelCells: List<IntelCell>,
     val upcomingToday: List<UpcomingRow>,
+    val appearance: HeroWidgetAppearance.Palette,
   )
 
   data class ViewModel(
@@ -186,6 +189,7 @@ object HeroWidgetStateEngine {
       dailyGoalTarget = json.optInt("dailyGoalTarget"),
       blockedAppsCount = json.optInt("blockedAppsCount"),
       blockedPackageNames = blockedPackages,
+      totalFocusMinutes = json.optInt("totalFocusMinutes"),
       todayIso = json.optString("todayIso", ""),
       todayWeekday = json.optInt("todayWeekday"),
       nodes = nodes,
@@ -193,6 +197,7 @@ object HeroWidgetStateEngine {
       display = display,
       intelCells = intelCells,
       upcomingToday = upcomingToday,
+      appearance = HeroWidgetAppearance.parse(json.optJSONObject("appearance")),
     )
   }
 
@@ -361,13 +366,13 @@ object HeroWidgetStateEngine {
 
     return baseViewModel(
       bundle = bundle,
-      state = if (allDone) "weekly_report" else bundle.display.state.ifBlank { "on_the_way" },
+      state = if (allDone) "on_the_way" else bundle.display.state.ifBlank { "on_the_way" },
       metaLeft = bundle.display.metaLeft.ifBlank { "FOCUS" },
       metaRight = bundle.display.metaRight.ifBlank { if (allDone) "DONE" else "TODAY" },
       sessionTitle = bundle.display.sessionTitle.ifBlank { if (allDone) "Day complete" else "Lowalk" },
-      headline = bundle.display.headline.ifBlank { if (allDone) "Focus Ledger" else "Open Lowalk" },
+      headline = bundle.display.headline.ifBlank { if (allDone) "Day complete." else "Open Lowalk" },
       countdownLabel = bundle.display.countdownLabel,
-      subline = bundle.display.subline,
+      subline = bundle.display.subline ?: if (allDone) "Every Focus Node completed." else null,
       progressRatio = if (bundle.dailyGoalTarget > 0) {
         bundle.dailyGoalCompleted.toFloat() / bundle.dailyGoalTarget.toFloat()
       } else {

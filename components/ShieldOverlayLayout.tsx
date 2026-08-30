@@ -1,13 +1,13 @@
 /**
- * Full-screen app-blocked layout — centered logo and copy with a bottom Close pill.
+ * Full-screen app-blocked layout — centred copy with a bottom Close pill.
  */
 import { Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ShieldBlockedIcon } from "@/components/ShieldBlockedIcon";
 import { ShieldOpenLowalkButton } from "@/components/ShieldOpenLowalkButton";
-import { SHIELD_OVERLAY_FONTS } from "@/lib/shieldTypography";
 import { colors } from "@/theme/tokens";
+import { FONT_FAMILY } from "@/theme/fonts";
 
 type ShieldOverlayLayoutProps = {
   headline: string;
@@ -25,12 +25,13 @@ export function ShieldOverlayLayout({
   const insets = useSafeAreaInsets();
 
   return (
-    <View
+    <SafeAreaView
       style={{
         flex: 1,
         backgroundColor: colors.background,
         paddingHorizontal: 28,
       }}
+      edges={["top", "left", "right"]}
     >
       <View
         style={{
@@ -45,7 +46,7 @@ export function ShieldOverlayLayout({
           <Text
             style={{
               marginTop: 28,
-              fontFamily: SHIELD_OVERLAY_FONTS.headline,
+              fontFamily: FONT_FAMILY.bold,
               fontSize: 28,
               lineHeight: 36,
               color: colors.foreground,
@@ -58,10 +59,10 @@ export function ShieldOverlayLayout({
           <Text
             style={{
               marginTop: 12,
-              fontFamily: SHIELD_OVERLAY_FONTS.subtitle,
+              fontFamily: FONT_FAMILY.regular,
               fontSize: 15,
               lineHeight: 22,
-              color: colors.foreground,
+              color: colors.foregroundSubtle,
               textAlign: "center",
             }}
           >
@@ -73,12 +74,11 @@ export function ShieldOverlayLayout({
       <View
         style={{
           alignItems: "center",
-          marginTop: -24,
           paddingBottom: Math.max(insets.bottom, 12) + 24,
         }}
       >
         <ShieldOpenLowalkButton onPress={onCtaPress} label={ctaLabel} />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }

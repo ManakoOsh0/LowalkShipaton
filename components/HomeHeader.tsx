@@ -52,7 +52,7 @@ function StreakBadge({ streak, onPress }: { streak: number; onPress?: () => void
           fontFamily: FONT_FAMILY.bold,
           fontSize: 16,
           lineHeight: 20,
-          color: colors.streak,
+          color: "#FFFFFF",
           fontVariant: ["tabular-nums"],
         }}
       >

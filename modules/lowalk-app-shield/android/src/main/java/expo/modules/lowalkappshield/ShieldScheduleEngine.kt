@@ -265,7 +265,7 @@ object ShieldScheduleEngine {
     dayAnchorMs: Long,
     timezone: TimeZone,
   ): NodeShieldInterval? {
-    val bufferMinutes = if (node.scheduleType == "class") classPreBufferMinutes else 0
+    val bufferMinutes = classPreBufferMinutes
     val startsAtMs = minutesOnDayMs(node.startMinutes - bufferMinutes, dayAnchorMs, timezone)
     val nominalEndsAtMs = minutesOnDayMs(node.endMinutes, dayAnchorMs, timezone)
     return NodeShieldInterval(

@@ -2,6 +2,8 @@
  * Hero display FSM — one e-ink screen, five journey phases.
  * Each phase answers exactly one question; nothing competes with the primary read.
  */
+import { isPreBufferHeroMessage } from "@/lib/preBufferCopy";
+import { formatStartClock24 } from "@/lib/time";
 import type { HeroCelebrationPayload } from "@/store/useHeroCelebrationStore";
 import type { HeroCardData } from "@/types/dashboard";
 
@@ -21,21 +23,31 @@ export type HeroIdleMood = "day_complete" | "no_sessions" | "free_break";
 /** Up next — relaxed wait vs leave-now urgency. */
 export type HeroWaitingMood = "upcoming" | "now";
 
+/** Arrived phase — verify check-in vs stepped out / penalty countdown. */
+export type HeroArrivedMoment = "verify" | "stepped_out" | "penalty";
+
 /** Minutes until primary reads "now" or the urgent pose kicks in. */
 export const HERO_WAITING_NOW_THRESHOLD_MINUTES = 15;
+
+/** Metric clock/distance vs multi-line session title (pre-buffer). */
+export type HeroPrimaryPresentation = "metric" | "heading";
 
 export type HeroDisplayModel = {
   phase: HeroDisplayPhase;
   kindLabel: string;
   statusLabel: string;
-  /** Which idle kaomoji to show when phase is idle. */
+  /** Distinct idle copy mood when phase is idle. */
   idleMood?: HeroIdleMood;
   /** Up-next urgency — upcoming vs leave now. */
   waitingMood?: HeroWaitingMood;
+  /** Arrived sub-state — verify, stepped out, or penalty. */
+  arrivedMoment?: HeroArrivedMoment;
   /** Small label above the primary (e.g. "Check in"). */
   eyebrow?: string;
   /** The one thing your eyes should land on. */
   primary: string;
+  /** How the primary line is typeset in HeroDisplay. */
+  primaryPresentation?: HeroPrimaryPresentation;
   secondary?: string;
   tertiary?: string;
   detail?: string;
@@ -56,6 +68,31 @@ export function formatCompactDuration(totalMinutes: number): string {
   const minutes = totalMinutes % 60;
   if (minutes === 0) return `${hours}h`;
   return `${hours}h ${minutes}m`;
+}
+
+function formatPreBufferStartsInLine(
+  hero: HeroCardData,
+  startsInMinutes: number | null,
+): string {
+  if (hero.upNext?.startsInLabel) return hero.upNext.startsInLabel;
+  if (startsInMinutes == null) return "Starting soon";
+  if (startsInMinutes <= 0) return "Starting now";
+  if (startsInMinutes === 1) return "Starts in 1 minute";
+  if (startsInMinutes < 60) return `Starts in ${startsInMinutes} minutes`;
+
+  const hours = Math.floor(startsInMinutes / 60);
+  const minutes = startsInMinutes % 60;
+  if (minutes === 0) {
+    return hours === 1 ? "Starts in 1 hour" : `Starts in ${hours} hours`;
+  }
+  const hourPart = hours === 1 ? "1 hour" : `${hours} hours`;
+  const minutePart = minutes === 1 ? "1 minute" : `${minutes} minutes`;
+  return `Starts in ${hourPart} ${minutePart}`;
+}
+
+function resolvePreBufferSessionTitle(hero: HeroCardData): string {
+  if (hero.upNext?.sessionTitle) return hero.upNext.sessionTitle;
+  return hero.title.replace(/\s+in\s+.+$/i, "").trim() || hero.title;
 }
 
 function parseStartsInMinutes(startsInLabel: string): number | null {
@@ -88,11 +125,6 @@ function minutesUntilClockLabel(
   return Math.ceil((target.getTime() - referenceDate.getTime()) / 60_000);
 }
 
-function extractSessionStartLabel(timeLabel: string): string {
-  const start = timeLabel.split("–")[0]?.trim() ?? timeLabel;
-  return `Starts at ${start}`;
-}
-
 function isArrivedMoment(hero: HeroCardData): boolean {
   if (!hero.countdownLabel) return false;
   if (hero.icon === "arrived") return true;
@@ -105,6 +137,23 @@ function isArrivedMoment(hero: HeroCardData): boolean {
 function isPenaltyOrAwayMoment(hero: HeroCardData): boolean {
   const title = hero.title.toLowerCase();
   return title.includes("locked") || title.includes("stepped out");
+}
+
+export function resolveArrivedMoment(hero: HeroCardData): HeroArrivedMoment | undefined {
+  if (hero.title.toLowerCase().includes("stepped out")) {
+    return "stepped_out";
+  }
+  if (hero.title.toLowerCase().includes("locked")) {
+    return "penalty";
+  }
+  if (isArrivedMoment(hero)) {
+    return "verify";
+  }
+  return undefined;
+}
+
+export function shouldShowHeroVerifyingPulse(model: HeroDisplayModel): boolean {
+  return model.verifyPulse;
 }
 
 function resolveWaitingPrimaryMinutes(
@@ -120,14 +169,14 @@ function resolveWaitingPrimaryMinutes(
   return leaveInMinutes ?? startsInMinutes;
 }
 
-/** Waiting hero — "24m" upcoming vs "now" / time-to-leave urgency. */
+/** Waiting hero — relaxed upcoming vs leave-now urgency. */
 export function resolveWaitingMood(
   hero: HeroCardData,
   primary: string,
   primaryMinutes: number | null,
 ): HeroWaitingMood {
   if (primary === "now") return "now";
-  if (hero.title === "Time to head out.") return "now";
+  if (isPreBufferHeroMessage(hero)) return "now";
   if (
     primaryMinutes != null &&
     primaryMinutes <= HERO_WAITING_NOW_THRESHOLD_MINUTES
@@ -147,7 +196,7 @@ export function resolveWaitingMoodFromHero(
   return resolveWaitingMood(hero, primary, primaryMinutes);
 }
 
-/** Idle shell copy maps to a kaomoji mood (see selectors idle branches). */
+/** Idle shell copy maps to a display mood (see selectors idle branches). */
 export function resolveIdleMood(hero: HeroCardData): HeroIdleMood {
   if (hero.title === "Day complete.") return "day_complete";
   if (hero.subtitle?.includes("No Focus Nodes are scheduled today")) {
@@ -178,10 +227,10 @@ export function resolveHeroDisplayPhase(
 
   if (hero.state === "on_the_way") {
     if (!hero.upNext && !hero.nodeId) return "idle";
+    if (isPreBufferHeroMessage(hero)) return "travel";
     if (hero.travelStats) return "travel";
-    if (hero.countdownLabel && (isArrivedMoment(hero) || isPenaltyOrAwayMoment(hero))) {
-      return "arrived";
-    }
+    if (isPenaltyOrAwayMoment(hero)) return "arrived";
+    if (hero.countdownLabel && isArrivedMoment(hero)) return "arrived";
     if (hero.countdownLabel) return "arrived";
     if (hero.upNext) return "waiting";
     return "idle";
@@ -282,6 +331,26 @@ export function buildHeroDisplayModel(
     };
   }
 
+  if (phase === "travel" && isPreBufferHeroMessage(hero)) {
+    const startsInMinutes = hero.upNext
+      ? parseStartsInMinutes(hero.upNext.startsInLabel)
+      : parseStartsInMinutes(hero.title);
+
+    return {
+      phase,
+      kindLabel,
+      statusLabel: "BLOCKED",
+      primary: resolvePreBufferSessionTitle(hero),
+      primaryPresentation: "heading",
+      secondary: formatPreBufferStartsInLine(hero, startsInMinutes),
+      detail: hero.subtitle.replace(/\n/g, " · "),
+      footnote: formatAppsLockedFootnote(hero.blockedAppsCount),
+      waitingMood: "now",
+      showProgress: false,
+      verifyPulse: false,
+    };
+  }
+
   if (phase === "travel" && hero.travelStats) {
     const metersAway = travelMetersAway;
     const travelProgress =
@@ -303,12 +372,14 @@ export function buildHeroDisplayModel(
 
   if (phase === "arrived") {
     const countdown = hero.countdownLabel ?? "—";
-    const isVerify = isArrivedMoment(hero) && !isPenaltyOrAwayMoment(hero);
+    const arrivedMoment = resolveArrivedMoment(hero);
+    const isVerify = arrivedMoment === "verify";
 
     return {
       phase,
       kindLabel,
       statusLabel: isVerify ? "ARRIVED" : statusLabel,
+      arrivedMoment,
       eyebrow: isVerify ? "Check in" : undefined,
       primary: countdown,
       secondary: isVerify
@@ -326,8 +397,9 @@ export function buildHeroDisplayModel(
       : null;
     const startsInMinutes = parseStartsInMinutes(hero.upNext.startsInLabel);
     const primaryMinutes = leaveInMinutes ?? startsInMinutes;
-    const primary =
+    const moodPrimary =
       primaryMinutes != null ? formatCompactDuration(primaryMinutes) : "—";
+    const primary = formatStartClock24(hero.upNext.timeLabel);
 
     return {
       phase,
@@ -335,12 +407,11 @@ export function buildHeroDisplayModel(
       statusLabel,
       primary,
       secondary: hero.upNext.sessionTitle,
-      tertiary: extractSessionStartLabel(hero.upNext.timeLabel),
       detail: hero.upNext.locationLabel,
       footnote: hero.upNext.leaveByLabel
         ? `Leave by ${hero.upNext.leaveByLabel}`
         : undefined,
-      waitingMood: resolveWaitingMood(hero, primary, primaryMinutes),
+      waitingMood: resolveWaitingMood(hero, moodPrimary, primaryMinutes),
       showProgress: false,
       verifyPulse: false,
     };
@@ -373,6 +444,9 @@ export function buildHeroDisplayTransitionKey(
   }
   if (phase === "waiting") {
     return `${phase}:${hero.nodeId ?? "none"}:${resolveWaitingMoodFromHero(hero, referenceDate)}`;
+  }
+  if (phase === "arrived") {
+    return `${phase}:${hero.nodeId ?? "none"}:${resolveArrivedMoment(hero) ?? "arrived"}`;
   }
   return `${phase}:${hero.nodeId ?? "none"}`;
 }

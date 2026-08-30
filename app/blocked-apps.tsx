@@ -6,9 +6,9 @@ import { ShieldMinimalistic } from "@solar-icons/react-native/Bold";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AppState } from "react-native";
 import {
-  ActivityIndicator,
+  Alert,
+  AppState,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -36,9 +36,12 @@ import {
   isRunningInExpoGo,
 } from "@/lib/appShieldStatus";
 import { BlockedAppIcon } from "@/components/BlockedAppIcon";
+import { AppListSkeleton } from "@/components/skeleton/AppListSkeleton";
 import { useBlockedAppIcons } from "@/hooks/useBlockedAppIcons";
 import { useBlockedAppsRemovalLocked } from "@/hooks/useBlockedAppsRemovalLocked";
+import { usePenaltyShieldActive } from "@/hooks/usePenaltyShieldActive";
 import { useModalAnimationType } from "@/hooks/useHeroMotion";
+import { useBlockedAppsHydrated } from "@/hooks/usePersistedStoreHydration";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";
 
@@ -47,11 +50,13 @@ export default function BlockedAppsScreen() {
   const colors = useThemeColors();
   const modalAnimationType = useModalAnimationType("slide");
   const apps = useBlockedAppsStore((state) => state.apps);
+  const appsReady = useBlockedAppsHydrated();
   const addApp = useBlockedAppsStore((state) => state.addApp);
   const addApps = useBlockedAppsStore((state) => state.addApps);
   const removeApp = useBlockedAppsStore((state) => state.removeApp);
   const iconsByPackage = useBlockedAppIcons(apps);
   const removalLocked = useBlockedAppsRemovalLocked();
+  const penaltyLocked = usePenaltyShieldActive();
 
   const shieldSupported = isAppShieldSupported() && !isRunningInExpoGo();
   const [draftName, setDraftName] = useState("");
@@ -195,6 +200,19 @@ export default function BlockedAppsScreen() {
     setPickerSelected(new Set());
   };
 
+  const handleRemoveApp = (id: string) => {
+    if (removalLocked) {
+      Alert.alert(
+        penaltyLocked ? "Can't remove during a penalty" : "Can't remove during focus",
+        penaltyLocked
+          ? "Blocked apps stay locked until the extra lock time ends."
+          : "Blocked apps stay locked until this session ends.",
+      );
+      return;
+    }
+    removeApp(id);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top"]}>
       <KeyboardAvoidingView
@@ -231,7 +249,7 @@ export default function BlockedAppsScreen() {
                 color: colors.foreground,
               }}
             >
-              Focus is active
+              {penaltyLocked ? "Penalty lock is active" : "Focus is active"}
             </Text>
             <Text
               style={{
@@ -242,7 +260,9 @@ export default function BlockedAppsScreen() {
                 color: colors.muted,
               }}
             >
-              You can still add apps to your block list. Removals unlock when this session ends.
+              {penaltyLocked
+                ? "You can still add apps. Removals unlock when the extra lock time ends."
+                : "You can still add apps to your block list. Removals unlock when this session ends."}
             </Text>
           </View>
         ) : null}
@@ -487,10 +507,12 @@ export default function BlockedAppsScreen() {
               color: colors.muted,
             }}
           >
-            Your list ({apps.length})
+            {appsReady ? `Your list (${apps.length})` : "Your list"}
           </Text>
 
-          {apps.length === 0 ? (
+          {!appsReady ? (
+            <AppListSkeleton rows={5} label="Loading blocked apps" />
+          ) : apps.length === 0 ? (
             <View
               style={{
                 alignItems: "center",
@@ -606,9 +628,13 @@ export default function BlockedAppsScreen() {
 
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Remove ${item.name}`}
-                    disabled={removalLocked}
-                    onPress={() => removeApp(item.id)}
+                    accessibilityLabel={
+                      removalLocked
+                        ? `Can't remove ${item.name} during ${penaltyLocked ? "a penalty" : "focus"}`
+                        : `Remove ${item.name}`
+                    }
+                    accessibilityState={{ disabled: removalLocked }}
+                    onPress={() => handleRemoveApp(item.id)}
                     hitSlop={8}
                     style={({ pressed }) => ({
                       opacity: removalLocked ? 0.35 : pressed ? 0.6 : 1,
@@ -674,7 +700,9 @@ export default function BlockedAppsScreen() {
           </View>
 
           {pickerLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
+            <View style={{ flex: 1, paddingHorizontal: 16 }}>
+              <AppListSkeleton rows={8} label="Loading installed apps" />
+            </View>
           ) : (
             <FlatList
               data={filteredInstalled}

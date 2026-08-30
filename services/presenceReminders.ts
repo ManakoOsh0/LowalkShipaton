@@ -113,6 +113,39 @@ export async function notifyPresencePenalty(
   nodeId: string,
   penaltyMinutes: number,
 ): Promise<void> {
+  await notifyPenaltyLock(zoneLabel, nodeId, penaltyMinutes, {
+    title: "Apps locked",
+    bodyPrefix: "Penalty lock for",
+    dataType: "presence-penalty",
+    suffix: "Return to",
+  });
+}
+
+/** Fired when a class ends without completion — skips if app is foreground. */
+export async function notifyMissedClassPenalty(
+  zoneLabel: string,
+  nodeId: string,
+  penaltyMinutes: number,
+): Promise<void> {
+  await notifyPenaltyLock(zoneLabel, nodeId, penaltyMinutes, {
+    title: "Class missed",
+    bodyPrefix: "Miss penalty lock for",
+    dataType: "class-miss-penalty",
+    suffix: "Head to",
+  });
+}
+
+async function notifyPenaltyLock(
+  zoneLabel: string,
+  nodeId: string,
+  penaltyMinutes: number,
+  copy: {
+    title: string;
+    bodyPrefix: string;
+    dataType: string;
+    suffix: string;
+  },
+): Promise<void> {
   if (!areSessionRemindersSupported()) return;
 
   const granted = await ensureNotificationPermission();
@@ -132,10 +165,10 @@ export async function notifyPresencePenalty(
   await Notifications.scheduleNotificationAsync({
     identifier: penaltyId(nodeId),
     content: {
-      title: "Apps locked",
-      body: `Penalty lock for ${durationLabel}. Return to ${zone} to finish your session.`,
+      title: copy.title,
+      body: `${copy.bodyPrefix} ${durationLabel}. ${copy.suffix} ${zone} to finish your session.`,
       sound: true,
-      data: { nodeId, type: "presence-penalty" },
+      data: { nodeId, type: copy.dataType },
       ...(Platform.OS === "android" ? { channelId: "presence-alerts" } : {}),
     },
     trigger: null,

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Warm Lowalk gradient — Duolingo-style full-bleed widget surface. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+  android:shape="rectangle">
+  <gradient
+    android:angle="135"
+    android:endColor="@color/widget_focus_hours_end"
+    android:startColor="@color/widget_focus_hours_start"
+    android:type="linear" />
+  <corners android:radius="20dp" />
+</shape>

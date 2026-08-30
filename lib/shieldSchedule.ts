@@ -45,6 +45,17 @@ export function getShieldScheduleSettings(): ShieldScheduleSettings {
   };
 }
 
+/** Nominal session start — after the pre-buffer, when attendance counting begins. */
+export function getSessionNominalStartMs(
+  session: ActiveSessionSnapshot,
+  settings: ShieldScheduleSettings,
+): number {
+  return (
+    new Date(session.shieldStartsAt).getTime() +
+    settings.classPreBufferMinutes * 60_000
+  );
+}
+
 function isOccurrenceOpenToday(node: FocusNode, referenceDate: Date): boolean {
   if (node.schedule.weekday !== referenceDate.getDay()) return false;
   const todayIso = toIsoDateString(referenceDate);
@@ -53,7 +64,22 @@ function isOccurrenceOpenToday(node: FocusNode, referenceDate: Date): boolean {
   return true;
 }
 
-/** Raw per-node shield interval before gap merging (classes include pre-buffer). */
+/** Raw per-node shield interval before gap merging (all sessions include pre-buffer). */
+/** True after the shield opens but before the nominal session start time. */
+export function isInNodePreBufferPeriod(
+  node: FocusNode,
+  settings: ShieldScheduleSettings,
+  referenceDate = new Date(),
+): boolean {
+  const interval = getNodeShieldInterval(node, settings, referenceDate);
+  if (!interval) return false;
+
+  const nowMs = referenceDate.getTime();
+  const { startMinutes } = getScheduleWindow(node.schedule);
+  const nominalStartMs = minutesToTodayDate(startMinutes, referenceDate).getTime();
+  return nowMs >= interval.startsAtMs && nowMs < nominalStartMs;
+}
+
 export function getNodeShieldInterval(
   node: FocusNode,
   settings: ShieldScheduleSettings,
@@ -65,8 +91,7 @@ export function getNodeShieldInterval(
   const scheduleType: SessionScheduleType =
     node.schedule.type === "class" ? "class" : "duration";
 
-  const bufferMinutes =
-    scheduleType === "class" ? settings.classPreBufferMinutes : 0;
+  const bufferMinutes = settings.classPreBufferMinutes;
 
   const startsAt = minutesToTodayDate(startMinutes - bufferMinutes, referenceDate);
   const nominalEndsAt = minutesToTodayDate(endMinutes, referenceDate);

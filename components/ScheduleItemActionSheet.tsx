@@ -12,20 +12,40 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { sheetStepEntering, sheetStepExiting } from "@/lib/heroMotion";
+import type { FocusNodeRemovalLockReason } from "@/lib/sessionPenalty";
 import type { ScheduleItem } from "@/types/dashboard";
 
 export type ScheduleItemActionSheetProps = {
   item: ScheduleItem | null;
+  deleteLockReason?: FocusNodeRemovalLockReason | null;
   onClose: () => void;
   onEdit: (item: ScheduleItem) => void;
   onDelete: (item: ScheduleItem) => void;
 };
+
+function getDeleteLockCopy(reason: FocusNodeRemovalLockReason): {
+  label: string;
+  hint: string;
+} {
+  if (reason === "penalty") {
+    return {
+      label: "Can't delete during penalty",
+      hint: "This session stays on your schedule until the extra app lock ends.",
+    };
+  }
+
+  return {
+    label: "Can't delete active session",
+    hint: "Finish this session before removing it from your schedule.",
+  };
+}
 
 type ActionRowProps = {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   tone?: "default" | "destructive";
   showDivider?: boolean;
+  disabled?: boolean;
   onPress: () => void;
 };
 
@@ -34,6 +54,7 @@ function ActionRow({
   label,
   tone = "default",
   showDivider = false,
+  disabled = false,
   onPress,
 }: ActionRowProps) {
   const colors = useThemeColors();
@@ -43,12 +64,14 @@ function ActionRow({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
+      disabled={disabled}
       onPress={() => {
         void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onPress();
       }}
       style={({ pressed }) => ({
-        opacity: pressed ? 0.72 : 1,
+        opacity: disabled ? 0.4 : pressed ? 0.72 : 1,
       })}
     >
       <View
@@ -106,16 +129,20 @@ function ActionRow({
 
 function ActionsContent({
   item,
+  deleteLockReason,
   onEdit,
   onRequestDelete,
   onCancel,
 }: {
   item: ScheduleItem;
+  deleteLockReason: FocusNodeRemovalLockReason | null;
   onEdit: () => void;
   onRequestDelete: () => void;
   onCancel: () => void;
 }) {
   const colors = useThemeColors();
+  const deleteLocked = deleteLockReason != null;
+  const deleteCopy = deleteLockReason ? getDeleteLockCopy(deleteLockReason) : null;
 
   return (
     <View style={{ gap: 16, paddingBottom: 4 }}>
@@ -155,11 +182,26 @@ function ActionsContent({
         <ActionRow icon="pencil-outline" label="Edit schedule" onPress={onEdit} showDivider />
         <ActionRow
           icon="trash-outline"
-          label="Delete schedule"
+          label={deleteCopy?.label ?? "Delete schedule"}
           tone="destructive"
+          disabled={deleteLocked}
           onPress={onRequestDelete}
         />
       </View>
+
+      {deleteCopy ? (
+        <Text
+          style={{
+            paddingHorizontal: 4,
+            fontFamily: "Poppins-Regular",
+            fontSize: 13,
+            lineHeight: 18,
+            color: colors.muted,
+          }}
+        >
+          {deleteCopy.hint}
+        </Text>
+      ) : null}
 
       <Pressable
         accessibilityRole="button"
@@ -303,18 +345,26 @@ function ConfirmDeleteContent({
 
 export function ScheduleItemActionSheet({
   item,
+  deleteLockReason = null,
   onClose,
   onEdit,
   onDelete,
 }: ScheduleItemActionSheetProps) {
   const [step, setStep] = useState<"actions" | "confirm">("actions");
   const reduceMotion = useReduceMotion();
+  const deleteLocked = deleteLockReason != null;
 
   useEffect(() => {
     if (!item) {
       setStep("actions");
     }
   }, [item]);
+
+  useEffect(() => {
+    if (deleteLocked) {
+      setStep("actions");
+    }
+  }, [deleteLocked]);
 
   const handleClose = () => {
     setStep("actions");
@@ -332,17 +382,25 @@ export function ScheduleItemActionSheet({
           {step === "actions" ? (
             <ActionsContent
               item={item}
+              deleteLockReason={deleteLockReason}
               onEdit={() => {
                 onEdit(item);
                 handleClose();
               }}
-              onRequestDelete={() => setStep("confirm")}
+              onRequestDelete={() => {
+                if (deleteLocked) return;
+                setStep("confirm");
+              }}
               onCancel={handleClose}
             />
           ) : (
             <ConfirmDeleteContent
               item={item}
               onConfirm={() => {
+                if (deleteLocked) {
+                  setStep("actions");
+                  return;
+                }
                 onDelete(item);
                 handleClose();
               }}

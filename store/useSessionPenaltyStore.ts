@@ -1,9 +1,12 @@
 import { create } from "zustand";
 
+export type SessionPenaltyReason = "away" | "missed";
+
 export type SessionPenaltyPayload = {
   nodeTitle: string;
   anchorName: string;
   penaltyMinutes: number;
+  reason?: SessionPenaltyReason;
   /** Dev preview — does not require an active penalty session. */
   preview?: boolean;
 };
@@ -18,6 +21,7 @@ const EMPTY_PAYLOAD: SessionPenaltyPayload = {
   nodeTitle: "",
   anchorName: "",
   penaltyMinutes: 30,
+  reason: "away",
   preview: false,
 };
 

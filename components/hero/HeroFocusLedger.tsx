@@ -6,7 +6,7 @@ import { View } from "react-native";
 
 import { HeroInsetEdge } from "@/components/hero/HeroInsetEdge";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
-import { HERO_EINK, TRMNL_THEME } from "@/lib/heroEink";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import type { HeroFocusLedgerSnapshot } from "@/types/dashboard";
 
 type HeroFocusLedgerProps = {
@@ -14,6 +14,8 @@ type HeroFocusLedgerProps = {
 };
 
 function DottedRule() {
+  const theme = useHeroTheme();
+
   return (
     <View
       style={{
@@ -21,7 +23,7 @@ function DottedRule() {
         alignSelf: "stretch",
         borderLeftWidth: 1,
         borderStyle: "dotted",
-        borderColor: HERO_EINK.ink,
+        borderColor: theme.textPrimary,
         marginHorizontal: 8,
       }}
     />
@@ -39,6 +41,8 @@ function StatCell({
   borderedTop?: boolean;
   borderedLeft?: boolean;
 }) {
+  const theme = useHeroTheme();
+
   return (
     <View
       style={{
@@ -48,7 +52,7 @@ function StatCell({
         borderTopWidth: borderedTop ? 1 : 0,
         borderLeftWidth: borderedLeft ? 1 : 0,
         borderStyle: "dotted",
-        borderColor: HERO_EINK.ink,
+        borderColor: theme.textPrimary,
       }}
     >
       <TrmnlText variant="value" numberOfLines={1} style={{ fontSize: 18, lineHeight: 20 }}>
@@ -58,7 +62,7 @@ function StatCell({
         variant="labelSmall"
         color="mutedWell"
         numberOfLines={1}
-        style={{ marginTop: 4, fontSize: 14, lineHeight: 14 }}
+        style={{ marginTop: 4, fontSize: 15, lineHeight: 18 }}
       >
         {label}
       </TrmnlText>
@@ -67,6 +71,7 @@ function StatCell({
 }
 
 export function HeroFocusLedger({ ledger }: HeroFocusLedgerProps) {
+  const theme = useHeroTheme();
   const completionLabel =
     ledger.sessionsScheduled > 0
       ? `${ledger.sessionsCompleted}/${ledger.sessionsScheduled}`
@@ -79,7 +84,7 @@ export function HeroFocusLedger({ ledger }: HeroFocusLedgerProps) {
         width: "100%",
         borderRadius: 12,
         borderCurve: "continuous",
-        backgroundColor: TRMNL_THEME.plaque,
+        backgroundColor: theme.plaque,
         overflow: "hidden",
       }}
     >
@@ -116,14 +121,7 @@ export function HeroFocusLedger({ ledger }: HeroFocusLedgerProps) {
         <DottedRule />
 
         <View style={{ flex: 1.2 }}>
-          <View style={{ flex: 1, flexDirection: "row" }}>
-            <StatCell value={String(ledger.currentStreak)} label="Day streak" />
-            <StatCell
-              value={String(ledger.focusCoins)}
-              label="Focus coins"
-              borderedLeft
-            />
-          </View>
+          <StatCell value={String(ledger.currentStreak)} label="Day streak" />
           <View style={{ flex: 1, flexDirection: "row" }}>
             <StatCell
               value={completionLabel}

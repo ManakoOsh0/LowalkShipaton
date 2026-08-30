@@ -31,6 +31,8 @@ const DISMISS_DRAG_PX = 110;
 const DISMISS_VELOCITY = 900;
 const SHEET_ENTER_MS = 320;
 const SHEET_EXIT_MS = 260;
+/** Warm-black dim so home/settings recede; 0.45 navy left dashboard type fully readable. */
+const SHEET_SCRIM = "rgba(8, 6, 5, 0.78)";
 
 type BottomSheetProps = {
   visible: boolean;
@@ -153,6 +155,7 @@ export function BottomSheet({
       visible
       transparent
       animationType="none"
+      presentationStyle="overFullScreen"
       statusBarTranslucent
       onRequestClose={dismissible ? onClose : undefined}
     >
@@ -160,7 +163,7 @@ export function BottomSheet({
         <Animated.View
           style={[
             StyleSheet.absoluteFill,
-            { backgroundColor: "rgba(13, 19, 43, 0.45)" },
+            { backgroundColor: SHEET_SCRIM },
             backdropStyle,
           ]}
         >
@@ -183,6 +186,7 @@ export function BottomSheet({
                 borderWidth: 1,
                 borderBottomWidth: 0,
                 borderColor: colors.cardStroke,
+                boxShadow: "0px -12px 36px rgba(0, 0, 0, 0.45)",
                 paddingTop: 10,
                 paddingHorizontal: 16,
                 paddingBottom: Math.max(insets.bottom, 16),

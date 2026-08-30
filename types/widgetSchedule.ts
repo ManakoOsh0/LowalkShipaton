@@ -1,5 +1,6 @@
 /** Schedule bundle synced to the Android home screen widget for offline refresh. */
 
+import type { HeroWidgetAppearancePayload } from "@/lib/heroWidgetAppearance";
 import type { HeroWidgetSnapshot } from "@/types/heroWidget";
 
 export type WidgetFocusNodePayload = {
@@ -51,6 +52,8 @@ export type WidgetScheduleBundle = {
   dailyGoalTarget: number;
   blockedAppsCount: number;
   blockedPackageNames: string[];
+  /** Estimated lifetime focus minutes (scheduled length × completions). */
+  totalFocusMinutes: number;
   todayIso: string;
   todayWeekday: number;
   nodes: WidgetFocusNodePayload[];
@@ -58,4 +61,6 @@ export type WidgetScheduleBundle = {
   display: HeroWidgetSnapshot;
   intelCells: WidgetIntelCellPayload[];
   upcomingToday: WidgetUpcomingRowPayload[];
+  /** Resolved hero look — mirrors Settings → Hero look for the home widget. */
+  appearance: HeroWidgetAppearancePayload;
 };

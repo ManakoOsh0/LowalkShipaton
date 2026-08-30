@@ -426,7 +426,6 @@ export function ScheduleRow({
         accessibilityHint={
           onLongPress ? "Long press for edit or delete options" : undefined
         }
-        delayPressIn={100}
         android_disableSound
         onPress={onPress}
         onLongPress={onLongPress}

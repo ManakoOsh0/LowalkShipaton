@@ -15,7 +15,6 @@ type HeroCardHeaderProps = {
   metaRight: HeroMetaChip;
   /** Active session — hide title; mode word lives in the body. */
   compact?: boolean;
-  motionKey?: string;
   reduceMotion?: boolean;
   verifyPulse?: boolean;
 };
@@ -25,13 +24,13 @@ export function HeroCardHeader({
   metaLeft,
   metaRight,
   compact = false,
-  motionKey,
   reduceMotion = false,
   verifyPulse = false,
 }: HeroCardHeaderProps) {
+  "use no memo";
+
   return (
     <Animated.View
-      key={motionKey ? `${motionKey}-header` : undefined}
       entering={heroHeaderEntering(reduceMotion)}
       style={{ marginBottom: compact ? 2 : 1 }}
     >
@@ -43,11 +42,11 @@ export function HeroCardHeader({
           gap: 8,
         }}
       >
-        <TrmnlText variant="labelSmall" color="ink" numberOfLines={1}>
+        <TrmnlText variant="label" color="ink" numberOfLines={1} style={{ fontSize: 17, lineHeight: 21 }}>
           {metaLeft.label}
         </TrmnlText>
         <HeroVerifyingPulse active={verifyPulse}>
-          <TrmnlText variant="labelSmall" color="ink" numberOfLines={1}>
+          <TrmnlText variant="label" color="ink" numberOfLines={1} style={{ fontSize: 17, lineHeight: 21 }}>
             {metaRight.label}
           </TrmnlText>
         </HeroVerifyingPulse>
@@ -58,7 +57,7 @@ export function HeroCardHeader({
           height: 1,
           marginTop: 2,
           marginBottom: compact ? 2 : 2,
-          backgroundColor: "rgba(0, 0, 0, 0.16)",
+          backgroundColor: "rgba(0, 0, 0, 0.22)",
           alignSelf: "stretch",
         }}
       />

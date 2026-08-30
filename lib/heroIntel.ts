@@ -35,6 +35,7 @@ import {
 } from "@/lib/shieldSchedule";
 import {
     formatMinutesToLabel,
+    formatStartClock24,
     getScheduleWindow
 } from "@/lib/time";
 import type { PresenceContext } from "@/store/selectors";
@@ -385,7 +386,7 @@ function buildCenterMetric(hero: HeroCardData): HeroCenterMetric {
       };
     }
     return {
-      headline: hero.upNext.startsInLabel,
+      headline: formatStartClock24(hero.upNext.timeLabel),
       subline: hero.upNext.locationLabel,
     };
   }
@@ -839,7 +840,7 @@ export function buildPreviewHeroContext(
     sessionTitle: fixture.sessionTitle,
     dayArc: buildDayArc(baseSchedule, focusId),
     center: {
-      headline: fixture.startsInLabel,
+      headline: formatStartClock24(fixture.timeLabel),
       subline: fixture.locationLabel,
     },
     intelCells: [],

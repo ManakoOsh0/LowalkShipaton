@@ -1,27 +1,56 @@
 /**
- * Arrival badge — green verified check shown on the geofence arrival card.
+ * Arrival badge — verified map pin for geofence arrival.
+ * Head glow matches leave-warning pin sizing; check marks verified arrival.
  */
-import Svg, { Path } from "react-native-svg";
+import Svg, { Circle, G, Path } from "react-native-svg";
+
+import {
+  MAP_PIN_ARRIVAL_CHECK_LOCAL,
+  MAP_PIN_HALO_CY,
+  MAP_PIN_HALO_RADIUS,
+  MAP_PIN_INNER_HOLE_PATH,
+  MAP_PIN_PATH,
+  mapPinTransformString,
+} from "@/constants/sheetPinArt";
 
 type ArrivalMascotIconProps = {
   size?: number;
+  /** Pin body color. */
   color?: string;
+  /** Check inside the pin head — defaults to Lowalk surface ink. */
+  checkColor?: string;
+  /** Inner badge behind the check — defaults to white. */
+  badgeColor?: string;
 };
 
 export function ArrivalMascotIcon({
-  size = 56,
-  color = "#4caf50",
+  size = 72,
+  color = "#3DB96E",
+  checkColor = "#141210",
+  badgeColor = "#FFFFFF",
 }: ArrivalMascotIconProps) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 48 48">
-      <Path
+    <Svg width={size} height={size} viewBox="0 0 80 80" fill="none">
+      <Circle
+        cx="40"
+        cy={MAP_PIN_HALO_CY}
+        r={MAP_PIN_HALO_RADIUS + 5}
         fill={color}
-        d="M44,24c0-2.909-1.653-5.448-4.066-6.73c0.659-2.511,0.017-5.303-1.943-7.262 C36.528,8.544,34.6,7.816,32.67,7.816c-0.653,0-1.306,0.083-1.941,0.25C29.448,5.653,26.909,4,24,4s-5.448,1.653-6.73,4.066 c-0.636-0.167-1.288-0.25-1.941-0.25c-1.93,0-3.857,0.729-5.321,2.192c-1.959,1.959-2.602,4.75-1.943,7.262 C5.653,18.552,4,21.091,4,24s1.653,5.448,4.066,6.73c-0.659,2.511-0.017,5.303,1.943,7.262c1.463,1.463,3.391,2.192,5.321,2.192 c0.653,0,1.306-0.083,1.941-0.25C18.552,42.347,21.091,44,24,44s5.448-1.653,6.73-4.066c0.636,0.167,1.288,0.25,1.941,0.25 c1.93,0,3.857-0.729,5.321-2.192c1.959-1.959,2.602-4.75,1.943-7.262C42.347,29.448,44,26.909,44,24z"
+        opacity={0.07}
       />
-      <Path
-        fill="#fff"
-        d="M22 32.829L14.586 25.414 17.414 22.586 22 27.171 31.586 17.586 34.414 20.414z"
+      <Circle
+        cx="40"
+        cy={MAP_PIN_HALO_CY}
+        r={MAP_PIN_HALO_RADIUS}
+        fill={color}
+        opacity={0.15}
       />
+
+      <G transform={mapPinTransformString()}>
+        <Path d={MAP_PIN_PATH} fill={color} fillRule="evenodd" />
+        <Path d={MAP_PIN_INNER_HOLE_PATH} fill={badgeColor} />
+        <Path fill={checkColor} d={MAP_PIN_ARRIVAL_CHECK_LOCAL} />
+      </G>
     </Svg>
   );
 }

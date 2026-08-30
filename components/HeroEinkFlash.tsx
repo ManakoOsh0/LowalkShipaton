@@ -5,7 +5,8 @@ import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { Pressable, type StyleProp, type ViewStyle } from "react-native";
 
-import { HERO_EINK, HERO_EINK_FLASH_MS, TRMNL_THEME } from "@/lib/heroEink";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
+import { HERO_EINK_FLASH_MS, TRMNL_THEME } from "@/lib/heroEink";
 
 type HeroEinkFlashRenderProps = {
   inverted: boolean;
@@ -26,13 +27,16 @@ export function HeroEinkFlash({
   disabled = false,
   accessibilityLabel,
   style,
-  baseBackgroundColor = HERO_EINK.ink,
+  baseBackgroundColor,
 }: HeroEinkFlashProps) {
+  const theme = useHeroTheme();
   const [inverted, setInverted] = useState(false);
+  const ink = theme.textPrimary;
+  const paper = theme.paper;
+  const resolvedBase = baseBackgroundColor ?? ink;
   const isDarkButton =
-    baseBackgroundColor === HERO_EINK.ink ||
-    baseBackgroundColor === TRMNL_THEME.accent;
-  const flashBackground = isDarkButton ? HERO_EINK.paper : HERO_EINK.ink;
+    resolvedBase === ink || resolvedBase === TRMNL_THEME.accent;
+  const flashBackground = isDarkButton ? paper : ink;
 
   const triggerFlash = useCallback(() => {
     setInverted(true);
@@ -53,8 +57,8 @@ export function HeroEinkFlash({
       style={[
         style,
         {
-          backgroundColor: inverted ? flashBackground : baseBackgroundColor,
-          borderColor: HERO_EINK.ink,
+          backgroundColor: inverted ? flashBackground : resolvedBase,
+          borderColor: ink,
         },
       ]}
     >

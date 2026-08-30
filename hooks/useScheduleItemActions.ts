@@ -3,6 +3,8 @@ import { useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 
 import type { ScheduleItemActionSheetProps } from "@/components/ScheduleItemActionSheet";
+import { useFocusNodeRemovalLockReason } from "@/hooks/usePenaltyShieldActive";
+import { isFocusNodeRemovalLocked } from "@/lib/sessionPenalty";
 import { ROUTES } from "@/lib/routes";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import type { ScheduleItem } from "@/types/dashboard";
@@ -11,7 +13,9 @@ import type { ScheduleItem } from "@/types/dashboard";
 export function useScheduleItemActions() {
   const router = useRouter();
   const removeFocusNode = useScheduleStore((state) => state.removeFocusNode);
+  const activeSession = useScheduleStore((state) => state.activeSession);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
+  const deleteLockReason = useFocusNodeRemovalLockReason(selectedItem?.id);
 
   const showScheduleItemActions = useCallback((item: ScheduleItem) => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -31,13 +35,15 @@ export function useScheduleItemActions() {
 
   const handleDelete = useCallback(
     (item: ScheduleItem) => {
+      if (isFocusNodeRemovalLocked(item.id, activeSession)) return;
       removeFocusNode(item.id);
     },
-    [removeFocusNode],
+    [activeSession, removeFocusNode],
   );
 
   const actionSheetProps: ScheduleItemActionSheetProps = {
     item: selectedItem,
+    deleteLockReason,
     onClose: dismissScheduleItemActions,
     onEdit: handleEdit,
     onDelete: handleDelete,

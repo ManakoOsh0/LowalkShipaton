@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 
 import { useForegroundLocation } from "@/hooks/useForegroundLocation";
+import { isRunningInExpoGo } from "@/lib/appShieldStatus";
 import { resolveClassCompletionOutcome } from "@/lib/classCompletion";
 import {
   getPresenceTrackingContext,
@@ -87,6 +88,12 @@ export function useSessionPresenceEngine(): PresenceContext {
     return useScheduleStore.persist.onFinishHydration(() => {
       const session = useScheduleStore.getState().activeSession;
       if (!session) return;
+
+      // Stale away state from a dev build should not trap Expo Go testers on launch.
+      if (isRunningInExpoGo() && session.awaySince) {
+        useScheduleStore.getState().clearSessionAway();
+        return;
+      }
       if (session.scheduleType === "duration" && session.requiredOnSiteMs != null) {
         if (session.onSiteAccumulatedMs >= session.requiredOnSiteMs) {
           setActiveSession(null);

@@ -6,6 +6,7 @@ import type { ActiveSessionSnapshot } from "@/types/session";
 import { computeFocusNodeInsights } from "@/lib/focusNodeStats";
 
 import { getClassEarlyCompleteRemainingMs, getClassSessionCountdown } from "@/lib/classCompletion";
+import { buildPreBufferBody, buildPreBufferTitle } from "@/lib/preBufferCopy";
 import type { Coordinates } from "@/lib/geo";
 import {
     distanceOutsideGeofenceMeters,
@@ -17,7 +18,6 @@ import {
     buildTravelStats,
     formatCountdownMmSs,
     formatStartsInLabel,
-    TIME_TO_LEAVE_MINUTES,
 } from "@/lib/heroCard";
 import { buildEndTimeLabel, enrichHeroCardData } from "@/lib/heroIntel";
 import { formatSessionDetailLabel, getAwayGraceRemainingMs } from "@/lib/sessionPenalty";
@@ -25,6 +25,8 @@ import {
     DEFAULT_CLASS_PRE_BUFFER_MINUTES,
     DEFAULT_SESSION_GAP_MERGE_MINUTES,
     formatDurationClock,
+    getSessionNominalStartMs,
+    isInNodePreBufferPeriod,
     type ShieldScheduleSettings,
 } from "@/lib/shieldSchedule";
 import {
@@ -301,6 +303,20 @@ function activeSessionCountdown(
   const nowMs = now.getTime();
 
   if (session.scheduleType === "duration" && session.requiredOnSiteMs != null) {
+    const nominalStartMs = getSessionNominalStartMs(session, settings);
+    if (nowMs < nominalStartMs) {
+      const countdownMs = nominalStartMs - nowMs;
+      const remainingMinutes = Math.max(0, Math.ceil(countdownMs / 60_000));
+      return {
+        subtitle:
+          remainingMinutes === 1
+            ? "Session starts in 1 minute."
+            : `Session starts in ${remainingMinutes} minutes.`,
+        countdownLabel: formatDurationClock(countdownMs),
+        progressRatio: 0,
+      };
+    }
+
     const remainingMs = Math.max(session.requiredOnSiteMs - session.onSiteAccumulatedMs, 0);
     const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
     return {
@@ -367,33 +383,42 @@ function activeSessionCountdown(
   };
 }
 
-/** True when every scheduled Focus Node this week (Mon–Sun, through today) is done. */
-function isWeeklyScheduleComplete(nodes: FocusNode[], referenceDate: Date): boolean {
-  const monday = getMondayOfWeek(referenceDate);
-  const todayIso = toIsoDateString(referenceDate);
-  let scheduled = 0;
-  let finished = 0;
+function buildPreBufferHeroData(
+  node: FocusNode,
+  anchors: Anchor[],
+  referenceDate: Date,
+  presence: PresenceContext | null,
+): HeroCardData {
+  const minutesUntilStart = minutesUntilScheduleStart(node.schedule, referenceDate);
+  const anchor = resolveAnchorForNode(node.anchorId, anchors);
+  const coords =
+    anchor && hasUsableCoordinates(anchor)
+      ? { latitude: anchor.latitude, longitude: anchor.longitude }
+      : { latitude: null, longitude: null };
 
-  for (let index = 0; index < 7; index++) {
-    const date = new Date(monday);
-    date.setDate(monday.getDate() + index);
-    const dateIso = toIsoDateString(date);
-    if (dateIso > todayIso) continue;
+  const metersAway =
+    presence?.userPosition != null && anchor && hasUsableCoordinates(anchor)
+      ? distanceOutsideGeofenceMeters(presence.userPosition, anchor)
+      : null;
 
-    const weekday = date.getDay() as Weekday;
-    const dayNodes = nodes.filter((node) => node.schedule.weekday === weekday);
-    for (const node of dayNodes) {
-      scheduled += 1;
-      if (
-        node.completedDates.includes(dateIso) ||
-        (node.skippedDates ?? []).includes(dateIso)
-      ) {
-        finished += 1;
-      }
-    }
+  let travelStats = null;
+  if (metersAway != null) {
+    travelStats = buildTravelStats(metersAway);
   }
 
-  return scheduled > 0 && finished >= scheduled;
+  return {
+    ...buildUpNextHeroData(node, anchors, referenceDate, {
+      travelStats,
+      startsInLabel: `Starts in ${formatStartsInLabel(Math.max(minutesUntilStart, 0))}`,
+    }),
+    state: "on_the_way",
+    title: buildPreBufferTitle(node, minutesUntilStart),
+    subtitle: buildPreBufferBody(node, anchors),
+    icon: "walk",
+    action: null,
+    nodeId: node.id,
+    ...coords,
+  };
 }
 
 function computeHeroCardData(
@@ -406,6 +431,7 @@ function computeHeroCardData(
     classPreBufferMinutes: DEFAULT_CLASS_PRE_BUFFER_MINUTES,
     sessionGapMergeMinutes: DEFAULT_SESSION_GAP_MERGE_MINUTES,
   },
+  focusNodeId: string | null = null,
 ): HeroCardData {
   const todayWeekday = referenceDate.getDay();
   const todayIso = toIsoDateString(referenceDate);
@@ -465,6 +491,7 @@ function computeHeroCardData(
           icon: "traveller",
           action: null,
           nodeId: activeSession.nodeId,
+          countdownLabel: formatDurationClock(earlyCompleteRemaining),
           ...coords,
         };
       }
@@ -478,6 +505,7 @@ function computeHeroCardData(
           icon: "traveller",
           action: null,
           nodeId: activeSession.nodeId,
+          countdownLabel: formatDurationClock(grace),
           ...coords,
         };
       }
@@ -489,6 +517,7 @@ function computeHeroCardData(
         icon: "traveller",
         action: null,
         nodeId: activeSession.nodeId,
+        countdownLabel: "00:00",
         ...coords,
       };
     }
@@ -576,17 +605,6 @@ function computeHeroCardData(
   }
 
   if (allDoneToday) {
-    if (isWeeklyScheduleComplete(nodes, referenceDate)) {
-      return {
-        state: "weekly_report",
-        title: "Focus Ledger",
-        subtitle: "",
-        icon: null,
-        action: null,
-        focusLedger: null,
-      };
-    }
-
     return {
       state: "on_the_way",
       title: "Day complete.",
@@ -596,47 +614,24 @@ function computeHeroCardData(
     };
   }
 
-  const nextNode = selectNextUpcomingNode(nodes, referenceDate);
+  const nextNode =
+    (focusNodeId ? nodes.find((node) => node.id === focusNodeId) : null) ??
+    selectNextUpcomingNode(nodes, referenceDate);
   if (nextNode) {
-    const zoneLabel = resolveZoneLabel(nextNode.locationLabel, nextNode.anchorId, anchors);
     const anchor = resolveAnchorForNode(nextNode.anchorId, anchors);
     const inWindow = isWithinScheduleWindow(nextNode.schedule, referenceDate);
+    const inPreBuffer =
+      !activeSession && isInNodePreBufferPeriod(nextNode, shieldSettings, referenceDate);
     const coords =
       anchor && hasUsableCoordinates(anchor)
         ? { latitude: anchor.latitude, longitude: anchor.longitude }
         : { latitude: null, longitude: null };
-    const minutesUntilStart = minutesUntilScheduleStart(nextNode.schedule, referenceDate);
+
+    if (inPreBuffer) {
+      return buildPreBufferHeroData(nextNode, anchors, referenceDate, presence);
+    }
 
     if (!inWindow) {
-      const isMondayMorning =
-        referenceDate.getDay() === 1 &&
-        referenceDate.getHours() < 12 &&
-        dailyGoal.completed === 0 &&
-        minutesUntilStart > TIME_TO_LEAVE_MINUTES;
-
-      if (isMondayMorning) {
-        return {
-          ...buildUpNextHeroData(nextNode, anchors, referenceDate),
-          state: "on_the_way",
-          title: "Fresh start.",
-          subtitle: "A new week is open.\nLet's earn Focus Coins back together.",
-          icon: "seedling",
-          action: null,
-        };
-      }
-
-      if (minutesUntilStart > 0 && minutesUntilStart <= TIME_TO_LEAVE_MINUTES) {
-        return {
-          ...buildUpNextHeroData(nextNode, anchors, referenceDate),
-          state: "on_the_way",
-          title: "Time to head out.",
-          subtitle: `${nextNode.title} starts in ${formatStartsInLabel(minutesUntilStart)}.`,
-          icon: "walk",
-          action: null,
-          ...coords,
-        };
-      }
-
       return buildUpNextHeroData(nextNode, anchors, referenceDate);
     }
 
@@ -715,8 +710,8 @@ function computeHeroCardData(
   if (hasTodaySchedule) {
     return {
       state: "on_the_way",
-      title: "Ready for today?",
-      subtitle: "Nothing left on today's schedule.\nEnjoy your break or create a new one.",
+      title: "Nothing left today.",
+      subtitle: "Enjoy your break or create a new one.",
       icon: "sunrise",
       action: null,
     };
@@ -724,8 +719,8 @@ function computeHeroCardData(
 
   return {
     state: "on_the_way",
-    title: "Ready for today?",
-    subtitle: "No Focus Nodes are scheduled today.\nEnjoy your break or create a new one.",
+    title: "Nothing scheduled today.",
+    subtitle: "Your day is clear.",
     icon: "sunrise",
     action: null,
   };
@@ -741,6 +736,7 @@ export function selectHeroCardData(
     classPreBufferMinutes: DEFAULT_CLASS_PRE_BUFFER_MINUTES,
     sessionGapMergeMinutes: DEFAULT_SESSION_GAP_MERGE_MINUTES,
   },
+  focusNodeId: string | null = null,
 ): HeroCardData {
   const hero = computeHeroCardData(
     nodes,
@@ -749,6 +745,7 @@ export function selectHeroCardData(
     presence,
     referenceDate,
     shieldSettings,
+    focusNodeId,
   );
 
   return enrichHeroCardData(hero, {

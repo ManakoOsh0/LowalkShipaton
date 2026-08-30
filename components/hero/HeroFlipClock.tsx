@@ -3,7 +3,7 @@
  * Top flap flips on each tick; tuned for the sage e-ink well.
  */
 import { useEffect, useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import Animated, {
     runOnJS,
     useAnimatedStyle,
@@ -12,10 +12,10 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { HeroInsetEdge } from "@/components/hero/HeroInsetEdge";
-import { HeroKaomoji } from "@/components/hero/HeroKaomoji";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
-import { HERO_FLIP_CLOCK, HERO_TIMER_PLAQUE_RADIUS, TRMNL_THEME } from "@/lib/heroEink";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
+import { HERO_FLIP_CLOCK, HERO_TIMER_PLAQUE_RADIUS } from "@/lib/heroEink";
 import { HERO_MOTION } from "@/lib/heroMotion";
 
 /** Parses MM:SS or M:SS countdown labels from the session engine. */
@@ -52,6 +52,8 @@ function FlipDigit({
   digitLineHeight: number;
   panelHeight: number;
 }) {
+  const theme = useHeroTheme();
+
   return (
     <View
       style={{
@@ -66,7 +68,7 @@ function FlipDigit({
         style={{
           fontSize: digitSize,
           lineHeight: digitLineHeight,
-          color: TRMNL_THEME.textPrimary,
+          color: theme.textPrimary,
         }}
       >
         {value}
@@ -84,6 +86,7 @@ function FlipFlapPanel({
   digitLineHeight,
   radius,
 }: FlipFlapPanelProps) {
+  const theme = useHeroTheme();
   const reduceMotion = useReduceMotion();
   const flipProgress = useSharedValue(0);
   const prevValueRef = useRef(value);
@@ -254,7 +257,7 @@ function FlipFlapPanel({
           right: 0,
           height: 1,
           marginTop: -0.5,
-          backgroundColor: TRMNL_THEME.flipSeam,
+          backgroundColor: theme.flipSeam,
           zIndex: 2,
         }}
       />
@@ -280,27 +283,15 @@ function FlipFlapPanel({
 
 type HeroFlipClockProps = {
   countdownLabel: string;
-  sessionTitle?: string;
-  locationLabel?: string;
-  footnote?: string;
-  onFootnotePress?: () => void;
   compact?: boolean;
-  /** CLASS / GYM / LIBRARY / FOCUS — drives session kaomoji pose. */
-  kindLabel?: string;
-  motionKey?: string;
 };
 
+/** Split-flap MM:SS read only — title, mascot, and footnote live in HeroDisplay zones. */
 export function HeroFlipClock({
   countdownLabel,
-  sessionTitle,
-  locationLabel,
-  footnote,
-  onFootnotePress,
   compact = false,
-  kindLabel,
-  motionKey,
 }: HeroFlipClockProps) {
-  const reduceMotion = useReduceMotion();
+  const theme = useHeroTheme();
   const parsed = parseMmSsCountdown(countdownLabel);
   const scale = compact ? 0.86 : 1;
 
@@ -320,7 +311,7 @@ export function HeroFlipClock({
         alignSelf: "center",
         borderRadius: HERO_TIMER_PLAQUE_RADIUS * scale,
         borderCurve: "continuous",
-        backgroundColor: TRMNL_THEME.plaque,
+        backgroundColor: theme.plaque,
         padding: wellPadding,
         overflow: "hidden",
       }}
@@ -335,7 +326,7 @@ export function HeroFlipClock({
       >
         <FlipFlapPanel
           value={parsed.minutes}
-          cardColor={TRMNL_THEME.flipMinutes}
+          cardColor={theme.flipMinutes}
           height={cardHeight}
           minWidth={cardMinWidth}
           digitSize={digitSize}
@@ -344,7 +335,7 @@ export function HeroFlipClock({
         />
         <FlipFlapPanel
           value={parsed.seconds}
-          cardColor={TRMNL_THEME.flipSeconds}
+          cardColor={theme.flipSeconds}
           height={cardHeight}
           minWidth={cardMinWidth}
           digitSize={digitSize}
@@ -360,66 +351,8 @@ export function HeroFlipClock({
   );
 
   return (
-    <View style={{ width: "100%", alignItems: "center", gap: compact ? 4 : 6 }}>
-      {sessionTitle ? (
-        <TrmnlText
-          variant="title"
-          numberOfLines={2}
-          style={{ textAlign: "center", fontSize: compact ? 19 : 21, lineHeight: compact ? 21 : 23 }}
-        >
-          {sessionTitle}
-        </TrmnlText>
-      ) : null}
-
-      {kindLabel ? (
-        <HeroKaomoji
-          phase="session"
-          kindLabel={kindLabel}
-          reduceMotion={reduceMotion}
-          motionKey={motionKey}
-        />
-      ) : null}
-
+    <View style={{ width: "100%", alignItems: "center" }}>
       {clockFace}
-
-      {        locationLabel ? (
-        <TrmnlText
-          variant="labelSmall"
-          color="mutedWell"
-          numberOfLines={2}
-          style={{ textAlign: "center", fontSize: 14, lineHeight: 16 }}
-        >
-          {locationLabel}
-        </TrmnlText>
-      ) : null}
-
-      {footnote ? (
-        onFootnotePress ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onFootnotePress}
-            style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
-          >
-            <TrmnlText
-              variant="labelSmall"
-              color="mutedWell"
-              numberOfLines={1}
-              style={{ textAlign: "center", fontSize: 12, lineHeight: 14 }}
-            >
-              {footnote}
-            </TrmnlText>
-          </Pressable>
-        ) : (
-          <TrmnlText
-            variant="labelSmall"
-            color="mutedWell"
-            numberOfLines={1}
-            style={{ textAlign: "center", fontSize: 12, lineHeight: 14 }}
-          >
-            {footnote}
-          </TrmnlText>
-        )
-      ) : null}
     </View>
   );
 }

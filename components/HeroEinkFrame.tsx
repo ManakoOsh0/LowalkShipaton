@@ -1,21 +1,23 @@
 /**
- * HeroEinkFrame — soft framed card with a recessed inner display well.
+ * HeroEinkFrame — framed card with a recessed inner display well.
+ * Outer size is fixed; radius and shadows follow the active case style.
  */
 import { LinearGradient } from "expo-linear-gradient";
 import type { ReactNode } from "react";
-import { Platform, StyleSheet, View, type ViewStyle } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { HeroInsetEdge } from "@/components/hero/HeroInsetEdge";
 import { HeroSoftFrameShell } from "@/components/hero/HeroSoftFrameShell";
 import { HeroWellBezel } from "@/components/hero/HeroWellBezel";
 import { HeroWellGloss } from "@/components/hero/HeroWellGloss";
+import { HeroWellStroke } from "@/components/hero/HeroWellStroke";
+import { useHeroCaseStyle } from "@/hooks/useHeroCaseStyle";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
+import { getHeroStylePaperRadius } from "@/lib/heroCaseStyle";
 import {
   getHeroInnerWellHeight,
   getHeroOuterHeight,
   HERO_EINK_FRAME_PADDING,
-  HERO_EINK_FRAME_RADIUS,
-  HERO_EINK_PAPER_RADIUS,
-  TRMNL_THEME,
 } from "@/lib/heroEink";
 
 type HeroEinkFrameProps = {
@@ -24,73 +26,64 @@ type HeroEinkFrameProps = {
   footer?: ReactNode;
 };
 
-function getHeroFrameShadowStyle(): ViewStyle {
-  return (
-    Platform.select({
-      ios: {
-        shadowColor: "#000000",
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.11,
-        shadowRadius: 22,
-      },
-      android: { elevation: 7 },
-      default: {
-        boxShadow: "0 8px 22px rgba(0, 0, 0, 0.11)",
-      },
-    }) ?? {
-      boxShadow: "0 8px 22px rgba(0, 0, 0, 0.11)",
-    }
-  );
-}
-
 export function HeroEinkFrame({
   children,
   footer,
 }: HeroEinkFrameProps) {
+  const theme = useHeroTheme();
+  const style = useHeroCaseStyle();
+  const paperRadius = getHeroStylePaperRadius(style);
   const hasFooter = Boolean(footer);
 
   return (
-    <View style={getHeroFrameShadowStyle()}>
-      <View
-        style={{
-          height: getHeroOuterHeight(hasFooter),
-          borderRadius: HERO_EINK_FRAME_RADIUS,
-          borderCurve: "continuous",
-          padding: HERO_EINK_FRAME_PADDING,
-          overflow: "hidden",
-        }}
-      >
-        <HeroSoftFrameShell />
-
+    <View style={{ boxShadow: style.ambientShadow }}>
+      <View style={{ boxShadow: style.contactShadow }}>
         <View
           style={{
-            height: getHeroInnerWellHeight(),
-            borderRadius: HERO_EINK_PAPER_RADIUS,
+            height: getHeroOuterHeight(hasFooter),
+            borderRadius: style.radius,
             borderCurve: "continuous",
+            padding: HERO_EINK_FRAME_PADDING,
             overflow: "hidden",
-            zIndex: 1,
           }}
         >
-          <LinearGradient
-            pointerEvents="none"
-            colors={[TRMNL_THEME.wellBgTop, TRMNL_THEME.wellBgBottom]}
-            style={{
-              ...StyleSheet.absoluteFillObject,
-              borderRadius: HERO_EINK_PAPER_RADIUS,
-              borderCurve: "continuous",
-            }}
-          />
-          <HeroWellBezel />
-          <HeroWellGloss />
-          <HeroInsetEdge edgeSize={14} />
-          <View style={{ flex: 1, overflow: "hidden", zIndex: 1 }}>{children}</View>
-        </View>
+          <HeroSoftFrameShell />
 
-        {footer ? (
-          <View style={{ marginTop: HERO_EINK_FRAME_PADDING, zIndex: 1 }}>
-            {footer}
+          <View
+            style={{
+              height: getHeroInnerWellHeight(),
+              borderRadius: paperRadius,
+              borderCurve: "continuous",
+              overflow: "hidden",
+              zIndex: 1,
+            }}
+          >
+            <LinearGradient
+              pointerEvents="none"
+              colors={[theme.wellBgTop, theme.wellBgBottom]}
+              style={{
+                ...StyleSheet.absoluteFillObject,
+                borderRadius: paperRadius,
+                borderCurve: "continuous",
+              }}
+            />
+            <View style={{ flex: 1, overflow: "hidden", zIndex: 1 }}>
+              {children}
+            </View>
+            <HeroWellBezel />
+            <HeroWellGloss />
+            <HeroWellStroke radius={paperRadius} />
+            {style.wellInsetEdge > 0 ? (
+              <HeroInsetEdge edgeSize={style.wellInsetEdge} />
+            ) : null}
           </View>
-        ) : null}
+
+          {footer ? (
+            <View style={{ marginTop: HERO_EINK_FRAME_PADDING, zIndex: 1 }}>
+              {footer}
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );

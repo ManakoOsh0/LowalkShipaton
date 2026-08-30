@@ -14,6 +14,28 @@ export function formatMinutesToLabel(totalMinutes: number): string {
   return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
 }
 
+/**
+ * Session start as HH:mm from a 12h label or range
+ * ("2:00 PM – 4:00 PM" → "14:00").
+ */
+export function formatStartClock24(timeLabel: string): string {
+  const start = timeLabel.split("–")[0]?.trim() ?? timeLabel;
+  const match12 = start.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (match12) {
+    let hours = Number.parseInt(match12[1]!, 10);
+    const minutes = match12[2]!;
+    const period = match12[3]!.toUpperCase();
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+    return `${hours.toString().padStart(2, "0")}:${minutes}`;
+  }
+  const match24 = start.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24) {
+    return `${match24[1]!.padStart(2, "0")}:${match24[2]}`;
+  }
+  return start;
+}
+
 export function formatTimeLabel(time: string): string {
   return formatMinutesToLabel(parseTimeToMinutes(time));
 }

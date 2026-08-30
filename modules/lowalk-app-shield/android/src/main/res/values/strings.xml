@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="hero_widget_description">See your current focus session, countdown, and what\'s next without opening Lowalk.</string>
+  <string name="focus_hours_widget_description">Your total focus time saved on Lowalk.</string>
+  <string name="focus_hours_widget_hourglass">Hourglass</string>
 </resources>

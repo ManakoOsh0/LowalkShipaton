@@ -7,9 +7,9 @@ export const TRMNL_THEME = {
   bg: "#000000",
   /** Outer hero frame — bright off-white plastic case. */
   paper: "#F0F0F0",
-  /** Soft-touch case — warm matte rubber, not stark paper or hard plastic. */
-  frameShellTop: "#F0F0EE",
-  frameShellBottom: "#E4E4E2",
+  /** Soft-touch case — warm matte rubber with crown-to-foot volume. */
+  frameShellTop: "#F4F4F1",
+  frameShellBottom: "#D8D8D4",
   border: "#FFFFFF",
   textPrimary: "#000000",
   textInverse: "#FFFFFF",
@@ -26,8 +26,8 @@ export const TRMNL_THEME = {
   plaqueBorder: "rgba(0, 0, 0, 0.06)",
   /** Subtle hairline when a border is still required. */
   wellBorder: "rgba(0, 0, 0, 0.1)",
-  /** Muted labels on the gray well — dark enough for legible secondary copy. */
-  mutedOnWell: "#2A2A2A",
+  /** Muted labels on the gray well — high-contrast secondary copy. */
+  mutedOnWell: "#1A1A1A",
   /** Recessed pill controls carved into the light case rail. */
   recessed: "#E0E0E0",
   /** @deprecated Use recessed — kept for legacy imports. */
@@ -43,10 +43,10 @@ export const TRMNL_THEME = {
 /** Split-flap clock sizing for the hero active-session read. */
 export const HERO_FLIP_CLOCK = {
   cardRadius: 10,
-  cardHeight: 62,
-  cardMinWidth: 76,
-  digitSize: 34,
-  digitLineHeight: 36,
+  cardHeight: 70,
+  cardMinWidth: 82,
+  digitSize: 40,
+  digitLineHeight: 42,
   wellPadding: 8,
   cardGap: 6,
 } as const;
@@ -65,10 +65,10 @@ export const HERO_HALFTONE_PILLAR = {
 } as const;
 
 /** Inset carve on well top/left (case lip meets LCD). */
-export const HERO_BENTO_WELL_INSET_OPACITY = 0.26;
+export const HERO_BENTO_WELL_INSET_OPACITY = 0.32;
 
 /** Inset rim shadow on well bottom/right — dark, not bright highlights. */
-export const HERO_BENTO_WELL_INSET_BOTTOM_RIGHT_OPACITY = 0.14;
+export const HERO_BENTO_WELL_INSET_BOTTOM_RIGHT_OPACITY = 0.18;
 
 /** Raised edge highlight on the extruded outer frame shell (top/left). */
 export const HERO_BENTO_FRAME_RAISED_OPACITY = 0.12;
@@ -76,24 +76,42 @@ export const HERO_BENTO_FRAME_RAISED_OPACITY = 0.12;
 /** Drop shadow on the extruded frame shell (bottom/right). */
 export const HERO_BENTO_FRAME_SHADOW_OPACITY = 0.24;
 
-/** Soft rubber shell — diffuse ambient occlusion on outer edges. */
-export const HERO_BENTO_FRAME_AMBIENT_OPACITY = 0.055;
+/** Soft rubber shell — pillow AO on the outer silhouette (top/left rim). */
+export const HERO_BENTO_FRAME_AMBIENT_OPACITY = 0.1;
 
-export const HERO_BENTO_FRAME_AMBIENT_RIM_OPACITY = 0.075;
+/** Stronger bottom/right AO so the case mass sits down. */
+export const HERO_BENTO_FRAME_AMBIENT_RIM_OPACITY = 0.16;
 
-export const HERO_BENTO_FRAME_AMBIENT_EDGE = 36;
+export const HERO_BENTO_FRAME_AMBIENT_EDGE = 52;
 
-/** Soft case lip where plastic overhangs the LCD cutout. */
-export const HERO_BENTO_FRAME_OPENING_LIP_OPACITY = 0.09;
+/** Wide diffuse crown — matte rubber highlight, not a sharp plastic bevel. */
+export const HERO_BENTO_FRAME_CROWN_OPACITY = 0.08;
+
+export const HERO_BENTO_FRAME_CROWN_EDGE = 24;
+
+/** Soft case lip where rubber wraps into the LCD cutout (top/left). */
+export const HERO_BENTO_FRAME_OPENING_LIP_OPACITY = 0.16;
+
+/** Weaker wrap on the far sides of the cutout. */
+export const HERO_BENTO_FRAME_OPENING_LIP_RIM_OPACITY = 0.1;
+
+export const HERO_BENTO_FRAME_OPENING_LIP_DEPTH = 24;
 
 /** Case lip shadow where the frame opening meets the LCD well (top/left). */
-export const HERO_BENTO_WELL_BEZEL_OPACITY = 0.22;
+export const HERO_BENTO_WELL_BEZEL_OPACITY = 0.28;
 
-/** Scanline stripe opacity — keep faint so texture reads, not noisy. */
-export const HERO_BENTO_SCANLINE_OPACITY = 0.065;
+/** Far-side well occlusion so the screen sits in the case. */
+export const HERO_BENTO_WELL_BEZEL_RIM_OPACITY = 0.12;
 
-/** Weekly report — slightly stronger scanlines over the halftone stack. */
-export const HERO_BENTO_SCANLINE_OPACITY_JOURNEY = 0.085;
+export const HERO_BENTO_WELL_BEZEL_SIZE = 16;
+
+/** Tight contact shadow — the case sitting on the dashboard. */
+export const HERO_BENTO_FRAME_CONTACT_SHADOW =
+  "0px 2px 6px rgba(0, 0, 0, 0.18)";
+
+/** Larger ambient shadow — optical thickness in air. */
+export const HERO_BENTO_FRAME_AMBIENT_SHADOW =
+  "0px 14px 32px rgba(0, 0, 0, 0.16)";
 
 /** Specular glass streak over the recessed well — keep faint for matte plastic. */
 export const HERO_BENTO_GLASS_GLOSS_OPACITY = 0.02;
@@ -116,10 +134,11 @@ export const HERO_EINK = {
 } as const;
 
 /** Soft squircle shell — thick outer frame channel around the inner well. */
-export const HERO_EINK_FRAME_RADIUS = 32;
+export const HERO_EINK_FRAME_RADIUS = 36;
 
 /** Visible frame rail between outer edge and inner display well. */
-export const HERO_EINK_FRAME_PADDING = 12;
+/** Case rail thickness — wider bezel sells a handheld object, not a flat card. */
+export const HERO_EINK_FRAME_PADDING = 16;
 
 export const HERO_EINK_FRAME_BG = TRMNL_THEME.frameShellTop;
 
@@ -171,6 +190,9 @@ export const HERO_ZONE_DAY_ARC_HEIGHT = 14;
 
 /** Route arc + position label — fixed so single-session days don't jump. */
 export const HERO_ZONE_ROUTE_SLOT_HEIGHT = HERO_ZONE_DAY_ARC_HEIGHT + 14;
+
+/** Space between the titled header and the day-route position label. */
+export const HERO_ROUTE_HEADER_GAP = 8;
 export const HERO_ZONE_FOCUS_HEIGHT = 72;
 /** @deprecated Use HERO_ZONE_FOCUS_HEIGHT */
 export const HERO_ZONE_RAILS_HEIGHT = HERO_ZONE_FOCUS_HEIGHT;
@@ -185,7 +207,7 @@ export const HERO_EINK_MIDDLE_MIN_HEIGHT = HERO_EINK_UP_NEXT_BODY_HEIGHT;
 export const HERO_EINK_MIDDLE_SLOT_HEIGHT = HERO_EINK_UP_NEXT_BODY_HEIGHT;
 
 /** Single vertical rhythm between hero body zones and context stack items. */
-export const HERO_EINK_BODY_GAP = 4;
+export const HERO_EINK_BODY_GAP = 6;
 
 /** @deprecated Use HERO_EINK_BODY_GAP */
 export const HERO_CONTEXT_STACK_GAP = HERO_EINK_BODY_GAP;
@@ -211,10 +233,15 @@ export const HERO_COUNTER_SEGMENT_HEIGHT = 16;
 
 export const HERO_COUNTER_SEGMENT_GAP = 2;
 
-/** Hero countdown — BlockKie display size (active session). */
-export const HERO_DIGITAL_CLOCK_SIZE = 42;
+/** Session-title heading — between body copy and the metric clock scale. */
+export const HERO_SESSION_HEADING_SIZE = 28;
 
-export const HERO_DIGITAL_CLOCK_LINE_HEIGHT = 44;
+export const HERO_SESSION_HEADING_LINE_HEIGHT = 32;
+
+/** Hero countdown — BlockKie display size (waiting, idle, arrived, travel). */
+export const HERO_DIGITAL_CLOCK_SIZE = 50;
+
+export const HERO_DIGITAL_CLOCK_LINE_HEIGHT = 52;
 
 export const HERO_DIGITAL_CLOCK_LETTER_SPACING = 0;
 

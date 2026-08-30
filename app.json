@@ -9,12 +9,11 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "com.karabocode.tryLowalk",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Lowalk uses your location to verify you are at your Focus Node and to set up location anchors.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Lowalk needs background location to pause or complete your focus session when you leave or return to your Focus Node.",
-        "NSPhotoLibraryUsageDescription": "Lowalk uses your photos to create shareable focus session cards.",
-        "NSPhotoLibraryAddUsageDescription": "Lowalk saves your share cards to your photo library.",
         "UIBackgroundModes": [
           "location"
         ]
@@ -84,14 +83,14 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/icon.png",
+          "icon": "./assets/images/lowal2-notification-icon.png",
           "color": "#FF7700"
         }
       ],
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/lowalk2.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#141210",
@@ -100,20 +99,7 @@
           }
         }
       ],
-      "./modules/lowalk-app-shield/app.plugin.js",
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Lowalk uses your photos to create shareable focus session cards."
-        }
-      ],
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "Lowalk saves your share cards to your photo library.",
-          "savePhotosPermission": "Lowalk saves your share cards to your photo library."
-        }
-      ]
+      "./modules/lowalk-app-shield/app.plugin.js"
     ],
     "experiments": {
       "typedRoutes": true,

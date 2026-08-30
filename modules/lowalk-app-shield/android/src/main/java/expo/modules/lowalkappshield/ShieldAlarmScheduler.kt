@@ -31,19 +31,7 @@ object ShieldAlarmScheduler {
     val pendingIntent = buildTickPendingIntent(context)
     val triggerAt = SystemClock.elapsedRealtime() + maxOf(nextAt - nowMs, MIN_ALARM_DELAY_MS)
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      alarmManager.setExactAndAllowWhileIdle(
-        AlarmManager.ELAPSED_REALTIME_WAKEUP,
-        triggerAt,
-        pendingIntent,
-      )
-    } else {
-      alarmManager.setExact(
-        AlarmManager.ELAPSED_REALTIME_WAKEUP,
-        triggerAt,
-        pendingIntent,
-      )
-    }
+    AlarmSchedulerHelper.scheduleElapsedWakeUp(alarmManager, triggerAt, pendingIntent)
   }
 
   fun cancel(context: Context) {

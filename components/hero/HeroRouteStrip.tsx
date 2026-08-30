@@ -21,8 +21,9 @@ import Svg, {
 
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import { HERO_MOTION } from "@/lib/heroMotion";
-import { HERO_ZONE_DAY_ARC_HEIGHT, TRMNL_THEME } from "@/lib/heroEink";
+import { HERO_ZONE_DAY_ARC_HEIGHT } from "@/lib/heroEink";
 import type { HeroDayArc as HeroDayArcData } from "@/types/dashboard";
 
 type HeroRouteStripProps = {
@@ -58,14 +59,15 @@ function buildNodePoints(count: number, width: number): NodePoint[] {
 
 function segmentStroke(
   fromStatus: HeroDayArcData["markers"][number]["status"],
+  theme: { textPrimary: string; accent: string; muted: string },
 ): { color: string; dash: string | undefined; width: number } {
   if (fromStatus === "done") {
-    return { color: TRMNL_THEME.textPrimary, dash: undefined, width: 1.5 };
+    return { color: theme.textPrimary, dash: undefined, width: 1.5 };
   }
   if (fromStatus === "current") {
-    return { color: TRMNL_THEME.accent, dash: "3 3", width: 1.5 };
+    return { color: theme.accent, dash: "3 3", width: 1.5 };
   }
-  return { color: TRMNL_THEME.muted, dash: "2 4", width: 1 };
+  return { color: theme.muted, dash: "2 4", width: 1 };
 }
 
 function RouteMarker({
@@ -79,13 +81,14 @@ function RouteMarker({
   y: number;
   size: number;
 }) {
+  const theme = useHeroTheme();
   const reduceMotion = useReduceMotion();
   const scale = useSharedValue(1);
   const prevStatusRef = useRef(status);
   const filled = status === "done" || status === "current";
   const fillColor =
-    status === "current" ? TRMNL_THEME.accent : TRMNL_THEME.textPrimary;
-  const strokeColor = TRMNL_THEME.textPrimary;
+    status === "current" ? theme.accent : theme.textPrimary;
+  const strokeColor = theme.textPrimary;
   const opacity =
     status === "upcoming" ? 0.4 : status === "skipped" ? 0.25 : 1;
   const radius = size / 2;
@@ -147,6 +150,7 @@ function RouteMarker({
 }
 
 export function HeroRouteStrip({ dayArc }: HeroRouteStripProps) {
+  const theme = useHeroTheme();
   const [layoutWidth, setLayoutWidth] = useState(0);
   const markerCount = dayArc.markers.length;
 
@@ -165,8 +169,17 @@ export function HeroRouteStrip({ dayArc }: HeroRouteStripProps) {
   return (
     <View
       accessibilityLabel={dayArc.positionLabel}
-      style={{ flex: 1, justifyContent: "center", gap: 1 }}
+      style={{ flex: 1, justifyContent: "center", gap: 2 }}
     >
+      <TrmnlText
+        variant="labelSmall"
+        color="mutedWell"
+        numberOfLines={1}
+        style={{ textAlign: "center" }}
+      >
+        {dayArc.positionLabel}
+      </TrmnlText>
+
       <View
         style={{ height: STRIP_HEIGHT, width: "100%" }}
         onLayout={(event) => {
@@ -191,7 +204,7 @@ export function HeroRouteStrip({ dayArc }: HeroRouteStripProps) {
                   width={4}
                   height={4}
                 >
-                  <Circle cx={1} cy={1} r={0.6} fill="rgba(0,0,0,0.07)" />
+                  <Circle cx={1} cy={1} r={0.6} fill={theme.textPrimary} fillOpacity={0.07} />
                 </Pattern>
               </Defs>
               <Rect
@@ -206,7 +219,7 @@ export function HeroRouteStrip({ dayArc }: HeroRouteStripProps) {
                 ? points.slice(0, -1).map((from, index) => {
                     const to = points[index + 1];
                     const fromStatus = dayArc.markers[index]?.status ?? "upcoming";
-                    const stroke = segmentStroke(fromStatus);
+                    const stroke = segmentStroke(fromStatus, theme);
                     return (
                       <Line
                         key={`seg-${index}`}
@@ -241,15 +254,6 @@ export function HeroRouteStrip({ dayArc }: HeroRouteStripProps) {
           </>
         ) : null}
       </View>
-
-      <TrmnlText
-        variant="labelSmall"
-        color="mutedWell"
-        numberOfLines={1}
-        style={{ textAlign: "center" }}
-      >
-        {dayArc.positionLabel}
-      </TrmnlText>
     </View>
   );
 }

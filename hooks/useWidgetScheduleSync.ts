@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 
 import { buildHeroPreviewData } from "@/lib/heroCard";
-import { computeHeroFocusLedger } from "@/lib/heroFocusLedger";
 import { mergeBlockedAppsIntoHero, mergeFocusCoinsIntoHero } from "@/lib/heroIntel";
+import { buildHeroWidgetAppearance } from "@/lib/heroWidgetAppearance";
 import {
   buildWidgetScheduleBundle,
   serializeWidgetScheduleBundleForCompare,
@@ -11,6 +11,7 @@ import {
 import { isAppShieldSupported, syncWidgetSchedule } from "lowalk-app-shield";
 import type { PresenceContext } from "@/store/selectors";
 import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";
+import { useHeroAppearanceStore } from "@/store/useHeroAppearanceStore";
 import { useHeroPreviewStore } from "@/store/useHeroPreviewStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useSubscriptionStore } from "@/store/useSubscriptionStore";
@@ -22,12 +23,10 @@ import type { HeroCardData } from "@/types/dashboard";
  * Native code owns countdown refresh while the app is backgrounded.
  */
 export function useWidgetScheduleSync(presence: PresenceContext): void {
-  const forcedHeroState = useHeroPreviewStore((state) => state.forcedState);
-  const forcedHeroVariant = useHeroPreviewStore((state) => state.forcedVariant);
+  const forcedHeroScenario = useHeroPreviewStore((state) => state.forcedScenario);
   const forcedHeroKind = useHeroPreviewStore((state) => state.forcedKind);
   const isPremium = useSubscriptionStore((state) => state.isPremium);
   const coins = useUserStore((state) => state.coins);
-  const streak = useUserStore((state) => state.streak);
   const classPreBufferMinutes = useUserStore((state) => state.classPreBufferMinutes);
   const sessionGapMergeMinutes = useUserStore((state) => state.sessionGapMergeMinutes);
   const focusNodes = useScheduleStore((state) => state.focusNodes);
@@ -44,12 +43,17 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
       .sort()
       .join("|"),
   );
+  const caseId = useHeroAppearanceStore((state) => state.caseId);
+  const wellId = useHeroAppearanceStore((state) => state.wellId);
+  const backgroundId = useHeroAppearanceStore((state) => state.backgroundId);
+  const caseStyleId = useHeroAppearanceStore((state) => state.caseStyleId);
 
   const lastSerializedRef = useRef<string | null>(null);
   const enabled = Platform.OS === "android" && isAppShieldSupported();
 
   const pushBundle = useCallback(() => {
-    if (!enabled || !isPremium) return;
+    // Pro gate in production; dev builds sync without RevenueCat for widget QA.
+    if (!enabled || (!isPremium && !__DEV__)) return;
 
     const dailyGoal = getDailyGoal();
     const mergeHero = (data: HeroCardData) =>
@@ -60,18 +64,10 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
       );
 
     let hero: HeroCardData;
-    if (forcedHeroState) {
-      hero = mergeHero(buildHeroPreviewData(forcedHeroState, forcedHeroVariant, forcedHeroKind));
+    if (forcedHeroScenario) {
+      hero = mergeHero(buildHeroPreviewData(forcedHeroScenario, forcedHeroKind));
     } else {
-      const data = getHeroCardData(presence);
-      const withLedger =
-        data.state === "weekly_report" && !data.focusLedger
-          ? {
-              ...data,
-              focusLedger: computeHeroFocusLedger(focusNodes, streak, coins),
-            }
-          : data;
-      hero = mergeHero(withLedger);
+      hero = mergeHero(getHeroCardData(presence));
     }
 
     const blockedPackageNames = blockedPackageNamesKey
@@ -88,6 +84,12 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
       blockedPackageNames,
       classPreBufferMinutes,
       sessionGapMergeMinutes,
+      appearance: buildHeroWidgetAppearance({
+        caseId,
+        wellId,
+        backgroundId,
+        caseStyleId,
+      }),
     });
 
     const compareKey = serializeWidgetScheduleBundleForCompare(bundle);
@@ -100,18 +102,20 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
     isPremium,
     blockedAppsCount,
     blockedPackageNamesKey,
+    backgroundId,
+    caseId,
+    caseStyleId,
     classPreBufferMinutes,
     coins,
     enabled,
     focusNodes,
-    forcedHeroState,
-    forcedHeroVariant,
+    forcedHeroScenario,
     forcedHeroKind,
     getDailyGoal,
     getHeroCardData,
     presence,
     sessionGapMergeMinutes,
-    streak,
+    wellId,
   ]);
 
   useEffect(() => {

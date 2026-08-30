@@ -10,7 +10,7 @@ export function getEnforceableBlockedAppsCount(): number {
     .apps.filter((app) => Boolean(app.packageName?.trim())).length;
 }
 
-/** Imperative check — removals blocked while calendar shielding is active; adds stay allowed. */
+/** Imperative check — removals blocked while calendar shielding or a penalty lock is active; adds stay allowed. */
 export function isBlockedAppsRemovalLocked(): boolean {
   const { focusNodes, activeSession } = useScheduleStore.getState();
   const { classPreBufferMinutes, sessionGapMergeMinutes } = useUserStore.getState();

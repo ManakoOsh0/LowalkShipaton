@@ -1,29 +1,32 @@
 /**
- * Dev-only control — cycle Hero Card states from Settings.
- * Uses the same forced-state store as the state preview chips.
+ * Dev-only control — cycle Hero Card scenarios from Settings.
  */
 import { useRouter } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 
-import { ALL_HERO_STATES, HERO_STATE_LABELS } from "@/lib/heroCard";
 import { ROUTES } from "@/lib/routes";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { useHeroPreviewStore } from "@/store/useHeroPreviewStore";
-import type { HeroCardState } from "@/types/dashboard";
+import {
+  HERO_PREVIEW_SCENARIOS,
+  HERO_PREVIEW_SCENARIO_LABELS,
+  type HeroPreviewScenario,
+  useHeroPreviewStore,
+} from "@/store/useHeroPreviewStore";
 
-function stepState(
-  current: HeroCardState | null,
+function stepScenario(
+  current: HeroPreviewScenario | null,
   direction: -1 | 1,
-): HeroCardState {
+): HeroPreviewScenario {
   const index =
     current == null
       ? direction === 1
         ? -1
         : 0
-      : ALL_HERO_STATES.indexOf(current);
+      : HERO_PREVIEW_SCENARIOS.indexOf(current);
   const nextIndex =
-    (index + direction + ALL_HERO_STATES.length) % ALL_HERO_STATES.length;
-  return ALL_HERO_STATES[nextIndex];
+    (index + direction + HERO_PREVIEW_SCENARIOS.length) %
+    HERO_PREVIEW_SCENARIOS.length;
+  return HERO_PREVIEW_SCENARIOS[nextIndex];
 }
 
 type HeroPreviewControlsProps = {
@@ -34,18 +37,16 @@ type HeroPreviewControlsProps = {
 export function HeroPreviewControls({ embedded = false }: HeroPreviewControlsProps) {
   const colors = useThemeColors();
   const router = useRouter();
-  const forcedState = useHeroPreviewStore((state) => state.forcedState);
-  const setForcedState = useHeroPreviewStore((state) => state.setForcedState);
-  const setForcedVariant = useHeroPreviewStore((state) => state.setForcedVariant);
+  const forcedScenario = useHeroPreviewStore((state) => state.forcedScenario);
+  const setForcedScenario = useHeroPreviewStore((state) => state.setForcedScenario);
 
   if (!__DEV__) return null;
 
-  const label = forcedState ? HERO_STATE_LABELS[forcedState] : "Live";
+  const label = forcedScenario ? HERO_PREVIEW_SCENARIO_LABELS[forcedScenario] : "Live";
 
-  const applyPreviewState = (state: HeroCardState | null) => {
-    setForcedVariant(null);
-    setForcedState(state);
-    if (state != null) {
+  const applyPreviewScenario = (scenario: HeroPreviewScenario | null) => {
+    setForcedScenario(scenario);
+    if (scenario != null) {
       router.push(ROUTES.home);
     }
   };
@@ -77,9 +78,9 @@ export function HeroPreviewControls({ embedded = false }: HeroPreviewControlsPro
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Previous hero state"
+          accessibilityLabel="Previous hero scenario"
           onPress={() => {
-            applyPreviewState(stepState(forcedState, -1));
+            applyPreviewScenario(stepScenario(forcedScenario, -1));
           }}
           hitSlop={8}
           style={{
@@ -117,9 +118,9 @@ export function HeroPreviewControls({ embedded = false }: HeroPreviewControlsPro
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Next hero state"
+          accessibilityLabel="Next hero scenario"
           onPress={() => {
-            applyPreviewState(stepState(forcedState, 1));
+            applyPreviewScenario(stepScenario(forcedScenario, 1));
           }}
           hitSlop={8}
           style={{
@@ -142,13 +143,10 @@ export function HeroPreviewControls({ embedded = false }: HeroPreviewControlsPro
         </Pressable>
       </View>
 
-      {forcedState ? (
+      {forcedScenario ? (
         <Pressable
           accessibilityRole="button"
-          onPress={() => {
-            setForcedVariant(null);
-            setForcedState(null);
-          }}
+          onPress={() => setForcedScenario(null)}
           hitSlop={8}
           style={{ alignSelf: "center", paddingVertical: 2 }}
         >

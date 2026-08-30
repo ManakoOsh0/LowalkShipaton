@@ -33,12 +33,15 @@ type UserState = {
   classPreBufferMinutes: ClassPreBufferMinutes;
   /** Minimum gap between sessions before the shield lifts. */
   sessionGapMergeMinutes: number;
+  /** Scheduled session reminders and daily-goal celebration alerts. */
+  notificationsEnabled: boolean;
   /** True after the first-run permissions sheet is finished or skipped. */
   hasCompletedOnboarding: boolean;
   setCoins: (coins: number) => void;
   setStreak: (streak: number) => void;
   setPenaltyTierMinutes: (minutes: PenaltyTierMinutes) => void;
   setClassPreBufferMinutes: (minutes: ClassPreBufferMinutes) => void;
+  setNotificationsEnabled: (enabled: boolean) => void;
   completeOnboarding: () => void;
   /**
    * Award one Focus Coin when completedToday reaches today's scheduled count.
@@ -62,10 +65,12 @@ export const useUserStore = create<UserState>()(
       penaltyTierMinutes: 30,
       classPreBufferMinutes: 30,
       sessionGapMergeMinutes: 30,
+      notificationsEnabled: true,
       setCoins: (coins) => set({ coins }),
       setStreak: (streak) => set({ streak }),
       setPenaltyTierMinutes: (penaltyTierMinutes) => set({ penaltyTierMinutes }),
       setClassPreBufferMinutes: (classPreBufferMinutes) => set({ classPreBufferMinutes }),
+      setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       checkDailyGoalReward: (completedToday, scheduledToday) => {
         const state = get();
@@ -109,7 +114,7 @@ export const useUserStore = create<UserState>()(
     {
       name: "lowalk-user",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as Partial<UserState>;
         if (version < 2) {
@@ -125,6 +130,9 @@ export const useUserStore = create<UserState>()(
             sessionGapMergeMinutes: 30,
           };
         }
+        if (version < 5) {
+          return { ...state, notificationsEnabled: true };
+        }
         return state;
       },
       onRehydrateStorage: () => (state) => {
@@ -136,6 +144,7 @@ export const useUserStore = create<UserState>()(
         state.penaltyTierMinutes = state.penaltyTierMinutes ?? 30;
         state.classPreBufferMinutes = state.classPreBufferMinutes ?? 30;
         state.sessionGapMergeMinutes = state.sessionGapMergeMinutes ?? 30;
+        state.notificationsEnabled = state.notificationsEnabled ?? true;
       },
     },
   ),

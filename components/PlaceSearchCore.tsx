@@ -5,7 +5,6 @@ import { Ionicons } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   Text,
   TextInput,
@@ -16,6 +15,7 @@ import { InlineFieldError } from "@/components/form/InlineFieldError";
 import { MapPinPicker } from "@/components/MapPinPicker";
 import { NeuCard } from "@/components/NeuCard";
 import { PlaceGeofenceEditor } from "@/components/PlaceGeofenceEditor";
+import { PlaceSearchResultsSkeleton } from "@/components/skeleton/PlaceSearchResultsSkeleton";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { CARD_RADIUS_LG } from "@/lib/cardStyle";
 import {
@@ -444,10 +444,10 @@ export function PlaceSearchCore({
         </NeuCard>
       </View>
 
-      {isSearching ? <ActivityIndicator color={colors.primary} /> : null}
+      {isSearching ? <PlaceSearchResultsSkeleton /> : null}
       {error ? <InlineFieldError message={error} /> : null}
 
-      {showSearchResults ? (
+      {showSearchResults && !isSearching ? (
         <View style={{ gap: 8 }}>
           {suggestions.map((suggestion) => (
             <Pressable

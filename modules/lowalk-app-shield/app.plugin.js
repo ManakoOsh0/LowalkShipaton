@@ -101,15 +101,23 @@ function ensureShieldActivityDebugManifest(androidManifest) {
 
   ensureManifestToolsNamespace(androidManifest);
 
-  const app = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
-  if (!app.activity) {
+  // Debug manifest may omit android:name on <application>; avoid getMainApplication
+  // which crashes when filtering entries without a name.
+  const applications = androidManifest.manifest.application;
+  if (!applications?.length) {
     return androidManifest;
   }
 
-  for (const activity of app.activity) {
-    if (activity.$?.["android:name"] === SHIELD_ACTIVITY_NAME) {
-      activity.$["android:excludeFromRecents"] = "true";
-      activity.$["tools:replace"] = "android:excludeFromRecents";
+  for (const app of applications) {
+    if (!app.activity) {
+      continue;
+    }
+
+    for (const activity of app.activity) {
+      if (activity.$?.["android:name"] === SHIELD_ACTIVITY_NAME) {
+        activity.$["android:excludeFromRecents"] = "true";
+        activity.$["tools:replace"] = "android:excludeFromRecents";
+      }
     }
   }
 
@@ -217,6 +225,49 @@ function ensureHeroWidgetReceiver(androidManifest) {
   return androidManifest;
 }
 
+function ensureFocusHoursWidgetReceiver(androidManifest) {
+  const app = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
+  if (!app.receiver) {
+    app.receiver = [];
+  }
+
+  const receiverName = "expo.modules.lowalkappshield.FocusHoursWidgetProvider";
+  const exists = app.receiver.some(
+    (receiver) => receiver.$?.["android:name"] === receiverName,
+  );
+
+  if (!exists) {
+    app.receiver.push({
+      $: {
+        "android:name": receiverName,
+        "android:exported": "true",
+        "android:label": "Hours saved",
+      },
+      "intent-filter": [
+        {
+          action: [
+            {
+              $: {
+                "android:name": "android.appwidget.action.APPWIDGET_UPDATE",
+              },
+            },
+          ],
+        },
+      ],
+      "meta-data": [
+        {
+          $: {
+            "android:name": "android.appwidget.provider",
+            "android:resource": "@xml/focus_hours_widget_info",
+          },
+        },
+      ],
+    });
+  }
+
+  return androidManifest;
+}
+
 function ensureMonitorService(androidManifest) {
   const app = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
   if (!app.service) {
@@ -268,6 +319,7 @@ function withLowalkAppShield(config) {
     config.modResults = ensureShieldActivity(config.modResults);
     config.modResults = ensureMonitorService(config.modResults);
     config.modResults = ensureHeroWidgetReceiver(config.modResults);
+    config.modResults = ensureFocusHoursWidgetReceiver(config.modResults);
     config.modResults = ensureHeroWidgetBootReceiver(config.modResults);
     AndroidConfig.Permissions.ensurePermissions(config.modResults, [
       "android.permission.PACKAGE_USAGE_STATS",

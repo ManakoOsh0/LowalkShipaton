@@ -13,9 +13,9 @@ import { FONT_FAMILY } from "@/theme/fonts";
 import type { StatsPeriod } from "@/types/stats";
 
 const OPTIONS: { id: StatsPeriod; label: string; hint: string }[] = [
-  { id: "week", label: "Weekly", hint: "Average focus time and active days" },
-  { id: "month", label: "Monthly", hint: "Total focus time by week" },
-  { id: "year", label: "Yearly", hint: "Year totals and consistency" },
+  { id: "week", label: "This week", hint: "Sessions, places, and planned days" },
+  { id: "month", label: "This month", hint: "Show-up rate and focus time" },
+  { id: "year", label: "This year", hint: "Year totals and consistency" },
 ];
 
 type StatsPeriodSheetProps = {

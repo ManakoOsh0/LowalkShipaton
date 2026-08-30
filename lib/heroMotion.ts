@@ -25,6 +25,10 @@ export const HERO_MOTION = {
   markerSpring: { damping: 14, stiffness: 180 },
   progressEasing: Easing.out(Easing.cubic),
   linearEasing: Easing.linear,
+  /** Ambient mascot float — overlaps frame swaps without locking to them. */
+  floatEasing: Easing.inOut(Easing.sin),
+  /** Full bob/sway cycle for hero ASCII sprites — independent of frame holds. */
+  spriteFloatMs: 2800,
 } as const;
 
 export function buildHeroTransitionKey(

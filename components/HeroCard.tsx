@@ -7,29 +7,26 @@ import { HeroCardHeader } from "@/components/hero/HeroCardHeader";
 import { HeroDisplay } from "@/components/hero/HeroDisplay";
 import { HeroEinkRefresh } from "@/components/hero/HeroEinkRefresh";
 import { HeroFocusLedger } from "@/components/hero/HeroFocusLedger";
-import { HeroSoftButton } from "@/components/hero/HeroSoftButton";
 import { HeroEinkFrame } from "@/components/HeroEinkFrame";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
 import { useHeroEinkRefresh, useReduceMotion } from "@/hooks/useHeroMotion";
 import { getHeroPreviewReferenceDate } from "@/lib/heroCard";
 import {
-    buildHeroDisplayModel,
-    buildHeroDisplayTransitionKey,
+  buildHeroDisplayModel,
+  buildHeroDisplayTransitionKey,
 } from "@/lib/heroDisplay";
 import {
-    HERO_EINK_ACTIVE_HEADER_BLOCK,
-    HERO_EINK_BODY_GAP,
-    HERO_EINK_PADDING,
-    getHeroBodyHeight,
+  HERO_EINK_ACTIVE_HEADER_BLOCK,
+  HERO_EINK_BODY_GAP,
+  HERO_EINK_PADDING,
+  getHeroBodyHeight,
 } from "@/lib/heroEink";
 import type { HeroCelebrationPayload } from "@/store/useHeroCelebrationStore";
-import type { HeroAction, HeroCardData } from "@/types/dashboard";
+import type { HeroCardData } from "@/types/dashboard";
 
 const SCREEN_PADDING = 16;
 
 type HeroCardProps = HeroCardData & {
-  onActionPress?: (action: HeroAction) => void;
-  onViewBlockedApps?: () => void;
   celebration?: HeroCelebrationPayload | null;
   onCelebrationDismiss?: () => void;
   /** Dev preview — uses a fixed reference clock for leave-by / start copy. */
@@ -39,12 +36,9 @@ type HeroCardProps = HeroCardData & {
 export function HeroCard({
   state,
   title,
-  action,
   focusLedger,
   context,
   nodeId,
-  onActionPress,
-  onViewBlockedApps,
   celebration,
   onCelebrationDismiss,
   isPreview = false,
@@ -54,7 +48,6 @@ export function HeroCard({
   const heroData: HeroCardData = {
     state,
     title,
-    action,
     focusLedger,
     context,
     nodeId,
@@ -64,16 +57,10 @@ export function HeroCard({
   const motionSourceKey = celebration
     ? `celebration:${celebration.nodeId}:${celebration.createdAt}`
     : buildHeroDisplayTransitionKey(heroData, celebration);
+
   const { refreshActive, revealKey } = useHeroEinkRefresh(motionSourceKey, reduceMotion);
 
   const showLedger = state === "weekly_report" && Boolean(focusLedger);
-  const footerAction =
-    action != null ? (
-      <HeroSoftButton
-        label={action.label}
-        onPress={() => onActionPress?.(action)}
-      />
-    ) : undefined;
 
   const displayModel = buildHeroDisplayModel(heroData, {
     celebration,
@@ -82,20 +69,21 @@ export function HeroCard({
 
   return (
     <View style={{ marginTop: 12, paddingHorizontal: SCREEN_PADDING }}>
-      <HeroEinkFrame footer={footerAction}>
+      <HeroEinkFrame>
         <View style={{ flex: 1 }}>
           {showLedger && focusLedger && context ? (
             <View style={{ flex: 1, padding: HERO_EINK_PADDING, minHeight: 0 }}>
               <View style={{ height: HERO_EINK_ACTIVE_HEADER_BLOCK, overflow: "hidden" }}>
                 <HeroCardHeader
+                  key={`${revealKey}-weekly`}
                   sessionTitle=""
                   metaLeft={context.metaLeft}
                   metaRight={context.metaRight}
                   compact
-                  motionKey={`${revealKey}-weekly`}
                   reduceMotion={reduceMotion}
                 />
               </View>
+
               <View
                 style={{
                   height: getHeroBodyHeight(true),
@@ -115,9 +103,6 @@ export function HeroCard({
                 model={displayModel}
                 motionKey={revealKey}
                 reduceMotion={reduceMotion}
-                onFootnotePress={
-                  displayModel.phase === "session" ? onViewBlockedApps : undefined
-                }
                 onCompleteDismiss={onCelebrationDismiss}
               />
             </View>

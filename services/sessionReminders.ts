@@ -1,21 +1,24 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform } from "react-native";
 
-import { hasUsableCoordinates, resolveAnchorForNode } from "@/lib/geo";
-import { parseTimeToMinutes, toIsoDateString } from "@/lib/time";
+import { buildPreBufferBody, buildPreBufferTitle } from "@/lib/preBufferCopy";
+import { getScheduleWindow, parseTimeToMinutes, toIsoDateString } from "@/lib/time";
 import type { Anchor } from "@/types/anchor";
 import type { FocusNode } from "@/types/focusNode";
 
+/** Legacy prefix — cleared on sync so old 15-minute reminders are removed. */
 const SESSION_REMINDER_PREFIX = "lowalk-session-";
 const PRE_BUFFER_REMINDER_PREFIX = "lowalk-prebuffer-";
-
-/** How far ahead of nominal startTime the "starts soon" reminder fires. */
-export const SESSION_START_LEAD_MINUTES = 15;
+const MISSED_REMINDER_PREFIX = "lowalk-missed-";
 
 /** Schedule reminders this many calendar days ahead so they fire without reopening the app. */
 export const SESSION_REMINDER_AHEAD_DAYS = 7;
 
-const REMINDER_PREFIXES = [SESSION_REMINDER_PREFIX, PRE_BUFFER_REMINDER_PREFIX];
+const REMINDER_PREFIXES = [
+  SESSION_REMINDER_PREFIX,
+  PRE_BUFFER_REMINDER_PREFIX,
+  MISSED_REMINDER_PREFIX,
+];
 
 let handlerConfigured = false;
 
@@ -69,30 +72,47 @@ function buildTriggerDate(
   return trigger;
 }
 
-function buildPreBufferTitle(node: FocusNode, classPreBufferMinutes: number): string {
-  return `${node.title} in ${classPreBufferMinutes} minutes`;
+/** Fires at the scheduled window end when the user never completed or skipped. */
+function buildWindowEndTriggerDate(
+  node: FocusNode,
+  dayDate: Date,
+  now = new Date(),
+): Date | null {
+  const { endMinutes } = getScheduleWindow(node.schedule);
+  const trigger = new Date(dayDate);
+  trigger.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0);
+
+  if (trigger.getTime() <= now.getTime()) {
+    return null;
+  }
+
+  return trigger;
 }
 
-function buildPreBufferBody(node: FocusNode, anchors: Anchor[]): string {
-  const anchor = resolveAnchorForNode(node.anchorId, anchors);
-  if (!anchor) {
-    return "Your apps are blocked — make your way to class.";
-  }
-  if (!hasUsableCoordinates(anchor)) {
-    return `Your apps are blocked — arrive at ${anchor.name} to capture GPS before class.`;
-  }
-  return `Your apps are blocked — make your way to class at ${anchor.name}.`;
+function buildMissedTitle(node: FocusNode): string {
+  return `You missed ${node.title}`;
 }
 
-function buildReminderBody(node: FocusNode, anchors: Anchor[]): string {
-  const anchor = resolveAnchorForNode(node.anchorId, anchors);
-  if (!anchor) {
-    return "Add a venue in your Focus Node before this window opens.";
-  }
-  if (!hasUsableCoordinates(anchor)) {
-    return `Arrive at ${anchor.name} to capture GPS and start your session.`;
-  }
-  return `Head to ${anchor.name} — your focus window is starting.`;
+function buildMissedBody(): string {
+  return "You didn't check in today.";
+}
+
+function missedReminderId(nodeId: string, dateIso: string): string {
+  return `${MISSED_REMINDER_PREFIX}${nodeId}-${dateIso}`;
+}
+
+export type NotificationPermissionStatus = "granted" | "denied" | "undetermined";
+
+/** Reads OS notification permission without prompting. */
+export async function getNotificationPermissionStatus(): Promise<NotificationPermissionStatus> {
+  if (!areSessionRemindersSupported()) return "denied";
+
+  await ensureNotificationHandler();
+  const Notifications = await getNotificationsModule();
+  const settings = await Notifications.getPermissionsAsync();
+  if (settings.granted) return "granted";
+  if (settings.status === "denied") return "denied";
+  return "undetermined";
 }
 
 /** Requests notification permission — required before scheduling session reminders. */
@@ -106,6 +126,38 @@ export async function ensureNotificationPermission(): Promise<boolean> {
 
   const requested = await Notifications.requestPermissionsAsync();
   return requested.granted;
+}
+
+/** Clears scheduled pre-buffer and missed-session reminders. */
+export async function cancelAllSessionReminders(): Promise<void> {
+  if (!areSessionRemindersSupported()) return;
+
+  const Notifications = await getNotificationsModule();
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const staleIds = scheduled
+    .filter((item) =>
+      REMINDER_PREFIXES.some((prefix) => item.identifier.startsWith(prefix)),
+    )
+    .map((item) => item.identifier);
+
+  if (staleIds.length === 0) return;
+
+  await Promise.all(
+    staleIds.map((identifier) =>
+      Notifications.cancelScheduledNotificationAsync(identifier),
+    ),
+  );
+}
+
+/** Cancel a scheduled missed-session alert after complete, skip, or check-in. */
+export async function cancelMissedSessionReminder(
+  nodeId: string,
+  dateIso: string,
+): Promise<void> {
+  if (!areSessionRemindersSupported()) return;
+
+  const Notifications = await getNotificationsModule();
+  await Notifications.cancelScheduledNotificationAsync(missedReminderId(nodeId, dateIso));
 }
 
 async function scheduleDaySessionReminders(
@@ -127,53 +179,46 @@ async function scheduleDaySessionReminders(
   );
 
   for (const node of upcomingNodes) {
-    if (node.schedule.type === "class") {
-      const preBufferDate = buildTriggerDate(
-        node.schedule.startTime,
-        classPreBufferMinutes,
-        dayDate,
-        now,
-      );
-      if (preBufferDate) {
-        await Notifications.scheduleNotificationAsync({
-          identifier: `${PRE_BUFFER_REMINDER_PREFIX}${node.id}-${todayIso}`,
-          content: {
-            title: buildPreBufferTitle(node, classPreBufferMinutes),
-            body: buildPreBufferBody(node, anchors),
-            sound: true,
-            data: { nodeId: node.id, type: "pre-buffer" },
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.DATE,
-            date: preBufferDate,
-            channelId: Platform.OS === "android" ? "session-reminders" : undefined,
-          },
-        });
-      }
-    }
-
-    const triggerDate = buildTriggerDate(
+    const preBufferDate = buildTriggerDate(
       node.schedule.startTime,
-      SESSION_START_LEAD_MINUTES,
+      classPreBufferMinutes,
       dayDate,
       now,
     );
-    if (!triggerDate) continue;
+    if (preBufferDate) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: `${PRE_BUFFER_REMINDER_PREFIX}${node.id}-${todayIso}`,
+        content: {
+          title: buildPreBufferTitle(node, classPreBufferMinutes),
+          body: buildPreBufferBody(node, anchors),
+          sound: true,
+          data: { nodeId: node.id, type: "pre-buffer" },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: preBufferDate,
+          channelId: Platform.OS === "android" ? "session-reminders" : undefined,
+        },
+      });
+    }
 
-    await Notifications.scheduleNotificationAsync({
-      identifier: `${SESSION_REMINDER_PREFIX}${node.id}-${todayIso}`,
-      content: {
-        title: `${node.title} starts soon`,
-        body: buildReminderBody(node, anchors),
-        sound: true,
-        data: { nodeId: node.id, type: "session-start" },
-      },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DATE,
-        date: triggerDate,
-        channelId: Platform.OS === "android" ? "session-reminders" : undefined,
-      },
-    });
+    const missedDate = buildWindowEndTriggerDate(node, dayDate, now);
+    if (missedDate) {
+      await Notifications.scheduleNotificationAsync({
+        identifier: missedReminderId(node.id, todayIso),
+        content: {
+          title: buildMissedTitle(node),
+          body: buildMissedBody(),
+          sound: true,
+          data: { nodeId: node.id, type: "session-missed" },
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: missedDate,
+          channelId: Platform.OS === "android" ? "session-reminders" : undefined,
+        },
+      });
+    }
   }
 }
 
@@ -183,8 +228,14 @@ export async function syncSessionReminders(
   anchors: Anchor[],
   classPreBufferMinutes: number,
   referenceDate = new Date(),
+  options: { enabled?: boolean } = {},
 ): Promise<void> {
   if (!areSessionRemindersSupported()) return;
+
+  if (options.enabled === false) {
+    await cancelAllSessionReminders();
+    return;
+  }
 
   const granted = await ensureNotificationPermission();
   if (!granted) return;

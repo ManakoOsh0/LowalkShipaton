@@ -4,11 +4,11 @@
 import { Platform, Pressable, Text, View } from "react-native";
 
 import { HeroInsetEdge } from "@/components/hero/HeroInsetEdge";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import {
     formatSoftActionLabel,
     HERO_EINK_BUTTON_RADIUS,
     HERO_EINK_FOOTER_HEIGHT,
-    TRMNL_THEME,
 } from "@/lib/heroEink";
 import { FONT_FAMILY } from "@/theme/fonts";
 
@@ -18,6 +18,7 @@ type HeroSoftButtonProps = {
 };
 
 export function HeroSoftButton({ label, onPress }: HeroSoftButtonProps) {
+  const theme = useHeroTheme();
   const displayLabel = formatSoftActionLabel(label);
 
   return (
@@ -41,7 +42,7 @@ export function HeroSoftButton({ label, onPress }: HeroSoftButtonProps) {
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: TRMNL_THEME.recessed,
+          backgroundColor: theme.recessed,
         }}
       >
         <HeroInsetEdge edgeSize={10} opacity={0.18} />
@@ -52,7 +53,7 @@ export function HeroSoftButton({ label, onPress }: HeroSoftButtonProps) {
             fontFamily: FONT_FAMILY.monoBold,
             fontSize: 14,
             lineHeight: 18,
-            color: TRMNL_THEME.textPrimary,
+            color: theme.inkOnCase,
             letterSpacing: 0.5,
             zIndex: 1,
             ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),

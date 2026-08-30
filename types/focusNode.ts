@@ -38,9 +38,12 @@ export type FocusNode = {
   completedDates: string[];
   /** ISO date strings (YYYY-MM-DD) when the user skipped this occurrence. */
   skippedDates: string[];
+  /** ISO date strings when a class miss penalty was applied for this occurrence. */
+  missPenaltyDates?: string[];
 };
 
-export type FocusNodeInput = Omit<FocusNode, "id" | "completedDates" | "skippedDates"> & {
+export type FocusNodeInput = Omit<FocusNode, "id" | "completedDates" | "skippedDates" | "missPenaltyDates"> & {
   completedDates?: string[];
   skippedDates?: string[];
+  missPenaltyDates?: string[];
 };

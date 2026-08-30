@@ -49,6 +49,26 @@ export type WeeklyProgress = {
   percent: number;
 };
 
+/**
+ * Real-world consistency recap — showed up, places, planned days.
+ * Hours are supporting; session count and places carry the story.
+ */
+export type ConsistencyRecap = {
+  title: string;
+  sessionsCompleted: number;
+  sessionsPlanned: number;
+  focusMinutes: number;
+  plannedMinutes: number;
+  /** Completed sessions / planned sessions. */
+  sessionCompletionPercent: number;
+  plannedDays: number;
+  showedUpDays: number;
+  locationCount: number;
+  /** Unique kind/place labels for completed sessions, schedule order. */
+  placesVisited: string[];
+  emptyMessage: string;
+};
+
 export type LifetimeStat = {
   id: string;
   icon: string;

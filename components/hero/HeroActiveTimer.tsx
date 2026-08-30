@@ -5,12 +5,12 @@ import { Platform, Text, View } from "react-native";
 
 import { HeroCounterProgress } from "@/components/hero/HeroCounterProgress";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import {
     HERO_DIGITAL_CLOCK_LETTER_SPACING,
     HERO_DIGITAL_CLOCK_LINE_HEIGHT,
     HERO_DIGITAL_CLOCK_SIZE,
     HERO_EINK_BUTTON_RADIUS,
-    TRMNL_THEME,
 } from "@/lib/heroEink";
 import { FONT_FAMILY } from "@/theme/fonts";
 
@@ -27,14 +27,16 @@ export function HeroActiveTimer({
   subtitle,
   progressRatio,
 }: HeroActiveTimerProps) {
+  const theme = useHeroTheme();
   const showProgress = progressRatio != null && progressRatio >= 0;
   const progressFill = Math.min(Math.max(progressRatio ?? 0, 0), 1);
 
   return (
     <View style={{ width: "100%", gap: 8 }}>
       <View
-        className="border-2 border-trmnl-ink"
         style={{
+          borderWidth: 2,
+          borderColor: theme.textPrimary,
           borderRadius: HERO_EINK_BUTTON_RADIUS,
           paddingVertical: 10,
           paddingHorizontal: 12,
@@ -49,7 +51,7 @@ export function HeroActiveTimer({
             fontFamily: FONT_FAMILY.monoBold,
             fontSize: HERO_DIGITAL_CLOCK_SIZE,
             lineHeight: HERO_DIGITAL_CLOCK_LINE_HEIGHT,
-            color: TRMNL_THEME.textPrimary,
+            color: theme.textPrimary,
             letterSpacing: HERO_DIGITAL_CLOCK_LETTER_SPACING,
             fontVariant: ["tabular-nums"],
             ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),

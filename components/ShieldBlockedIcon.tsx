@@ -1,12 +1,13 @@
 /**
- * Shield overlay brand mark — Lowalk finale logo shown above blocked-app copy.
+ * Shield overlay brand mark — lowal2.svg mascot shown above blocked-app copy.
  */
-import { Image } from "react-native";
+import { View } from "react-native";
+import { SvgXml } from "react-native-svg";
 
-import { lowalkLogoImage } from "@/constants/images";
+import { lowal2LogoXml } from "@/constants/lowal2Logo";
 
 const LOGO_SIZE = 124;
-const LOGO_OFFSET_X = -6;
+const LOGO_OFFSET_X = 6;
 
 type ShieldBlockedIconProps = {
   size?: number;
@@ -18,16 +19,12 @@ export function ShieldBlockedIcon({
   offsetX = LOGO_OFFSET_X,
 }: ShieldBlockedIconProps) {
   return (
-    <Image
-      source={lowalkLogoImage}
+    <View
       accessibilityLabel="Lowalk"
-      accessibilityIgnoresInvertColors
-      style={{
-        width: size,
-        height: size,
-        resizeMode: "contain",
-        transform: [{ translateX: offsetX }],
-      }}
-    />
+      accessibilityRole="image"
+      style={{ transform: [{ translateX: offsetX }] }}
+    >
+      <SvgXml xml={lowal2LogoXml} width={size} height={size} />
+    </View>
   );
 }

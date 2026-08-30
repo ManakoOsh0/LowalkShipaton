@@ -1,22 +1,16 @@
 /**
- * HeroWellBezel — case lip shadow where the frame opening meets the LCD well.
- * Dark occlusion on top/left sells the screen sitting behind the plastic bezel.
+ * HeroWellBezel — case lip shadow where the opening meets the LCD well.
+ * Depth follows the active case style.
  */
 import { LinearGradient } from "expo-linear-gradient";
 import { StyleSheet, View } from "react-native";
 
-import { HERO_BENTO_WELL_BEZEL_OPACITY } from "@/lib/heroEink";
+import { useHeroCaseStyle } from "@/hooks/useHeroCaseStyle";
 
-const BEZEL_SIZE = 12;
-
-type HeroWellBezelProps = {
-  opacity?: number;
-};
-
-export function HeroWellBezel({
-  opacity = HERO_BENTO_WELL_BEZEL_OPACITY,
-}: HeroWellBezelProps) {
-  const shadow = `rgba(0, 0, 0, ${opacity})`;
+export function HeroWellBezel() {
+  const style = useHeroCaseStyle();
+  const shadow = `rgba(0, 0, 0, ${style.wellBezelOpacity})`;
+  const rim = `rgba(0, 0, 0, ${style.wellBezelRimOpacity})`;
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -27,7 +21,7 @@ export function HeroWellBezel({
           top: 0,
           left: 0,
           right: 0,
-          height: BEZEL_SIZE,
+          height: style.wellBezelSize,
         }}
       />
       <LinearGradient
@@ -39,9 +33,35 @@ export function HeroWellBezel({
           top: 0,
           left: 0,
           bottom: 0,
-          width: BEZEL_SIZE,
+          width: style.wellBezelSize,
         }}
       />
+      {style.wellBezelRimOpacity > 0 ? (
+        <>
+          <LinearGradient
+            colors={["transparent", rim]}
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: style.wellBezelSize,
+            }}
+          />
+          <LinearGradient
+            colors={["transparent", rim]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: style.wellBezelSize,
+            }}
+          />
+        </>
+      ) : null}
     </View>
   );
 }

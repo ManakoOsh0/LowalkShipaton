@@ -19,7 +19,6 @@ import { FirstRunPermissionsHost } from "@/components/FirstRunPermissionsHost";
 import { LeaveSessionWarningHost } from "@/components/LeaveSessionWarningModal";
 import { SessionCompleteHost } from "@/components/SessionCompleteScreen";
 import { SessionPenaltyHost } from "@/components/SessionPenaltyModal";
-import { ShareOverlayHost } from "@/components/share/ShareOverlayComposer";
 import { StreakCelebrationHost } from "@/components/StreakCelebrationModal";
 import { SessionPresenceProvider } from "@/components/SessionPresenceProvider";
 import { useAppFonts } from "@/hooks/useAppFonts";
@@ -78,7 +77,6 @@ export default function RootLayout() {
           <AnchoringSheetHost />
           <SessionCompleteHost />
           <StreakCelebrationHost />
-          <ShareOverlayHost />
           <FirstRunPermissionsHost />
         </SessionPresenceProvider>
       </SafeAreaProvider>

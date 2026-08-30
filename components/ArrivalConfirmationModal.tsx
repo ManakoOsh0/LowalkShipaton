@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 
-import { ArrivalMascotIcon } from "@/components/ArrivalMascotIcon";
+import { ArrivalMascotBadge } from "@/components/ArrivalMascotBadge";
 import { BottomSheet } from "@/components/BottomSheet";
 import { useSessionPresence } from "@/contexts/SessionPresenceContext";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
@@ -27,35 +27,19 @@ function ArrivalSheetContent({
   const reduceMotion = useReduceMotion();
 
   return (
-    <View style={{ paddingHorizontal: 4, paddingBottom: 88, alignItems: "center", gap: 12 }}>
-      <View
-        style={{
-          width: 88,
-          height: 88,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <View
-          style={{
-            position: "absolute",
-            width: 88,
-            height: 88,
-            borderRadius: 44,
-            backgroundColor: `${colors.success}14`,
-          }}
-        />
+    <View style={{ paddingHorizontal: 4, paddingBottom: 52, alignItems: "center", gap: 10 }}>
+      <View style={{ height: 100, alignItems: "center", justifyContent: "center" }}>
         <Animated.View entering={arrivalMascotEntering(reduceMotion)}>
-          <ArrivalMascotIcon size={64} color={colors.success} />
+          <ArrivalMascotBadge size={96} color={colors.success} />
         </Animated.View>
       </View>
 
-      <View style={{ alignItems: "center", gap: 4 }}>
+      <View style={{ alignItems: "center", gap: 3 }}>
         <Text
           style={{
             fontFamily: "Poppins-SemiBold",
-            fontSize: 13,
-            lineHeight: 18,
+            fontSize: 12,
+            lineHeight: 16,
             letterSpacing: 0.3,
             textTransform: "uppercase",
             color: colors.success,
@@ -66,8 +50,8 @@ function ArrivalSheetContent({
         <Text
           style={{
             fontFamily: "Poppins-Bold",
-            fontSize: 22,
-            lineHeight: 28,
+            fontSize: 20,
+            lineHeight: 26,
             color: colors.foreground,
             textAlign: "center",
           }}
@@ -77,8 +61,8 @@ function ArrivalSheetContent({
         <Text
           style={{
             fontFamily: "Poppins-Regular",
-            fontSize: 15,
-            lineHeight: 22,
+            fontSize: 14,
+            lineHeight: 20,
             color: colors.muted,
             textAlign: "center",
           }}
@@ -86,6 +70,18 @@ function ArrivalSheetContent({
           {nodeTitle}
         </Text>
       </View>
+
+      <Text
+        style={{
+          fontFamily: "Poppins-Medium",
+          fontSize: 13,
+          lineHeight: 18,
+          color: colors.foregroundSubtle,
+          textAlign: "center",
+        }}
+      >
+        Stay in the focus zone to complete verification
+      </Text>
     </View>
   );
 }

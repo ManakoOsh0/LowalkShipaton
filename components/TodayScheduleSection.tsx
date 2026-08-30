@@ -18,7 +18,6 @@ type TodayScheduleSectionProps = {
   onItemPress?: (item: ScheduleItem) => void;
   onItemLongPress?: (item: ScheduleItem) => void;
   onEmptyPress?: () => void;
-  contentPaddingBottom?: number;
 };
 
 const FOCUS_STATUS_PRIORITY: ScheduleItemStatus[] = [
@@ -27,6 +26,10 @@ const FOCUS_STATUS_PRIORITY: ScheduleItemStatus[] = [
   "upcoming",
   "missed",
 ];
+
+/** Breathing room under the last card — enough for shadow, not a tab-bar spacer. */
+const LIST_BOTTOM_PAD = 12;
+const FOCUS_MARGIN = 12;
 
 /** Pick the row the user most likely needs right now — active first, then next actionable. */
 function getFocusScheduleIndex(items: ScheduleItem[]): number {
@@ -48,33 +51,54 @@ export function TodayScheduleSection({
   onItemPress,
   onItemLongPress,
   onEmptyPress,
-  contentPaddingBottom = 0,
 }: TodayScheduleSectionProps) {
   const router = useRouter();
   const colors = useThemeColors();
   const scrollRef = useRef<ScrollView>(null);
-  const itemOffsets = useRef<Map<string, number>>(new Map());
+  const itemMetrics = useRef<Map<string, { y: number; height: number }>>(new Map());
+  const scrollYRef = useRef(0);
   const [layoutVersion, setLayoutVersion] = useState(0);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   const focusIndex = useMemo(() => getFocusScheduleIndex(items), [items]);
   const focusItemId = focusIndex >= 0 ? items[focusIndex]?.id : undefined;
 
   useEffect(() => {
-    if (!focusItemId) return;
+    if (!focusItemId || viewportHeight <= 0) return;
 
-    const y = itemOffsets.current.get(focusItemId);
-    if (y == null) return;
+    const metrics = itemMetrics.current.get(focusItemId);
+    if (!metrics) return;
+
+    const viewTop = scrollYRef.current;
+    const viewBottom = viewTop + viewportHeight;
+    const itemTop = metrics.y;
+    const itemBottom = metrics.y + metrics.height;
+
+    // Keep the focused row on-screen without pinning it to the top.
+    // Pinning the last card would scroll a blank spacer into view.
+    const fullyVisible =
+      itemTop >= viewTop + FOCUS_MARGIN && itemBottom <= viewBottom - FOCUS_MARGIN;
+    if (fullyVisible) return;
+
+    let nextY = viewTop;
+    if (itemTop < viewTop + FOCUS_MARGIN) {
+      nextY = Math.max(itemTop - FOCUS_MARGIN, 0);
+    } else if (itemBottom > viewBottom - FOCUS_MARGIN) {
+      nextY = Math.max(itemBottom - viewportHeight + FOCUS_MARGIN, 0);
+    }
+
+    if (Math.abs(nextY - viewTop) < 1) return;
 
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: Math.max(y - 12, 0), animated: true });
+      scrollRef.current?.scrollTo({ y: nextY, animated: true });
     });
-  }, [focusItemId, layoutVersion]);
+  }, [focusItemId, layoutVersion, viewportHeight]);
 
-  const handleItemLayout = (itemId: string, y: number) => {
-    const previous = itemOffsets.current.get(itemId);
-    if (previous === y) return;
+  const handleItemLayout = (itemId: string, y: number, height: number) => {
+    const previous = itemMetrics.current.get(itemId);
+    if (previous?.y === y && previous?.height === height) return;
 
-    itemOffsets.current.set(itemId, y);
+    itemMetrics.current.set(itemId, { y, height });
     setLayoutVersion((version) => version + 1);
   };
 
@@ -119,7 +143,7 @@ export function TodayScheduleSection({
 
   if (items.length === 0) {
     return (
-      <View style={{ gap: 10, paddingBottom: contentPaddingBottom }}>
+      <View style={{ flex: 1, minHeight: 0, gap: 10 }}>
         {header}
         <ScheduleEmptyState onPress={onEmptyPress} />
       </View>
@@ -133,12 +157,28 @@ export function TodayScheduleSection({
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ gap: 10, paddingBottom: contentPaddingBottom }}
+        onLayout={(event) => {
+          const nextHeight = event.nativeEvent.layout.height;
+          if (nextHeight !== viewportHeight) {
+            setViewportHeight(nextHeight);
+          }
+        }}
+        onScroll={(event) => {
+          scrollYRef.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
+        contentContainerStyle={{ gap: 10, paddingBottom: LIST_BOTTOM_PAD }}
       >
         {items.map((item) => (
           <View
             key={item.id}
-            onLayout={(event) => handleItemLayout(item.id, event.nativeEvent.layout.y)}
+            onLayout={(event) =>
+              handleItemLayout(
+                item.id,
+                event.nativeEvent.layout.y,
+                event.nativeEvent.layout.height,
+              )
+            }
           >
             <TodayScheduleItemCard
               item={item}

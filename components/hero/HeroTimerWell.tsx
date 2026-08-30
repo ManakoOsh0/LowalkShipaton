@@ -9,7 +9,7 @@ import { HeroFlipClock } from "@/components/hero/HeroFlipClock";
 import { HeroVerifyingPulse } from "@/components/hero/HeroVerifyingPulse";
 import { HeroInsetEdge } from "@/components/hero/HeroInsetEdge";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
-import { TRMNL_THEME } from "@/lib/heroEink";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 
 type HeroTimerWellProps = {
   contextLabel?: string;
@@ -30,6 +30,7 @@ export function HeroTimerWell({
   compact = false,
   verifyPulse = false,
 }: HeroTimerWellProps) {
+  const theme = useHeroTheme();
   const showCountdown = Boolean(countdownLabel);
   const progressFill = Math.min(Math.max(progressRatio ?? 0, 0), 1);
   const showProgress =
@@ -86,7 +87,7 @@ export function HeroTimerWell({
               paddingHorizontal: compact ? 10 : 12,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: TRMNL_THEME.plaque,
+              backgroundColor: theme.plaque,
               overflow: "hidden",
             }}
           >

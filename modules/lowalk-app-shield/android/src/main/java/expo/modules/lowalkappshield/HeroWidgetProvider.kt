@@ -52,10 +52,12 @@ class HeroWidgetProvider : android.appwidget.AppWidgetProvider() {
       appWidgetManager: AppWidgetManager,
       appWidgetId: Int,
     ) {
-      val viewModel = WidgetSessionStore.loadViewModel(context)
+      val bundle = WidgetSessionStore.loadScheduleBundle(context)
+      val appearance = bundle?.appearance ?: HeroWidgetAppearance.defaults(context)
       val views = RemoteViews(context.packageName, R.layout.widget_hero)
-      if (viewModel != null) {
-        bindViewModel(views, viewModel)
+      HeroWidgetAppearance.apply(context, views, appearance)
+      if (bundle != null) {
+        bindViewModel(views, HeroWidgetStateEngine.compute(bundle))
       } else {
         bindPlaceholder(views)
       }

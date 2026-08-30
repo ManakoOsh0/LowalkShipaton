@@ -40,11 +40,11 @@ export function HeroCelebrationBeat({
     >
       <View style={{ flex: 1, justifyContent: "space-between", minHeight: 0, gap: 4 }}>
         <HeroCardHeader
+          key={headerKey}
           sessionTitle={celebration.nodeTitle}
           metaLeft={{ label: "SESSION" }}
           metaRight={{ label: "SECURED" }}
           compact
-          motionKey={headerKey}
           reduceMotion={reduceMotion}
         />
 

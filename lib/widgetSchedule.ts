@@ -3,6 +3,11 @@
  * JS syncs structure + enriched hero copy; Kotlin refreshes countdowns offline.
  */
 import { buildHeroWidgetSnapshot } from "@/lib/heroWidget";
+import {
+  buildHeroWidgetAppearance,
+  type HeroWidgetAppearancePayload,
+} from "@/lib/heroWidgetAppearance";
+import { estimateFocusMinutes } from "@/lib/periodStats";
 import { getScheduleWindow, toIsoDateString } from "@/lib/time";
 import type { HeroCardData } from "@/types/dashboard";
 import type { FocusNode } from "@/types/focusNode";
@@ -70,6 +75,7 @@ export function buildWidgetScheduleBundle(input: {
   classPreBufferMinutes: number;
   sessionGapMergeMinutes: number;
   referenceDate?: Date;
+  appearance: HeroWidgetAppearancePayload;
 }): WidgetScheduleBundle {
   const referenceDate = input.referenceDate ?? new Date();
   const todayIso = toIsoDateString(referenceDate);
@@ -93,6 +99,7 @@ export function buildWidgetScheduleBundle(input: {
     dailyGoalTarget: input.dailyGoalTarget,
     blockedAppsCount: input.blockedAppsCount,
     blockedPackageNames: input.blockedPackageNames,
+    totalFocusMinutes: estimateFocusMinutes(input.focusNodes),
     todayIso,
     todayWeekday,
     nodes: input.focusNodes.map((node) =>
@@ -108,6 +115,7 @@ export function buildWidgetScheduleBundle(input: {
       title: row.title,
       locationLabel: row.locationLabel,
     })),
+    appearance: input.appearance,
   };
 }
 

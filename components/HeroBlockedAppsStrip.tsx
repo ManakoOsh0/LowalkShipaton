@@ -8,12 +8,12 @@ import { TrmnlText } from "@/components/trmnl/TrmnlText";
 import { useBlockedAppsRemovalLocked } from "@/hooks/useBlockedAppsRemovalLocked";
 import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import {
   formatTrmnlActionLabel,
   HERO_ACTIVE_BLOCKED_HEIGHT,
   HERO_EINK_BUTTON_RADIUS,
   HERO_EINK_FOOTER_HEIGHT,
-  TRMNL_THEME,
 } from "@/lib/heroEink";
 
 type HeroBlockedAppsStripProps = {
@@ -30,6 +30,7 @@ export function HeroBlockedAppsStrip({
   eink = false,
 }: HeroBlockedAppsStripProps) {
   const colors = useThemeColors();
+  const theme = useHeroTheme();
   const apps = useBlockedAppsStore((state) => state.apps);
   const removalLocked = useBlockedAppsRemovalLocked();
   const hasApps = apps.length > 0;
@@ -49,7 +50,7 @@ export function HeroBlockedAppsStrip({
       <HeroEinkFlash
         accessibilityLabel={label}
         onPress={onEditPress}
-        baseBackgroundColor={TRMNL_THEME.paper}
+        baseBackgroundColor={theme.plaque}
         style={{
           marginTop: embedded ? 0 : 14,
           height: compact ? (eink ? HERO_ACTIVE_BLOCKED_HEIGHT : HERO_EINK_FOOTER_HEIGHT) : undefined,
@@ -58,7 +59,7 @@ export function HeroBlockedAppsStrip({
           justifyContent: "center",
           borderRadius: HERO_EINK_BUTTON_RADIUS,
           borderWidth: 2,
-          borderColor: TRMNL_THEME.textPrimary,
+          borderColor: theme.textPrimary,
           paddingHorizontal: 14,
           paddingVertical: compact ? 0 : 12,
           opacity: 1,

@@ -5,6 +5,9 @@ export const lowalkLogoAssetPath = "assets/images/Lowalk-finale-logo.png" as con
 
 export const lowalkLogoImage = require("@/assets/images/Lowalk-finale-logo.png");
 
+/** SVG source for ShieldBlockedIcon — assets/images/lowal2.svg */
+export const lowal2LogoAssetPath = "assets/images/lowal2.svg" as const;
+
 /** Pixel shield mascot — assets/images/New Piskel.png */
 export const shieldPiskelAssetPath = "assets/images/New Piskel.png" as const;
 

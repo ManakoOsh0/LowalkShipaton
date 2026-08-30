@@ -24,8 +24,7 @@ export function loadTestData(): void {
   });
 
   useBlockedAppsStore.setState({ apps: data.blockedApps });
-  useHeroPreviewStore.getState().setForcedState(null);
-  useHeroPreviewStore.getState().setForcedVariant(null);
+  useHeroPreviewStore.getState().setForcedScenario(null);
 }
 
 export function getTestDataSummary(): string {

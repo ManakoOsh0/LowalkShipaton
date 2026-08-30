@@ -10,14 +10,15 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import { HERO_MOTION } from "@/lib/heroMotion";
-import { TRMNL_THEME } from "@/lib/heroEink";
 
 type HeroEinkRefreshProps = {
   active: boolean;
 };
 
 export function HeroEinkRefresh({ active }: HeroEinkRefreshProps) {
+  const theme = useHeroTheme();
   const flashOpacity = useSharedValue(0);
   // Rest at 1 so the wipe overlay is fully transparent before/after a refresh pulse.
   const wipeProgress = useSharedValue(1);
@@ -55,7 +56,7 @@ export function HeroEinkRefresh({ active }: HeroEinkRefreshProps) {
         style={[
           StyleSheet.absoluteFillObject,
           wipeStyle,
-          { backgroundColor: TRMNL_THEME.textPrimary },
+          { backgroundColor: theme.textPrimary },
         ]}
       />
       <Animated.View
@@ -63,7 +64,7 @@ export function HeroEinkRefresh({ active }: HeroEinkRefreshProps) {
         style={[
           StyleSheet.absoluteFillObject,
           flashStyle,
-          { backgroundColor: TRMNL_THEME.textPrimary },
+          { backgroundColor: theme.textPrimary },
         ]}
       />
     </>

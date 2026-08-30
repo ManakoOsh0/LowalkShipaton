@@ -1,4 +1,7 @@
-import type { ShieldScheduleSettings } from "@/lib/shieldSchedule";
+import {
+  getSessionNominalStartMs,
+  type ShieldScheduleSettings,
+} from "@/lib/shieldSchedule";
 import type { ActiveSessionSnapshot } from "@/types/session";
 
 export const CLASS_EARLY_COMPLETE_STANDARD_RATIO = 0.5;
@@ -92,10 +95,7 @@ export function getClassNominalStartMs(
   session: ActiveSessionSnapshot,
   settings: ShieldScheduleSettings,
 ): number {
-  return (
-    new Date(session.shieldStartsAt).getTime() +
-    settings.classPreBufferMinutes * 60_000
-  );
+  return getSessionNominalStartMs(session, settings);
 }
 
 export function getClassScheduledDurationMs(

@@ -4,7 +4,7 @@
  */
 import { Platform, Text, type TextProps } from "react-native";
 
-import { TRMNL_THEME } from "@/lib/heroEink";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import { TRMNL_VARIANT_STYLES, type TrmnlTextVariant } from "@/lib/trmnlTypography";
 
 type TrmnlTextColor = "ink" | "inverse" | "muted" | "mutedWell";
@@ -15,13 +15,6 @@ type TrmnlTextProps = TextProps & {
   children: string;
 };
 
-const COLOR_MAP: Record<TrmnlTextColor, string> = {
-  ink: TRMNL_THEME.textPrimary,
-  inverse: TRMNL_THEME.textInverse,
-  muted: TRMNL_THEME.muted,
-  mutedWell: TRMNL_THEME.mutedOnWell,
-};
-
 export function TrmnlText({
   variant,
   color = "ink",
@@ -29,7 +22,14 @@ export function TrmnlText({
   children,
   ...rest
 }: TrmnlTextProps) {
+  const theme = useHeroTheme();
   const spec = TRMNL_VARIANT_STYLES[variant];
+  const colorMap: Record<TrmnlTextColor, string> = {
+    ink: theme.textPrimary,
+    inverse: theme.textInverse,
+    muted: theme.muted,
+    mutedWell: theme.mutedOnWell,
+  };
 
   return (
     <Text
@@ -39,7 +39,7 @@ export function TrmnlText({
           fontFamily: spec.family,
           fontSize: spec.size,
           lineHeight: spec.lineHeight,
-          color: COLOR_MAP[color],
+          color: colorMap[color],
           letterSpacing: 0,
           textTransform: spec.uppercase ? "uppercase" : "none",
           ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),

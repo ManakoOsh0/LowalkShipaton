@@ -1,9 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 
 import { useSessionPresence } from "@/contexts/SessionPresenceContext";
-import { computeHeroFocusLedger } from "@/lib/heroFocusLedger";
 import { buildHeroPreviewData } from "@/lib/heroCard";
-import { mergeBlockedAppsIntoHero, mergeFocusCoinsIntoHero } from "@/lib/heroIntel";
 import { toIsoDateString } from "@/lib/time";
 import {
   selectAnchoringRequest,
@@ -11,12 +9,12 @@ import {
   selectHeroCardData,
   selectTodaySchedule,
 } from "@/store/selectors";
-import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";
 import {
   selectLiveHeroCelebration,
   useHeroCelebrationStore,
   type HeroCelebrationPayload,
 } from "@/store/useHeroCelebrationStore";
+import { useNotificationNavigationStore } from "@/store/useNotificationNavigationStore";
 import { useHeroPreviewStore } from "@/store/useHeroPreviewStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -43,19 +41,20 @@ export function useHomeDashboard(): HomeDashboardData {
   const classPreBufferMinutes = useUserStore((state) => state.classPreBufferMinutes);
   const sessionGapMergeMinutes = useUserStore((state) => state.sessionGapMergeMinutes);
   const presence = useSessionPresence();
-  const forcedHeroState = useHeroPreviewStore((state) => state.forcedState);
-  const forcedHeroVariant = useHeroPreviewStore((state) => state.forcedVariant);
+  const forcedHeroScenario = useHeroPreviewStore((state) => state.forcedScenario);
   const forcedHeroKind = useHeroPreviewStore((state) => state.forcedKind);
+  const preBufferFocusNodeId = useNotificationNavigationStore(
+    (state) => state.preBufferFocusNodeId,
+  );
+  const clearPreBufferFocus = useNotificationNavigationStore(
+    (state) => state.clearPreBufferFocus,
+  );
   const celebrationRaw = useHeroCelebrationStore((state) => state.celebration);
   const dismissCelebration = useHeroCelebrationStore((state) => state.dismiss);
 
   const focusNodes = useScheduleStore((state) => state.focusNodes);
   const anchors = useScheduleStore((state) => state.anchors);
   const activeSession = useScheduleStore((state) => state.activeSession);
-  const blockedApps = useBlockedAppsStore((state) => state.apps);
-  const blockedAppsCount = blockedApps.filter((app) =>
-    Boolean(app.packageName?.trim()),
-  ).length;
 
   const todayIso = toIsoDateString(new Date());
   const todayWeekday = new Date().getDay();
@@ -66,7 +65,7 @@ export function useHomeDashboard(): HomeDashboardData {
 
   const needsLiveTick =
     activeSession != null ||
-    forcedHeroState != null ||
+    forcedHeroScenario != null ||
     celebrationRaw != null ||
     hasOpenSessionToday;
 
@@ -77,6 +76,11 @@ export function useHomeDashboard(): HomeDashboardData {
     const interval = setInterval(() => setTimerTick((tick) => tick + 1), 1000);
     return () => clearInterval(interval);
   }, [needsLiveTick]);
+
+  useEffect(() => {
+    if (!preBufferFocusNodeId) return undefined;
+    return () => clearPreBufferFocus();
+  }, [clearPreBufferFocus, preBufferFocusNodeId]);
 
   const shieldSettings = useMemo(
     () => ({ classPreBufferMinutes, sessionGapMergeMinutes }),
@@ -100,48 +104,29 @@ export function useHomeDashboard(): HomeDashboardData {
 
   const hero = useMemo(() => {
     void timerTick;
-    const mergeHero = (data: HeroCardData) =>
-      mergeFocusCoinsIntoHero(
-        mergeBlockedAppsIntoHero(data, blockedAppsCount),
-        coins,
-        dailyGoal,
-      );
 
-    if (forcedHeroState) {
-      return mergeHero(buildHeroPreviewData(forcedHeroState, forcedHeroVariant, forcedHeroKind));
+    if (forcedHeroScenario) {
+      return buildHeroPreviewData(forcedHeroScenario, forcedHeroKind);
     }
 
-    const data = selectHeroCardData(
+    return selectHeroCardData(
       focusNodes,
       anchors,
       activeSession,
       presence,
       new Date(),
       shieldSettings,
+      preBufferFocusNodeId,
     );
-
-    const withLedger =
-      data.state === "weekly_report" && !data.focusLedger
-        ? {
-            ...data,
-            focusLedger: computeHeroFocusLedger(focusNodes, streak, coins),
-          }
-        : data;
-
-    return mergeHero(withLedger);
   }, [
     activeSession,
     anchors,
-    blockedAppsCount,
-    coins,
-    dailyGoal,
     focusNodes,
-    forcedHeroState,
-    forcedHeroVariant,
+    forcedHeroScenario,
     forcedHeroKind,
     presence,
+    preBufferFocusNodeId,
     shieldSettings,
-    streak,
     timerTick,
   ]);
 
@@ -157,7 +142,7 @@ export function useHomeDashboard(): HomeDashboardData {
     hero,
     schedule,
     anchoringRequest,
-    isHeroPreview: forcedHeroState != null,
+    isHeroPreview: forcedHeroScenario != null,
     celebration,
     dismissCelebration,
   };

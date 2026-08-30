@@ -116,6 +116,7 @@ class LowalkAppShieldModule : Module() {
         "dailyGoalTarget" to (snapshot["dailyGoalTarget"] ?: 0),
         "blockedAppsCount" to 0,
         "blockedPackageNames" to emptyList<String>(),
+        "totalFocusMinutes" to 0,
         "todayIso" to "",
         "todayWeekday" to java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK) - 1,
         "nodes" to emptyList<Any>(),

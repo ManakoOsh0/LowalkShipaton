@@ -8,20 +8,20 @@ import { isWithinClassNominalWindow } from "@/lib/classCompletion";
 import {
   computeRequiredOnSiteMs,
   computeShieldStartsAt,
+  getSessionNominalStartMs,
   type ShieldScheduleSettings,
 } from "@/lib/shieldSchedule";
-import { isShieldActiveForNodes } from "@/lib/sessionPenalty";
+import { isFocusNodeRemovalLocked, isShieldActiveForNodes } from "@/lib/sessionPenalty";
 import { clampGeofenceRadiusMeters } from "@/lib/geo";
 import {
   cancelAllPresenceNotifications,
   clearSessionAwayNotifications,
   notifyPresencePenalty,
+  notifyMissedClassPenalty,
   notifySessionAway,
 } from "@/services/presenceReminders";
-import {
-  notifyDailyGoalAchieved,
-  notifySessionComplete,
-} from "@/services/completionReminders";
+import { notifyDailyGoalAchieved } from "@/services/completionReminders";
+import { cancelMissedSessionReminder } from "@/services/sessionReminders";
 import type { Anchor, AnchorInput } from "@/types/anchor";
 import type { FocusNode, FocusNodeInput } from "@/types/focusNode";
 import type { PlaceSelection } from "@/types/place";
@@ -38,7 +38,7 @@ import {
   selectWeekSchedule,
   type PresenceContext,
 } from "@/store/selectors";
-import { useSessionPenaltyStore } from "@/store/useSessionPenaltyStore";
+import { useSessionPenaltyStore, type SessionPenaltyReason } from "@/store/useSessionPenaltyStore";
 import { createNodeFromTemplate } from "@/store/seed";
 import { useSessionCompleteStore } from "@/store/useSessionCompleteStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -76,6 +76,7 @@ type ScheduleState = {
   markSessionAway: () => void;
   clearSessionAway: () => void;
   applyPresencePenalty: () => void;
+  applyClassMissPenalty: () => void;
   markSessionPresenceVerified: () => void;
   completeActiveSession: () => void;
   expireActiveSessionAsMissed: () => void;
@@ -105,6 +106,63 @@ function getShieldSettings(): ShieldScheduleSettings {
     classPreBufferMinutes: user.classPreBufferMinutes,
     sessionGapMergeMinutes: user.sessionGapMergeMinutes,
   };
+}
+
+type ScheduleStoreGetter = () => ScheduleState;
+type ScheduleStoreSetter = (
+  partial:
+    | Partial<ScheduleState>
+    | ((state: ScheduleState) => Partial<ScheduleState>),
+) => void;
+
+function markNodeMissPenalized(
+  get: ScheduleStoreGetter,
+  set: ScheduleStoreSetter,
+  nodeId: string,
+  dateIso: string,
+): void {
+  set({
+    focusNodes: get().focusNodes.map((node) =>
+      node.id === nodeId && !(node.missPenaltyDates ?? []).includes(dateIso)
+        ? {
+            ...node,
+            missPenaltyDates: [...(node.missPenaltyDates ?? []), dateIso],
+          }
+        : node,
+    ),
+  });
+}
+
+function applyPenaltyLockToSession(
+  set: ScheduleStoreSetter,
+  session: ActiveSessionSnapshot,
+  reason: SessionPenaltyReason,
+): void {
+  const tierMinutes = useUserStore.getState().penaltyTierMinutes;
+  const penaltyShieldEndsAt = new Date(
+    Date.now() + tierMinutes * 60 * 1000,
+  ).toISOString();
+
+  set({
+    activeSession: {
+      ...session,
+      penaltyShieldEndsAt,
+      penaltyMinutes: tierMinutes,
+    },
+  });
+
+  useSessionPenaltyStore.getState().show({
+    nodeTitle: session.nodeTitle,
+    anchorName: session.zoneLabel,
+    penaltyMinutes: tierMinutes,
+    reason,
+  });
+
+  if (reason === "away") {
+    void notifyPresencePenalty(session.zoneLabel, session.nodeId, tierMinutes);
+  } else {
+    void notifyMissedClassPenalty(session.zoneLabel, session.nodeId, tierMinutes);
+  }
 }
 
 /** Skip per-second Zustand writes when only sub-second on-site ms changed. */
@@ -216,6 +274,7 @@ export const useScheduleStore = create<ScheduleState>()(
           locationLabel: input.locationLabel ?? null,
           completedDates: input.completedDates ?? [],
           skippedDates: input.skippedDates ?? [],
+          missPenaltyDates: input.missPenaltyDates ?? [],
         };
 
         set({ focusNodes: [...focusNodes, node] });
@@ -247,6 +306,7 @@ export const useScheduleStore = create<ScheduleState>()(
           id: nodeId,
           completedDates: existing.completedDates,
           skippedDates: existing.skippedDates ?? [],
+          missPenaltyDates: existing.missPenaltyDates ?? [],
         };
 
         set({
@@ -284,6 +344,8 @@ export const useScheduleStore = create<ScheduleState>()(
 
       removeFocusNode: (nodeId) => {
         const { focusNodes, activeSession } = get();
+        // Deleting the live node would clear activeSession and end focus enforcement.
+        if (isFocusNodeRemovalLocked(nodeId, activeSession)) return;
         set({
           focusNodes: focusNodes.filter((node) => node.id !== nodeId),
           activeSession: activeSession?.nodeId === nodeId ? null : activeSession,
@@ -467,10 +529,14 @@ export const useScheduleStore = create<ScheduleState>()(
         const { focusNodes, anchors } = get();
 
         if (session.scheduleType === "duration" && session.requiredOnSiteMs != null) {
-          // On-site time only counts after the arrival verification window completes.
+          const countsTowardAttendance =
+            insideGeofence &&
+            session.presenceVerified &&
+            now >= getSessionNominalStartMs(session, settings);
+
           const next = applyOnSitePresenceTick(
             session,
-            insideGeofence,
+            countsTowardAttendance,
             now,
             focusNodes,
             anchors,
@@ -531,33 +597,31 @@ export const useScheduleStore = create<ScheduleState>()(
       applyPresencePenalty: () => {
         const session = get().activeSession;
         if (!session?.awaySince || session.penaltyShieldEndsAt) return;
+        applyPenaltyLockToSession(set, session, "away");
+      },
 
-        const tierMinutes = useUserStore.getState().penaltyTierMinutes;
-        const penaltyShieldEndsAt = new Date(
-          Date.now() + tierMinutes * 60 * 1000,
-        ).toISOString();
+      applyClassMissPenalty: () => {
+        const session = get().activeSession;
+        if (!session || session.scheduleType !== "class" || session.penaltyShieldEndsAt) {
+          return;
+        }
 
-        set({
-          activeSession: {
-            ...session,
-            penaltyShieldEndsAt,
-            penaltyMinutes: tierMinutes,
-          },
-        });
+        const todayIso = toIsoDateString(new Date());
+        const node = get().focusNodes.find((item) => item.id === session.nodeId);
+        if (!node || node.schedule.type !== "class") return;
+        if (node.completedDates.includes(todayIso)) return;
+        if ((node.skippedDates ?? []).includes(todayIso)) return;
+        if ((node.missPenaltyDates ?? []).includes(todayIso)) return;
 
-        // Surface the in-app penalty sheet when foreground; notification covers background.
-        useSessionPenaltyStore.getState().show({
-          nodeTitle: session.nodeTitle,
-          anchorName: session.zoneLabel,
-          penaltyMinutes: tierMinutes,
-        });
-
-        void notifyPresencePenalty(session.zoneLabel, session.nodeId, tierMinutes);
+        markNodeMissPenalized(get, set, session.nodeId, todayIso);
+        applyPenaltyLockToSession(set, session, "missed");
       },
 
       markSessionPresenceVerified: () => {
         const session = get().activeSession;
         if (!session || session.presenceVerified) return;
+
+        void cancelMissedSessionReminder(session.nodeId, toIsoDateString(new Date()));
 
         const node = get().focusNodes.find((item) => item.id === session.nodeId);
         const headline = node
@@ -604,8 +668,6 @@ export const useScheduleStore = create<ScheduleState>()(
             .getState()
             .checkDailyGoalReward(completedToday, target);
 
-          void notifySessionComplete(session.nodeTitle, session.nodeId);
-
           const anchor = node?.anchorId
             ? get().anchors.find((item) => item.id === node.anchorId) ?? null
             : null;
@@ -637,7 +699,11 @@ export const useScheduleStore = create<ScheduleState>()(
           });
 
           if (result.hitDailyGoal && (result.coinAwarded || result.streakIncremented)) {
-            void notifyDailyGoalAchieved(result.streak, result.coinAwarded);
+            void notifyDailyGoalAchieved(
+              result.streak,
+              result.coinAwarded,
+              useUserStore.getState().notificationsEnabled,
+            );
           }
         }
       },
@@ -651,6 +717,7 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       markNodeCompleted: (nodeId, dateIso) => {
+        void cancelMissedSessionReminder(nodeId, dateIso);
         set({
           focusNodes: get().focusNodes.map((node) =>
             node.id === nodeId && !node.completedDates.includes(dateIso)
@@ -665,6 +732,7 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       markNodeSkipped: (nodeId, dateIso) => {
+        void cancelMissedSessionReminder(nodeId, dateIso);
         const { focusNodes, activeSession } = get();
         set({
           focusNodes: focusNodes.map((node) =>

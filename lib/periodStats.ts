@@ -33,7 +33,7 @@ function daysBetweenInclusive(startIso: string, endIso: string): number {
   return Math.max(1, Math.round((end - start) / 86_400_000) + 1);
 }
 
-function nodeSessionMinutes(node: FocusNode): number {
+export function nodeSessionMinutes(node: FocusNode): number {
   const window = getScheduleWindow(node.schedule);
   return Math.max(0, window.endMinutes - window.startMinutes);
 }
@@ -195,7 +195,7 @@ function buildYearBars(nodes: FocusNode[], referenceDate: Date): PeriodChartBar[
   });
 }
 
-function periodRange(
+export function periodRange(
   period: StatsPeriod,
   referenceDate: Date,
 ): { startIso: string; endIso: string } {

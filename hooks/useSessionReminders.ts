@@ -17,6 +17,7 @@ export function useSessionReminders(): void {
   const focusNodes = useScheduleStore((state) => state.focusNodes);
   const anchors = useScheduleStore((state) => state.anchors);
   const classPreBufferMinutes = useUserStore((state) => state.classPreBufferMinutes);
+  const notificationsEnabled = useUserStore((state) => state.notificationsEnabled);
 
   useEffect(() => {
     if (!areSessionRemindersSupported()) return;
@@ -24,7 +25,9 @@ export function useSessionReminders(): void {
     void (async () => {
       await ensureAndroidReminderChannel();
       await ensureAndroidPresenceChannel();
-      await syncSessionReminders(focusNodes, anchors, classPreBufferMinutes);
+      await syncSessionReminders(focusNodes, anchors, classPreBufferMinutes, new Date(), {
+        enabled: notificationsEnabled,
+      });
     })();
-  }, [anchors, classPreBufferMinutes, focusNodes]);
+  }, [anchors, classPreBufferMinutes, focusNodes, notificationsEnabled]);
 }

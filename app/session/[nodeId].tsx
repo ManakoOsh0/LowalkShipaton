@@ -10,8 +10,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SessionDetailHero } from "@/components/session/SessionDetailHero";
 import { SessionHistoryHeatmap } from "@/components/session/SessionHistoryHeatmap";
 import { SessionStatTile } from "@/components/session/SessionStatTile";
+import { SessionDetailSkeleton } from "@/components/skeleton/SessionDetailSkeleton";
 import { StreakFlame } from "@/components/StreakFlame";
 import { useSessionDetail } from "@/hooks/useSessionDetail";
+import { useCoreStoresHydrated } from "@/hooks/usePersistedStoreHydration";
 import { getKindAccentColor } from "@/lib/focusNodeKindColors";
 import {
   computeCompletionRateLast30Days,
@@ -63,6 +65,7 @@ export default function SessionDetailScreen() {
   const dateIso = Array.isArray(date) ? date[0] : date;
 
   const detail = useSessionDetail(resolvedNodeId, dateIso);
+  const storesReady = useCoreStoresHydrated();
   const markNodeSkipped = useScheduleStore((state) => state.markNodeSkipped);
   const focusNodes = useScheduleStore((state) => state.focusNodes);
   const anchors = useScheduleStore((state) => state.anchors);
@@ -89,10 +92,36 @@ export default function SessionDetailScreen() {
   );
 
   useEffect(() => {
-    if (resolvedNodeId && focusNodes.length > 0 && !detail) {
+    if (!storesReady || !resolvedNodeId) return;
+    if (!detail) {
       router.back();
     }
-  }, [detail, focusNodes.length, resolvedNodeId, router]);
+  }, [detail, resolvedNodeId, router, storesReady]);
+
+  if (!storesReady) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top"]}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 16,
+            paddingTop: 8,
+            paddingBottom: 4,
+          }}
+        >
+          <NavIconButton
+            icon="chevron-back"
+            label="Go back"
+            onPress={() => router.back()}
+          />
+          <View style={{ width: 40 }} />
+        </View>
+        <SessionDetailSkeleton />
+      </SafeAreaView>
+    );
+  }
 
   if (!detail || !focusNode) return null;
 

@@ -4,6 +4,7 @@
 import { View } from "react-native";
 
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import { HERO_EINK_BUTTON_RADIUS } from "@/lib/heroEink";
 import type { HeroTravelStats } from "@/types/dashboard";
 
@@ -20,8 +21,17 @@ function MetricCell({
   value: string;
   borderedLeft?: boolean;
 }) {
+  const theme = useHeroTheme();
+
   return (
-    <View className={`flex-1 p-2 ${borderedLeft ? "border-l border-trmnl-ink" : ""}`}>
+    <View
+      style={{
+        flex: 1,
+        padding: 8,
+        borderLeftWidth: borderedLeft ? 1 : 0,
+        borderColor: theme.textPrimary,
+      }}
+    >
       <TrmnlText variant="labelSmall" color="muted">
         {label}
       </TrmnlText>
@@ -33,10 +43,17 @@ function MetricCell({
 }
 
 export function HeroMetricGrid({ stats }: HeroMetricGridProps) {
+  const theme = useHeroTheme();
+
   return (
     <View
-      className="flex-row overflow-hidden border border-trmnl-ink"
-      style={{ borderRadius: HERO_EINK_BUTTON_RADIUS }}
+      style={{
+        flexDirection: "row",
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: theme.textPrimary,
+        borderRadius: HERO_EINK_BUTTON_RADIUS,
+      }}
     >
       <MetricCell label="Distance" value={stats.distance} />
       <MetricCell label="Est. time" value={stats.duration} borderedLeft />

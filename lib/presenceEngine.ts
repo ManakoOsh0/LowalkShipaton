@@ -1,3 +1,4 @@
+import { isRunningInExpoGo } from "@/lib/appShieldStatus";
 import {
   hasUsableCoordinates,
   isInsideGeofence,
@@ -10,9 +11,12 @@ import {
   type Coordinates,
 } from "@/lib/geo";
 import {
-  resolveClassCompletionOutcome,
   shouldCompleteClassOnDeparture,
 } from "@/lib/classCompletion";
+import {
+  findClassMissPenaltyCandidate,
+  resolveClassMissPenaltyDecision,
+} from "@/lib/classMissPenalty";
 import {
   getNodeShieldInterval,
   selectPrimaryObligationNode,
@@ -50,7 +54,7 @@ function getShieldSettings(): ShieldScheduleSettings {
   };
 }
 
-/** Finalize a verified class before swapping sessions or clearing at expiry. */
+/** Finalize a class before swapping sessions, clearing at expiry, or applying a miss penalty. */
 function finalizeClassSessionIfEligible(
   session: ActiveSessionSnapshot,
   insideGeofence: boolean,
@@ -62,16 +66,27 @@ function finalizeClassSessionIfEligible(
   const todayIso = toIsoDateString(new Date(now));
   const node = focusNodes.find((item) => item.id === session.nodeId);
 
-  if (node?.completedDates.includes(todayIso)) {
-    store.setActiveSession(null);
-    return;
-  }
+  const decision = resolveClassMissPenaltyDecision(
+    session,
+    node,
+    todayIso,
+    now,
+    insideGeofence,
+    settings,
+  );
 
-  const outcome = resolveClassCompletionOutcome(session, settings, now, insideGeofence);
-  if (outcome === "complete") {
-    store.completeActiveSession();
-  } else {
-    store.setActiveSession(null);
+  switch (decision.action) {
+    case "complete":
+      store.completeActiveSession();
+      return;
+    case "keep_penalty":
+      return;
+    case "apply_penalty":
+      store.applyClassMissPenalty();
+      return;
+    case "clear":
+      store.setActiveSession(null);
+      return;
   }
 }
 
@@ -260,7 +275,8 @@ export function runPresenceTick(
     const outsideSeconds = (now - outsideSince) / 1000;
     if (outsideSeconds >= SESSION_GEOFENCE_PAUSE_SECONDS) {
       const session = useScheduleStore.getState().activeSession;
-      if (session && !session.awaySince) {
+      // Foreground GPS in Expo Go is too unreliable for away penalties — dev builds only.
+      if (session && !session.awaySince && !isRunningInExpoGo()) {
         useScheduleStore.getState().markSessionAway();
       }
       outsideSince = null;
@@ -307,49 +323,57 @@ export function runPresenceTick(
   }
 
   const sessionForExpiry = useScheduleStore.getState().activeSession;
-  if (!sessionForExpiry || !sessionForExpiry.presenceVerified) return;
 
-  if (
-    sessionForExpiry.scheduleType === "duration" &&
-    isDurationSessionExpired(sessionForExpiry.shieldStartsAt, new Date(now))
-  ) {
-    useScheduleStore.getState().expireActiveSessionAsMissed();
-    return;
-  }
-
-  if (sessionForExpiry.scheduleType === "duration" && sessionForExpiry.requiredOnSiteMs != null) {
-    if (sessionForExpiry.onSiteAccumulatedMs < sessionForExpiry.requiredOnSiteMs) return;
-    if (!insideGeofence) return;
-
-    const todayIso = toIsoDateString(new Date(now));
-    const completedNode = focusNodes.find((node) => node.id === sessionForExpiry.nodeId);
-    if (completedNode?.completedDates.includes(todayIso)) {
-      useScheduleStore.getState().setActiveSession(null);
-      return;
+  if (sessionForExpiry) {
+    if (
+      sessionForExpiry.scheduleType === "duration" &&
+      isDurationSessionExpired(sessionForExpiry.shieldStartsAt, new Date(now))
+    ) {
+      if (sessionForExpiry.presenceVerified) {
+        useScheduleStore.getState().expireActiveSessionAsMissed();
+      }
+    } else if (
+      sessionForExpiry.scheduleType === "duration" &&
+      sessionForExpiry.requiredOnSiteMs != null
+    ) {
+      if (
+        sessionForExpiry.presenceVerified &&
+        sessionForExpiry.onSiteAccumulatedMs >= sessionForExpiry.requiredOnSiteMs &&
+        insideGeofence
+      ) {
+        const todayIso = toIsoDateString(new Date(now));
+        const completedNode = focusNodes.find((node) => node.id === sessionForExpiry.nodeId);
+        if (completedNode?.completedDates.includes(todayIso)) {
+          useScheduleStore.getState().setActiveSession(null);
+        } else {
+          useScheduleStore.getState().completeActiveSession();
+        }
+      }
+    } else if (sessionForExpiry.scheduleType === "class") {
+      if (isSessionExpired(sessionForExpiry.endsAt, new Date(now))) {
+        const penaltyEnd = sessionForExpiry.penaltyShieldEndsAt
+          ? new Date(sessionForExpiry.penaltyShieldEndsAt).getTime()
+          : 0;
+        if (penaltyEnd <= now) {
+          finalizeClassSessionIfEligible(sessionForExpiry, insideGeofence, now, focusNodes);
+        }
+      }
     }
-
-    useScheduleStore.getState().completeActiveSession();
-    return;
   }
 
-  if (!isSessionExpired(sessionForExpiry.endsAt, new Date(now))) return;
-
-  const penaltyEnd = sessionForExpiry.penaltyShieldEndsAt
-    ? new Date(sessionForExpiry.penaltyShieldEndsAt).getTime()
-    : 0;
-  if (penaltyEnd > now) return;
-
-  if (!insideGeofence) {
-    finalizeClassSessionIfEligible(sessionForExpiry, false, now, focusNodes);
-    return;
+  const storeState = useScheduleStore.getState();
+  const missedClassCandidate = findClassMissPenaltyCandidate(
+    storeState.focusNodes,
+    storeState.activeSession,
+    settings,
+    now,
+    new Date(now),
+  );
+  if (missedClassCandidate) {
+    const active = useScheduleStore.getState().activeSession;
+    if (!active || active.nodeId !== missedClassCandidate.id) {
+      storeState.beginCalendarSession(missedClassCandidate.id);
+    }
+    useScheduleStore.getState().applyClassMissPenalty();
   }
-
-  const todayIso = toIsoDateString(new Date(now));
-  const completedNode = focusNodes.find((node) => node.id === sessionForExpiry.nodeId);
-  if (completedNode?.completedDates.includes(todayIso)) {
-    useScheduleStore.getState().setActiveSession(null);
-    return;
-  }
-
-  useScheduleStore.getState().completeActiveSession();
 }

@@ -2,20 +2,13 @@
  * TodayScheduleItemCard — single today session with focus elevation and press scale.
  * Elevates the actionable row (active or next-up) without competing with the Hero card.
  */
-import { View } from "react-native";
-
 import { NeuCard } from "@/components/NeuCard";
 import { PressableScale } from "@/components/PressableScale";
 import { ScheduleRow } from "@/components/ScheduleRow";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { CARD_RADIUS_LG } from "@/lib/cardStyle";
-import {
-    getKindAccentColor,
-    getKindTintColor,
-} from "@/lib/focusNodeKindColors";
+import { getKindTintColor } from "@/lib/focusNodeKindColors";
 import type { ScheduleItem } from "@/types/dashboard";
-
-const ACCENT_WIDTH = 3;
 
 type TodayScheduleItemCardProps = {
   item: ScheduleItem;
@@ -41,8 +34,6 @@ export function TodayScheduleItemCard({
       ? getKindTintColor(item.kind, 0.08)
       : undefined;
 
-  const accentColor = isActive ? colors.primary : getKindAccentColor(item.kind);
-
   const card = (
     <NeuCard
       borderRadius={CARD_RADIUS_LG}
@@ -51,23 +42,7 @@ export function TodayScheduleItemCard({
       style={isDimmed ? { opacity: 0.78 } : undefined}
       contentStyle={{ padding: 0 }}
     >
-      <View>
-        {isElevated ? (
-          <View
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 10,
-              bottom: 10,
-              width: ACCENT_WIDTH,
-              borderRadius: 999,
-              backgroundColor: accentColor,
-              zIndex: 1,
-            }}
-          />
-        ) : null}
-        <ScheduleRow {...item} variant="today" />
-      </View>
+      <ScheduleRow {...item} variant="today" />
     </NeuCard>
   );
 

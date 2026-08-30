@@ -6,215 +6,242 @@
   android:padding="4dp"
   android:background="@drawable/widget_frame_bg">
 
-  <LinearLayout
+  <FrameLayout
+    android:id="@+id/widget_paper_shell"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_paper_bg"
-    android:orientation="vertical"
     android:padding="10dp">
 
-    <LinearLayout
+    <ImageView
+      android:id="@+id/widget_paper_bg_image"
       android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:gravity="center_vertical"
-      android:orientation="horizontal">
-
-      <TextView
-        android:id="@+id/widget_meta_left"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@drawable/widget_chip_bg"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="2dp"
-        android:text="FOCUS"
-        android:textAllCaps="true"
-        android:textColor="@color/widget_ink"
-        android:textSize="9sp"
-        android:textStyle="bold" />
-
-      <View
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-      <ImageView
-        android:id="@+id/widget_logo"
-        android:layout_width="16dp"
-        android:layout_height="16dp"
-        android:contentDescription="Lowalk"
-        android:scaleType="fitCenter"
-        android:src="@drawable/lowalk2_logo" />
-
-      <View
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:layout_weight="1" />
-
-      <TextView
-        android:id="@+id/widget_meta_right"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@drawable/widget_chip_bg"
-        android:paddingHorizontal="6dp"
-        android:paddingVertical="2dp"
-        android:text="LIVE"
-        android:textAllCaps="true"
-        android:textColor="@color/widget_ink"
-        android:textSize="9sp"
-        android:textStyle="bold" />
-    </LinearLayout>
-
-    <View
-      android:layout_width="match_parent"
-      android:layout_height="1dp"
-      android:layout_marginTop="4dp"
-      android:layout_marginBottom="4dp"
-      android:background="#1A000000" />
+      android:layout_height="match_parent"
+      android:contentDescription="@null"
+      android:scaleType="fitXY"
+      android:src="@drawable/widget_paper_bg" />
 
     <LinearLayout
       android:layout_width="match_parent"
-      android:layout_height="0dp"
-      android:layout_weight="1"
-      android:background="@drawable/widget_well_inner"
-      android:gravity="center_vertical"
-      android:orientation="vertical"
-      android:padding="10dp">
-
-      <TextView
-        android:id="@+id/widget_session_title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:gravity="center_horizontal"
-        android:maxLines="1"
-        android:text="Library Session"
-        android:textColor="@color/widget_muted"
-        android:textSize="11sp"
-        android:textStyle="bold" />
-
-      <TextView
-        android:id="@+id/widget_headline"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:ellipsize="end"
-        android:fontFamily="@font/space_mono_bold"
-        android:gravity="center_horizontal"
-        android:maxLines="2"
-        android:text="41:00"
-        android:textColor="@color/widget_ink"
-        android:textSize="30sp"
-        android:textStyle="bold" />
-
-      <TextView
-        android:id="@+id/widget_subline"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:ellipsize="end"
-        android:gravity="center_horizontal"
-        android:maxLines="2"
-        android:text="28 minutes remaining."
-        android:textColor="@color/widget_muted"
-        android:textSize="11sp" />
-
-      <TextView
-        android:id="@+id/widget_time_location"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:ellipsize="end"
-        android:gravity="center_horizontal"
-        android:maxLines="2"
-        android:text="2:00 PM – 4:00 PM · Engineering Library"
-        android:textColor="@color/widget_muted"
-        android:textSize="10sp" />
-
-      <TextView
-        android:id="@+id/widget_travel"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:ellipsize="end"
-        android:gravity="center_horizontal"
-        android:maxLines="1"
-        android:text="320m · 4 min walk"
-        android:textColor="@color/widget_muted_light"
-        android:textSize="10sp" />
+      android:layout_height="match_parent"
+      android:orientation="vertical">
 
       <LinearLayout
-        android:id="@+id/widget_progress_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
         <TextView
-          android:id="@+id/widget_progress_start"
+          android:id="@+id/widget_meta_left"
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
-          android:maxLines="1"
-          android:text="10:00"
-          android:textColor="@color/widget_muted_light"
-          android:textSize="9sp" />
+          android:background="@drawable/widget_chip_bg"
+          android:paddingHorizontal="6dp"
+          android:paddingVertical="2dp"
+          android:text="FOCUS"
+          android:textAllCaps="true"
+          android:textColor="@color/widget_ink"
+          android:textSize="10sp"
+          android:textStyle="bold" />
 
-        <ProgressBar
-          android:id="@+id/widget_progress"
-          style="?android:attr/progressBarStyleHorizontal"
+        <View
           android:layout_width="0dp"
-          android:layout_height="6dp"
-          android:layout_marginHorizontal="6dp"
-          android:layout_weight="1"
-          android:max="100"
-          android:progress="35"
-          android:progressDrawable="@drawable/widget_progress_track" />
+          android:layout_height="0dp"
+          android:layout_weight="1" />
+
+        <ImageView
+          android:id="@+id/widget_logo"
+          android:layout_width="16dp"
+          android:layout_height="16dp"
+          android:contentDescription="Lowalk"
+          android:scaleType="fitCenter"
+          android:src="@drawable/lowalk2_logo" />
+
+        <View
+          android:layout_width="0dp"
+          android:layout_height="0dp"
+          android:layout_weight="1" />
 
         <TextView
-          android:id="@+id/widget_progress_end"
+          android:id="@+id/widget_meta_right"
           android:layout_width="wrap_content"
           android:layout_height="wrap_content"
-          android:maxLines="1"
-          android:text="12:00"
-          android:textColor="@color/widget_muted_light"
-          android:textSize="9sp" />
+          android:background="@drawable/widget_chip_bg"
+          android:paddingHorizontal="6dp"
+          android:paddingVertical="2dp"
+          android:text="LIVE"
+          android:textAllCaps="true"
+          android:textColor="@color/widget_ink"
+          android:textSize="10sp"
+          android:textStyle="bold" />
       </LinearLayout>
+
+      <View
+        android:id="@+id/widget_rule"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="4dp"
+        android:background="#1A000000" />
+
+      <FrameLayout
+        android:id="@+id/widget_well"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <ImageView
+          android:id="@+id/widget_well_bg_image"
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:contentDescription="@null"
+          android:scaleType="fitXY"
+          android:src="@drawable/widget_well_inner" />
+
+        <LinearLayout
+          android:layout_width="match_parent"
+          android:layout_height="match_parent"
+          android:gravity="center_vertical"
+          android:orientation="vertical"
+          android:padding="10dp">
+
+          <TextView
+            android:id="@+id/widget_session_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:gravity="center_horizontal"
+            android:maxLines="1"
+            android:text="Library Session"
+            android:textColor="@color/widget_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+          <TextView
+            android:id="@+id/widget_headline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:fontFamily="@font/space_mono_bold"
+            android:gravity="center_horizontal"
+            android:maxLines="2"
+            android:text="41:00"
+            android:textColor="@color/widget_ink"
+            android:textSize="30sp"
+            android:textStyle="bold" />
+
+          <TextView
+            android:id="@+id/widget_subline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:gravity="center_horizontal"
+            android:maxLines="2"
+            android:text="28 minutes remaining."
+            android:textColor="@color/widget_muted"
+            android:textSize="12sp" />
+
+          <TextView
+            android:id="@+id/widget_time_location"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:ellipsize="end"
+            android:gravity="center_horizontal"
+            android:maxLines="2"
+            android:text="2:00 PM – 4:00 PM · Engineering Library"
+            android:textColor="@color/widget_muted"
+            android:textSize="11sp" />
+
+          <TextView
+            android:id="@+id/widget_travel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:gravity="center_horizontal"
+            android:maxLines="1"
+            android:text="320m · 4 min walk"
+            android:textColor="@color/widget_muted_light"
+            android:textSize="11sp" />
+
+          <LinearLayout
+            android:id="@+id/widget_progress_row"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+              android:id="@+id/widget_progress_start"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:maxLines="1"
+              android:text="10:00"
+              android:textColor="@color/widget_muted_light"
+              android:textSize="9sp" />
+
+            <ProgressBar
+              android:id="@+id/widget_progress"
+              style="?android:attr/progressBarStyleHorizontal"
+              android:layout_width="0dp"
+              android:layout_height="6dp"
+              android:layout_marginHorizontal="6dp"
+              android:layout_weight="1"
+              android:max="100"
+              android:progress="35"
+              android:progressDrawable="@drawable/widget_progress_track" />
+
+            <TextView
+              android:id="@+id/widget_progress_end"
+              android:layout_width="wrap_content"
+              android:layout_height="wrap_content"
+              android:maxLines="1"
+              android:text="12:00"
+              android:textColor="@color/widget_muted_light"
+              android:textSize="9sp" />
+          </LinearLayout>
+        </LinearLayout>
+      </FrameLayout>
+
+      <TextView
+        android:id="@+id/widget_upcoming"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Up next: Gym at 4:30 PM · Campus Center"
+        android:textColor="@color/widget_muted"
+        android:textSize="11sp" />
+
+      <TextView
+        android:id="@+id/widget_goal_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:gravity="center_horizontal"
+        android:maxLines="1"
+        android:text="1 / 3 sessions today"
+        android:textColor="@color/widget_muted_light"
+        android:textSize="11sp" />
+
+      <TextView
+        android:id="@+id/widget_blocked_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:gravity="center_horizontal"
+        android:maxLines="1"
+        android:text="12 apps blocked"
+        android:textColor="@color/widget_muted_light"
+        android:textSize="11sp"
+        android:visibility="gone" />
     </LinearLayout>
-
-    <TextView
-      android:id="@+id/widget_upcoming"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="6dp"
-      android:ellipsize="end"
-      android:maxLines="1"
-      android:text="Up next: Gym at 4:30 PM · Campus Center"
-      android:textColor="@color/widget_muted"
-      android:textSize="10sp" />
-
-    <TextView
-      android:id="@+id/widget_goal_label"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="2dp"
-      android:ellipsize="end"
-      android:gravity="center_horizontal"
-      android:maxLines="1"
-      android:text="1 / 3 sessions today"
-      android:textColor="@color/widget_muted_light"
-      android:textSize="10sp" />
-
-    <TextView
-      android:id="@+id/widget_blocked_label"
-      android:layout_width="match_parent"
-      android:layout_height="wrap_content"
-      android:layout_marginTop="2dp"
-      android:ellipsize="end"
-      android:gravity="center_horizontal"
-      android:maxLines="1"
-      android:text="12 apps blocked"
-      android:textColor="@color/widget_muted_light"
-      android:textSize="10sp"
-      android:visibility="gone" />
-  </LinearLayout>
+  </FrameLayout>
 </FrameLayout>

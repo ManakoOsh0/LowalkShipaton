@@ -123,8 +123,8 @@ Lowalk separates **when apps are blocked** (calendar) from **whether you showed 
 
 | Node type | Shield starts | Shield ends | Geofence role |
 |-----------|---------------|-------------|---------------|
-| **Gym / Library** | Scheduled `startTime` — anywhere | After required **on-site duration** is accumulated inside the geofence, or at **local midnight** (missed) | Proof of arrival + completion |
-| **Class** | `startTime − 30m` (configurable) — anywhere | Scheduled `endTime` (+ away penalty if applicable), or earlier on verified departure | Proof of arrival + completion |
+| **Gym / Library / Custom** | `startTime − 30m` (configurable) — anywhere | After required **on-site duration** is accumulated inside the geofence, or at **local midnight** (missed) | Proof of arrival + completion |
+| **Class** | `startTime − 30m` (configurable) — anywhere | Scheduled `endTime` (+ away or miss penalty if applicable), or earlier on verified departure | Proof of arrival + completion |
 
 If two sessions are less than **30 minutes** apart, the shield **does not lift** between them.
 
@@ -137,6 +137,10 @@ A class counts as complete when **either**:
    - **≥ 80%** of scheduled class duration on-site → auto-complete after **2 minutes** away
    - **≥ 50%** of scheduled class duration on-site → auto-complete after **5 minutes** away (replaces penalty)
    - **Below 50%** → no auto-complete; existing away grace and penalty rules apply
+
+#### Class miss penalty
+
+If a **class** ends without completion (no check-in, partial attendance, or leaving without meeting early-complete thresholds), the same **Settings penalty tier** applies as leaving mid-session (+30 / 60 / 120 minutes of extra app lock). Gym and library sessions are unchanged — they already keep the shield up until midnight when incomplete. Explicit skips never incur a miss penalty.
 
 Pre-buffer time (before nominal `startTime`) does **not** count toward on-site attendance. Gym and library sessions still require the full configured on-site duration.
 

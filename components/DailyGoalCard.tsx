@@ -1,6 +1,6 @@
 /**
  * Daily Goal Card — today's session completion progress for the home dashboard.
- * Minimal pill with summary text and thin bar; Focus Coins never appear here.
+ * Minimal pill with summary text and fill bar; Focus Coins never appear here.
  */
 import { useEffect } from "react";
 import { LayoutChangeEvent, Text, View } from "react-native";
@@ -18,8 +18,10 @@ import type { DailyGoal } from "@/types/dashboard";
 
 const SCREEN_PADDING = 16;
 const PILL_RADIUS = 28;
-const BAR_HEIGHT = 5;
-const MIN_FILL_WIDTH = 8;
+const TRACK_HEIGHT = 16;
+const BAR_INSET = 3;
+const FILL_HEIGHT = TRACK_HEIGHT - BAR_INSET * 2;
+const FILL_RADIUS = FILL_HEIGHT / 2;
 
 type AnimatedProgressBarProps = {
   progress: number;
@@ -47,41 +49,49 @@ function AnimatedProgressBar({
 
   const fillStyle = useAnimatedStyle(() => {
     if (trackWidth.value <= 0 || animatedProgress.value <= 0) {
-      return { transform: [{ scaleX: 0 }] };
+      return { width: 0 };
     }
 
-    const minScale = MIN_FILL_WIDTH / trackWidth.value;
-    const scale = Math.max(animatedProgress.value, minScale);
+    const targetWidth = animatedProgress.value * trackWidth.value;
+    // Keep at least one full capsule diameter so both ends stay rounded.
+    const width = Math.max(targetWidth, FILL_HEIGHT);
 
-    return {
-      transform: [{ scaleX: scale }],
-    };
+    return { width };
   });
 
   return (
     <View
-      onLayout={(event: LayoutChangeEvent) => {
-        trackWidth.value = event.nativeEvent.layout.width;
-      }}
       style={{
-        height: BAR_HEIGHT,
-        borderRadius: BAR_HEIGHT / 2,
+        height: TRACK_HEIGHT,
+        borderRadius: TRACK_HEIGHT / 2,
         backgroundColor: trackColor,
-        overflow: "hidden",
+        padding: BAR_INSET,
+        justifyContent: "center",
       }}
     >
-      <Animated.View
-        style={[
-          {
-            height: BAR_HEIGHT,
-            width: "100%",
-            borderRadius: BAR_HEIGHT / 2,
-            backgroundColor: fillColor,
-            transformOrigin: "left center",
-          },
-          fillStyle,
-        ]}
-      />
+      <View
+        onLayout={(event: LayoutChangeEvent) => {
+          trackWidth.value = event.nativeEvent.layout.width;
+        }}
+        style={{
+          height: FILL_HEIGHT,
+          width: "100%",
+        }}
+      >
+        <Animated.View
+          style={[
+            {
+              height: FILL_HEIGHT,
+              borderTopLeftRadius: FILL_RADIUS,
+              borderBottomLeftRadius: FILL_RADIUS,
+              borderTopRightRadius: FILL_RADIUS,
+              borderBottomRightRadius: FILL_RADIUS,
+              backgroundColor: fillColor,
+            },
+            fillStyle,
+          ]}
+        />
+      </View>
     </View>
   );
 }
@@ -142,7 +152,7 @@ export function DailyGoalCard({ completed, target }: DailyGoalCardProps) {
 
       <AnimatedProgressBar
         progress={progressRatio}
-        trackColor={colors.border}
+        trackColor="rgba(236, 248, 241, 0.35)"
         fillColor={colors.success}
       />
     </NeuCard>

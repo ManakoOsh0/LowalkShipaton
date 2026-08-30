@@ -6,6 +6,9 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY": "@revenuecat_test_store_api_key"
+      },
       "android": {
         "gradleCommand": ":app:assembleDebug"
       },
@@ -16,13 +19,18 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_PRESENCE_DEBUG": "1"
+        "EXPO_PUBLIC_PRESENCE_DEBUG": "1",
+        "EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY": "@revenuecat_test_store_api_key"
       },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
+      "env": {
+        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "@revenuecat_android_api_key",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "@revenuecat_ios_api_key"
+      },
       "android": {
         "buildType": "app-bundle"
       }

@@ -1,21 +1,24 @@
 /**
  * SessionCompleteScreen — full-screen "Done" celebration after finishing a scheduled session.
- * Layout: badge, title, streak, and a single CTA.
+ * Layout: verified seal, title, streak, and a single CTA.
  */
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { Modal, Pressable, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ArrivalMascotIcon } from "@/components/ArrivalMascotIcon";
 import { FocusNodeKindIcon } from "@/components/FocusNodeKindIcon";
+import { SessionCompleteBadge } from "@/components/SessionCompleteBadge";
 import { StreakFlame } from "@/components/StreakFlame";
+import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { arrivalMascotEntering } from "@/lib/heroMotion";
 import { PILL_RADIUS } from "@/lib/cardStyle";
-import { ROUTES } from "@/lib/routes";
 import { getKindAccentColor } from "@/lib/focusNodeKindColors";
+import { ROUTES } from "@/lib/routes";
 import {
   useSessionCompleteStore,
   type SessionCompletePayload,
@@ -35,6 +38,7 @@ type SessionCompleteContentProps = {
 function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentProps) {
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReduceMotion();
   const accent = getKindAccentColor(payload.kind);
 
   return (
@@ -64,25 +68,10 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
       </Pressable>
 
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 0 }}>
-        <View
-          style={{
-            width: 128,
-            height: 128,
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: 20,
-          }}
-        >
-          <View
-            style={{
-              position: "absolute",
-              width: 128,
-              height: 128,
-              borderRadius: 64,
-              backgroundColor: `${colors.success}14`,
-            }}
-          />
-          <ArrivalMascotIcon size={72} color={colors.success} />
+        <View style={{ height: 112, alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+          <Animated.View entering={arrivalMascotEntering(reduceMotion)}>
+            <SessionCompleteBadge size={104} color={colors.success} />
+          </Animated.View>
         </View>
 
         <View
@@ -158,7 +147,7 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
         ) : null}
       </View>
 
-      <View>
+      <View style={{ gap: 10 }}>
         <Pressable
           accessibilityRole="button"
           onPress={onDismiss}
@@ -180,7 +169,7 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
               color: "#FFFFFF",
             }}
           >
-            View Today
+            Close
           </Text>
         </Pressable>
       </View>

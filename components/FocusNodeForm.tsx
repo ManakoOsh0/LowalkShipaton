@@ -3,7 +3,7 @@
  * Location must be a searched real venue (native geocode); optional GPS calibrate is separate.
  */
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -19,12 +19,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { FocusNodeDetailsStep } from "@/components/FocusNodeDetailsStep";
 import { FocusNodeLocationStep } from "@/components/FocusNodeLocationStep";
 import { InlineFieldError } from "@/components/form/InlineFieldError";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { FocusNodeFormSkeleton } from "@/components/skeleton/FocusNodeFormSkeleton";
 import type { FocusNodeTemplateId } from "@/data/quickActions";
+import { useFocusNodeRemovalLockReason } from "@/hooks/usePenaltyShieldActive";
 import { formatTimeLabel, parseTimeToMinutes } from "@/lib/time";
 import { ROUTES } from "@/lib/routes";
 import { createNodeFromTemplate } from "@/store/seed";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { useHasHydrated } from "@/hooks/usePersistedStoreHydration";
 import type { Anchor } from "@/types/anchor";
 import type { FocusNode, FocusNodeInput, FocusNodeKind, Weekday } from "@/types/focusNode";
 import type { PlaceSelection } from "@/types/place";
@@ -127,7 +131,29 @@ type FocusNodeFormProps = {
   returnToWeek?: boolean;
 };
 
-export function FocusNodeForm({
+export function FocusNodeForm(props: FocusNodeFormProps) {
+  const scheduleReady = useHasHydrated(useScheduleStore);
+
+  // Wait to mount field state until the node exists — otherwise edit hydrates into template defaults.
+  if (props.mode === "edit" && !scheduleReady) {
+    return <FocusNodeEditLoading />;
+  }
+
+  return <FocusNodeFormFields {...props} />;
+}
+
+function FocusNodeEditLoading() {
+  const colors = useThemeColors();
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top", "bottom"]}>
+      <ScreenHeader title="Edit Focus Node" subtitle="Loading…" />
+      <FocusNodeFormSkeleton />
+    </SafeAreaView>
+  );
+}
+
+function FocusNodeFormFields({
   mode,
   nodeId,
   templateId = "custom",
@@ -147,6 +173,14 @@ export function FocusNodeForm({
     () => (nodeId ? focusNodes.find((node) => node.id === nodeId) : undefined),
     [focusNodes, nodeId],
   );
+  const deleteLockReason = useFocusNodeRemovalLockReason(nodeId);
+  const deleteLocked = deleteLockReason != null;
+
+  useEffect(() => {
+    if (mode === "edit" && nodeId && !existingNode) {
+      router.back();
+    }
+  }, [existingNode, mode, nodeId, router]);
 
   const initial = useMemo((): FocusNodeInput => {
     if (existingNode) {
@@ -376,6 +410,18 @@ export function FocusNodeForm({
   const handleDelete = () => {
     if (!nodeId) return;
 
+    if (deleteLocked) {
+      Alert.alert(
+        deleteLockReason === "penalty"
+          ? "Can't delete during a penalty"
+          : "Can't delete active session",
+        deleteLockReason === "penalty"
+          ? "This session stays on your schedule until the extra app lock ends."
+          : "Finish this session before removing it from your schedule.",
+      );
+      return;
+    }
+
     Alert.alert("Delete Focus Node", "Remove this session from your schedule?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -405,6 +451,15 @@ export function FocusNodeForm({
 
   const canSave = Boolean(selectedAnchorId);
   const stepLabel = step === "details" ? "Details" : "Location";
+
+  if (mode === "edit" && !existingNode) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top", "bottom"]}>
+        <ScreenHeader title="Edit Focus Node" subtitle="Loading…" />
+        <FocusNodeFormSkeleton />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top", "bottom"]}>
@@ -467,7 +522,14 @@ export function FocusNodeForm({
           {mode === "edit" ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Delete Focus Node"
+              accessibilityLabel={
+                deleteLockReason === "penalty"
+                  ? "Can't delete during a penalty"
+                  : deleteLockReason === "active"
+                    ? "Can't delete active session"
+                    : "Delete Focus Node"
+              }
+              accessibilityState={{ disabled: deleteLocked }}
               onPress={handleDelete}
               hitSlop={8}
               style={{
@@ -478,10 +540,15 @@ export function FocusNodeForm({
                 borderRadius: 12,
                 backgroundColor: colors.background,
                 borderWidth: 1,
-                borderColor: colors.error,
+                borderColor: deleteLocked ? colors.border : colors.error,
+                opacity: deleteLocked ? 0.45 : 1,
               }}
             >
-              <Ionicons name="trash-outline" size={20} color={colors.error} />
+              <Ionicons
+                name="trash-outline"
+                size={20}
+                color={deleteLocked ? colors.muted : colors.error}
+              />
             </Pressable>
           ) : null}
         </View>

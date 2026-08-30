@@ -1,11 +1,14 @@
 /**
  * LeaveSessionWarningModal — bottom sheet when the user steps out during a focus session.
+ * Dismissible like other session sheets; away state and penalty timing continue in the background.
  */
+import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 
 import { BottomSheet } from "@/components/BottomSheet";
-import { LeaveSessionWarningIcon } from "@/components/LeaveSessionWarningIcon";
+import { LeaveSessionWarningBadge } from "@/components/LeaveSessionWarningBadge";
+import { SHEET_CAUTION_YELLOW } from "@/lib/sheetMascotTone";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { arrivalMascotEntering } from "@/lib/heroMotion";
@@ -25,38 +28,22 @@ function LeaveSessionWarningContent({
   const reduceMotion = useReduceMotion();
 
   return (
-    <View style={{ paddingHorizontal: 4, paddingBottom: 88, alignItems: "center", gap: 12 }}>
-      <View
-        style={{
-          width: 88,
-          height: 88,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <View
-          style={{
-            position: "absolute",
-            width: 88,
-            height: 88,
-            borderRadius: 44,
-            backgroundColor: `${colors.error}14`,
-          }}
-        />
+    <View style={{ paddingHorizontal: 4, paddingBottom: 52, alignItems: "center", gap: 10 }}>
+      <View style={{ height: 100, alignItems: "center", justifyContent: "center" }}>
         <Animated.View entering={arrivalMascotEntering(reduceMotion)}>
-          <LeaveSessionWarningIcon size={64} />
+          <LeaveSessionWarningBadge size={96} color={SHEET_CAUTION_YELLOW} />
         </Animated.View>
       </View>
 
-      <View style={{ alignItems: "center", gap: 4 }}>
+      <View style={{ alignItems: "center", gap: 3 }}>
         <Text
           style={{
             fontFamily: "Poppins-SemiBold",
-            fontSize: 13,
-            lineHeight: 18,
+            fontSize: 12,
+            lineHeight: 16,
             letterSpacing: 0.3,
             textTransform: "uppercase",
-            color: colors.error,
+            color: SHEET_CAUTION_YELLOW,
           }}
         >
           Left focus session
@@ -64,8 +51,8 @@ function LeaveSessionWarningContent({
         <Text
           style={{
             fontFamily: "Poppins-Bold",
-            fontSize: 22,
-            lineHeight: 28,
+            fontSize: 20,
+            lineHeight: 26,
             color: colors.foreground,
             textAlign: "center",
           }}
@@ -75,8 +62,8 @@ function LeaveSessionWarningContent({
         <Text
           style={{
             fontFamily: "Poppins-Regular",
-            fontSize: 15,
-            lineHeight: 22,
+            fontSize: 14,
+            lineHeight: 20,
             color: colors.muted,
             textAlign: "center",
           }}
@@ -88,8 +75,8 @@ function LeaveSessionWarningContent({
       <Text
         style={{
           fontFamily: "Poppins-Medium",
-          fontSize: 14,
-          lineHeight: 20,
+          fontSize: 13,
+          lineHeight: 18,
           color: colors.foregroundSubtle,
           textAlign: "center",
         }}
@@ -102,6 +89,8 @@ function LeaveSessionWarningContent({
 
 export function LeaveSessionWarningHost() {
   const activeSession = useScheduleStore((state) => state.activeSession);
+  /** Hide this away episode after the user swipes or taps outside — away timer keeps running. */
+  const [dismissedAwaySince, setDismissedAwaySince] = useState<string | null>(null);
 
   const previewVisible = useLeaveSessionWarningStore((state) => state.visible);
   const preview = useLeaveSessionWarningStore((state) => state.preview);
@@ -109,11 +98,14 @@ export function LeaveSessionWarningHost() {
   const previewAnchorName = useLeaveSessionWarningStore((state) => state.anchorName);
   const hidePreview = useLeaveSessionWarningStore((state) => state.hide);
 
-  const sessionAway = Boolean(
+  const sessionAwayRaw = Boolean(
     activeSession?.presenceVerified &&
       activeSession.awaySince &&
       !activeSession.penaltyShieldEndsAt,
   );
+  const awaySince = activeSession?.awaySince ?? null;
+  const sessionAway =
+    sessionAwayRaw && awaySince !== dismissedAwaySince;
 
   const visible = previewVisible || sessionAway;
 
@@ -124,19 +116,24 @@ export function LeaveSessionWarningHost() {
     ? previewNodeTitle
     : activeSession?.nodeTitle ?? "";
 
+  useEffect(() => {
+    if (!awaySince) {
+      setDismissedAwaySince(null);
+    }
+  }, [awaySince]);
+
   const handleClose = () => {
     if (preview) {
       hidePreview();
+      return;
+    }
+    if (awaySince) {
+      setDismissedAwaySince(awaySince);
     }
   };
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={handleClose}
-      dismissible={preview}
-      dismissOnBackdrop={preview}
-    >
+    <BottomSheet visible={visible} onClose={handleClose}>
       <LeaveSessionWarningContent
         anchorName={anchorName}
         nodeTitle={nodeTitle}

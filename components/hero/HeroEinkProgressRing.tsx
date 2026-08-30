@@ -11,8 +11,8 @@ import Animated, {
 import Svg, { Circle } from "react-native-svg";
 
 import { useReduceMotion } from "@/hooks/useHeroMotion";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import { HERO_MOTION } from "@/lib/heroMotion";
-import { TRMNL_THEME } from "@/lib/heroEink";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -29,6 +29,7 @@ export function HeroEinkProgressRing({
   strokeWidth = 2,
   children,
 }: HeroEinkProgressRingProps) {
+  const theme = useHeroTheme();
   const reduceMotion = useReduceMotion();
   const animatedProgress = useSharedValue(progress);
   const radius = (size - strokeWidth) / 2;
@@ -62,7 +63,7 @@ export function HeroEinkProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="rgba(0, 0, 0, 0.12)"
+          stroke={theme.wellBorder}
           strokeWidth={strokeWidth}
           fill="none"
         />
@@ -70,7 +71,7 @@ export function HeroEinkProgressRing({
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke={TRMNL_THEME.accent}
+          stroke={theme.accent}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={`${circumference} ${circumference}`}

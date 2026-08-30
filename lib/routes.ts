@@ -6,8 +6,8 @@ import type { Weekday } from "@/types/focusNode";
 /** Typed route paths for Expo Router — extend when new stack screens are added. */
 export const ROUTES = {
   home: "/(tabs)" as Href,
+  devTools: "/dev" as Href,
   devShieldOverlay: "/dev/shield-overlay" as Href,
-  devShareOverlays: "/dev/share-overlays" as Href,
   blockedApps: "/blocked-apps" as Href,
   weekSchedule: "/schedule" as Href,
   stats: "/stats" as Href,

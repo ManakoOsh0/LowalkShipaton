@@ -4,6 +4,7 @@ import type { FocusNode } from "@/types/focusNode";
 import {
   formatDurationClock,
   formatOnSiteRemainingLabel,
+  getSessionNominalStartMs,
   isAppShieldActive,
   type ShieldScheduleSettings,
 } from "@/lib/shieldSchedule";
@@ -86,6 +87,12 @@ export function formatSessionDetailLabel(
   const nowMs = now.getTime();
 
   if (session.scheduleType === "duration" && session.requiredOnSiteMs != null) {
+    const nominalStartMs = getSessionNominalStartMs(session, settings);
+    if (nowMs < nominalStartMs) {
+      const startsInMs = nominalStartMs - nowMs;
+      return `Head to venue · session starts in ${formatDurationClock(startsInMs)}`;
+    }
+
     const onSiteLabel = formatOnSiteRemainingLabel(
       session.onSiteAccumulatedMs,
       session.requiredOnSiteMs,
@@ -162,4 +169,38 @@ export function isShieldActiveForNodes(
   now = Date.now(),
 ): boolean {
   return isAppShieldActive(nodes, session, settings, now, new Date(now));
+}
+
+/** True while the live session still has extra penalty lock time remaining. */
+export function isPenaltyShieldActive(
+  session: ActiveSessionSnapshot | null,
+  now = Date.now(),
+): boolean {
+  if (!session?.penaltyShieldEndsAt) return false;
+  return new Date(session.penaltyShieldEndsAt).getTime() > now;
+}
+
+export type FocusNodeRemovalLockReason = "active" | "penalty";
+
+/** Why delete is blocked — penalty takes precedence for clearer UI copy. */
+export function getFocusNodeRemovalLockReason(
+  nodeId: string,
+  session: ActiveSessionSnapshot | null,
+  now = Date.now(),
+): FocusNodeRemovalLockReason | null {
+  if (!session || session.nodeId !== nodeId) return null;
+  if (isPenaltyShieldActive(session, now)) return "penalty";
+  return "active";
+}
+
+/**
+ * Deleting the live node would drop `activeSession` and end focus enforcement.
+ * Other Focus Nodes stay editable so the rest of the schedule can still be managed.
+ */
+export function isFocusNodeRemovalLocked(
+  nodeId: string,
+  session: ActiveSessionSnapshot | null,
+  now = Date.now(),
+): boolean {
+  return getFocusNodeRemovalLockReason(nodeId, session, now) != null;
 }

@@ -11,8 +11,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { PressableScale } from "@/components/PressableScale";
 import { ScheduleItemActionSheet } from "@/components/ScheduleItemActionSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { ScheduleScreenSkeleton } from "@/components/skeleton/ScheduleScreenSkeleton";
 import { WeekDayScheduleSection } from "@/components/WeekDayScheduleSection";
 import { useScheduleItemActions } from "@/hooks/useScheduleItemActions";
+import { useCoreStoresHydrated } from "@/hooks/usePersistedStoreHydration";
 import { ROUTES } from "@/lib/routes";
 import { SCREEN_PADDING, SECTION_GAP } from "@/lib/layout";
 import { selectWeekSchedule } from "@/store/selectors";
@@ -23,6 +25,7 @@ import type { Weekday } from "@/types/focusNode";
 export default function WeekScheduleScreen() {
   const router = useRouter();
   const colors = useThemeColors();
+  const storesReady = useCoreStoresHydrated();
   const focusNodes = useScheduleStore((state) => state.focusNodes);
   const anchors = useScheduleStore((state) => state.anchors);
   const activeNodeId = useScheduleStore((state) => state.activeSession?.nodeId ?? null);
@@ -35,7 +38,14 @@ export default function WeekScheduleScreen() {
     if (!isToday || hasScrolledToToday.current) return;
 
     hasScrolledToToday.current = true;
+    // Last day (e.g. Sunday) stays at the bottom — scrolling it to the top
+    // leaves a large empty region under the highlighted section.
+    const isLastDay = week[week.length - 1]?.weekday === weekday;
     requestAnimationFrame(() => {
+      if (isLastDay) {
+        scrollRef.current?.scrollToEnd({ animated: true });
+        return;
+      }
       scrollRef.current?.scrollTo({ y: Math.max(y - 16, 0), animated: true });
     });
   };
@@ -66,26 +76,30 @@ export default function WeekScheduleScreen() {
         }
       />
 
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={{
-          paddingHorizontal: SCREEN_PADDING,
-          paddingBottom: 40,
-          gap: SECTION_GAP,
-        }}
-        showsVerticalScrollIndicator={false}
-      >
-        {week.map((day) => (
-          <WeekDayScheduleSection
-            key={day.weekday}
-            day={day}
-            onLayout={(y) => handleSectionLayout(day.weekday as Weekday, y, day.isToday)}
-            onItemPress={(item) => router.push(ROUTES.sessionDetail(item.id, day.dateIso))}
-            onItemLongPress={showScheduleItemActions}
-            onAddPress={() => handleAddForDay(day.weekday as Weekday)}
-          />
-        ))}
-      </ScrollView>
+      {!storesReady ? (
+        <ScheduleScreenSkeleton />
+      ) : (
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={{
+            paddingHorizontal: SCREEN_PADDING,
+            paddingBottom: 40,
+            gap: SECTION_GAP,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {week.map((day) => (
+            <WeekDayScheduleSection
+              key={day.weekday}
+              day={day}
+              onLayout={(y) => handleSectionLayout(day.weekday as Weekday, y, day.isToday)}
+              onItemPress={(item) => router.push(ROUTES.sessionDetail(item.id, day.dateIso))}
+              onItemLongPress={showScheduleItemActions}
+              onAddPress={() => handleAddForDay(day.weekday as Weekday)}
+            />
+          ))}
+        </ScrollView>
+      )}
 
       <ScheduleItemActionSheet {...actionSheetProps} />
     </SafeAreaView>

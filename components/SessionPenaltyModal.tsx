@@ -8,7 +8,7 @@ import { Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 
 import { BottomSheet } from "@/components/BottomSheet";
-import { SessionPenaltyIcon } from "@/components/SessionPenaltyIcon";
+import { SessionPenaltyBadge } from "@/components/SessionPenaltyBadge";
 import { SheetActionButton } from "@/components/SheetActionButton";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
@@ -19,6 +19,7 @@ type SessionPenaltyContentProps = {
   anchorName: string;
   nodeTitle: string;
   penaltyLine: string;
+  reason: "away" | "missed";
   onAcknowledge: () => void;
 };
 
@@ -32,41 +33,30 @@ function SessionPenaltyContent({
   anchorName,
   nodeTitle,
   penaltyLine,
+  reason,
   onAcknowledge,
 }: SessionPenaltyContentProps) {
   const colors = useThemeColors();
   const reduceMotion = useReduceMotion();
+  const explanation =
+    reason === "missed"
+      ? "You missed this class without completing it, so you\u2019ve incurred extra block time."
+      : "You failed to return within 5 minutes, so you\u2019ve incurred extra block time.";
 
   return (
-    <View style={{ paddingHorizontal: 4, paddingBottom: 12, alignItems: "center", gap: 12 }}>
-      <View
-        style={{
-          width: 88,
-          height: 88,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <View
-          style={{
-            position: "absolute",
-            width: 88,
-            height: 88,
-            borderRadius: 44,
-            backgroundColor: `${colors.error}14`,
-          }}
-        />
+    <View style={{ paddingHorizontal: 4, paddingBottom: 8, alignItems: "center", gap: 10 }}>
+      <View style={{ height: 100, alignItems: "center", justifyContent: "center" }}>
         <Animated.View entering={arrivalMascotEntering(reduceMotion)}>
-          <SessionPenaltyIcon size={56} color={colors.error} />
+          <SessionPenaltyBadge size={96} color={colors.error} />
         </Animated.View>
       </View>
 
-      <View style={{ alignItems: "center", gap: 4 }}>
+      <View style={{ alignItems: "center", gap: 3 }}>
         <Text
           style={{
             fontFamily: "Poppins-SemiBold",
-            fontSize: 13,
-            lineHeight: 18,
+            fontSize: 12,
+            lineHeight: 16,
             letterSpacing: 0.3,
             textTransform: "uppercase",
             color: colors.error,
@@ -77,8 +67,8 @@ function SessionPenaltyContent({
         <Text
           style={{
             fontFamily: "Poppins-Bold",
-            fontSize: 22,
-            lineHeight: 28,
+            fontSize: 20,
+            lineHeight: 26,
             color: colors.foreground,
             textAlign: "center",
           }}
@@ -88,8 +78,8 @@ function SessionPenaltyContent({
         <Text
           style={{
             fontFamily: "Poppins-Regular",
-            fontSize: 15,
-            lineHeight: 22,
+            fontSize: 14,
+            lineHeight: 20,
             color: colors.muted,
             textAlign: "center",
           }}
@@ -101,21 +91,20 @@ function SessionPenaltyContent({
       <Text
         style={{
           fontFamily: "Poppins-Medium",
-          fontSize: 14,
-          lineHeight: 20,
+          fontSize: 13,
+          lineHeight: 18,
           color: colors.foregroundSubtle,
           textAlign: "center",
         }}
       >
-        You failed to return within 5 minutes, so you&apos;ve incurred extra block
-        time.
+        {explanation}
       </Text>
 
       <Text
         style={{
           fontFamily: "Poppins-SemiBold",
-          fontSize: 15,
-          lineHeight: 22,
+          fontSize: 14,
+          lineHeight: 20,
           color: colors.error,
           textAlign: "center",
         }}
@@ -123,7 +112,7 @@ function SessionPenaltyContent({
         {penaltyLine}
       </Text>
 
-      <View style={{ width: "100%", marginTop: 8 }}>
+      <View style={{ width: "100%", marginTop: 4 }}>
         <SheetActionButton label="Got it" onPress={onAcknowledge} />
       </View>
     </View>
@@ -135,6 +124,7 @@ export function SessionPenaltyHost() {
   const nodeTitle = useSessionPenaltyStore((state) => state.nodeTitle);
   const anchorName = useSessionPenaltyStore((state) => state.anchorName);
   const penaltyMinutes = useSessionPenaltyStore((state) => state.penaltyMinutes);
+  const reason = useSessionPenaltyStore((state) => state.reason ?? "away");
   const preview = useSessionPenaltyStore((state) => state.preview);
   const hide = useSessionPenaltyStore((state) => state.hide);
 
@@ -151,6 +141,7 @@ export function SessionPenaltyHost() {
         anchorName={anchorName}
         nodeTitle={nodeTitle}
         penaltyLine={penaltyLine}
+        reason={reason}
         onAcknowledge={hide}
       />
     </BottomSheet>

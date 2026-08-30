@@ -12,11 +12,11 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { useReduceMotion } from "@/hooks/useHeroMotion";
+import { useHeroTheme } from "@/hooks/useHeroTheme";
 import {
     HERO_COUNTER_SEGMENT_COUNT,
     HERO_COUNTER_SEGMENT_GAP,
     HERO_COUNTER_SEGMENT_HEIGHT,
-    TRMNL_THEME,
 } from "@/lib/heroEink";
 import { HERO_MOTION } from "@/lib/heroMotion";
 
@@ -25,6 +25,7 @@ type HeroCounterProgressProps = {
 };
 
 function DitheredSegment() {
+  const theme = useHeroTheme();
   const rows = 5;
   const cols = 2;
 
@@ -57,7 +58,7 @@ function DitheredSegment() {
                 width: 2,
                 height: 2,
                 borderRadius: 1,
-                backgroundColor: TRMNL_THEME.textPrimary,
+                backgroundColor: theme.textPrimary,
                 opacity: (row + col) % 2 === 0 ? 0.5 : 0.22,
               }}
             />
@@ -75,6 +76,7 @@ function AnimatedCounterSegment({
   index: number;
   animatedRatio: SharedValue<number>;
 }) {
+  const theme = useHeroTheme();
   const fillStyle = useAnimatedStyle(() => {
     const filled =
       animatedRatio.value * HERO_COUNTER_SEGMENT_COUNT >= index + 1;
@@ -86,7 +88,12 @@ function AnimatedCounterSegment({
     <View style={styles.segmentSlot}>
       <DitheredSegment />
       <Animated.View style={[StyleSheet.absoluteFill, fillStyle]}>
-        <View style={styles.filledSegment} />
+        <View
+          style={[
+            styles.filledSegment,
+            { backgroundColor: theme.accent },
+          ]}
+        />
       </Animated.View>
     </View>
   );
@@ -135,6 +142,5 @@ const styles = StyleSheet.create({
     flex: 1,
     height: HERO_COUNTER_SEGMENT_HEIGHT,
     borderRadius: 999,
-    backgroundColor: TRMNL_THEME.accent,
   },
 });

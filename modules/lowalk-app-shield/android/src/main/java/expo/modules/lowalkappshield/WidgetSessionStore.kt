@@ -84,11 +84,15 @@ object WidgetSessionStore {
   fun requestWidgetRefresh(context: Context) {
     val appContext = context.applicationContext
     val manager = AppWidgetManager.getInstance(appContext)
-    val component = ComponentName(appContext, HeroWidgetProvider::class.java)
-    val ids = manager.getAppWidgetIds(component)
-    if (ids.isEmpty()) return
-    for (id in ids) {
+
+    val heroComponent = ComponentName(appContext, HeroWidgetProvider::class.java)
+    for (id in manager.getAppWidgetIds(heroComponent)) {
       HeroWidgetProvider.updateWidget(appContext, manager, id)
+    }
+
+    val focusHoursComponent = ComponentName(appContext, FocusHoursWidgetProvider::class.java)
+    for (id in manager.getAppWidgetIds(focusHoursComponent)) {
+      FocusHoursWidgetProvider.updateWidget(appContext, manager, id)
     }
   }
 }
