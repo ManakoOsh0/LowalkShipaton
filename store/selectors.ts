@@ -719,7 +719,7 @@ function computeHeroCardData(
 
   return {
     state: "on_the_way",
-    title: "Nothing scheduled today.",
+    title: "Nothing scheduled\ntoday",
     subtitle: "Your day is clear.",
     icon: "sunrise",
     action: null,

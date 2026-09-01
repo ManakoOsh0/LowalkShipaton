@@ -4,7 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 
-/** Reschedules hero widget alarms after reboot or timezone changes. */
+/** Reschedules shield work after reboot or timezone changes. */
 class HeroWidgetBootReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent?) {
     when (intent?.action) {
@@ -12,8 +12,6 @@ class HeroWidgetBootReceiver : BroadcastReceiver() {
       Intent.ACTION_TIMEZONE_CHANGED,
       Intent.ACTION_TIME_CHANGED,
       -> {
-        WidgetSessionStore.requestWidgetRefresh(context)
-        HeroWidgetAlarmScheduler.reschedule(context)
         ShieldOrchestrator.sync(context)
       }
     }

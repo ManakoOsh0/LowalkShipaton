@@ -35,7 +35,7 @@ type UserState = {
   sessionGapMergeMinutes: number;
   /** Scheduled session reminders and daily-goal celebration alerts. */
   notificationsEnabled: boolean;
-  /** True after the first-run permissions sheet is finished or skipped. */
+  /** True after every required OS permission has been granted at least once. */
   hasCompletedOnboarding: boolean;
   setCoins: (coins: number) => void;
   setStreak: (streak: number) => void;
@@ -114,24 +114,28 @@ export const useUserStore = create<UserState>()(
     {
       name: "lowalk-user",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 5,
+      version: 6,
       migrate: (persisted, version) => {
-        const state = (persisted ?? {}) as Partial<UserState>;
+        let state = { ...(persisted ?? {}) } as Partial<UserState>;
         if (version < 2) {
-          return { ...state, hasCompletedOnboarding: true };
+          state = { ...state, hasCompletedOnboarding: true };
         }
         if (version < 3) {
-          return { ...state, penaltyTierMinutes: 30 };
+          state = { ...state, penaltyTierMinutes: 30 };
         }
         if (version < 4) {
-          return {
+          state = {
             ...state,
             classPreBufferMinutes: 30,
             sessionGapMergeMinutes: 30,
           };
         }
         if (version < 5) {
-          return { ...state, notificationsEnabled: true };
+          state = { ...state, notificationsEnabled: true };
+        }
+        if (version < 6) {
+          // Re-run the permission sheet so existing installs are not stuck skipped.
+          state = { ...state, hasCompletedOnboarding: false };
         }
         return state;
       },

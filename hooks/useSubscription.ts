@@ -50,7 +50,7 @@ export function useSubscription() {
 
   const presentPaywall = async () => {
     const result = await presentPaywallService();
-    await refreshSubscriptionStatus();
+    await refreshSubscriptionStatus({ fresh: true });
     return result;
   };
 

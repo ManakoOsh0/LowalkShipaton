@@ -40,7 +40,9 @@
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.QUERY_ALL_PACKAGES",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -90,8 +92,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/lowalk2.png",
-          "imageWidth": 200,
+          "image": "./assets/images/splash-logo.png",
+          "imageWidth": 120,
           "resizeMode": "contain",
           "backgroundColor": "#141210",
           "dark": {

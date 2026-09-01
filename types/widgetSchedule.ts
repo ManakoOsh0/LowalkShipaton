@@ -1,6 +1,6 @@
 /** Schedule bundle synced to the Android home screen widget for offline refresh. */
 
-import type { HeroWidgetAppearancePayload } from "@/lib/heroWidgetAppearance";
+import type { WidgetTileAppearancePayload } from "@/lib/heroWidgetAppearance";
 import type { HeroWidgetSnapshot } from "@/types/heroWidget";
 
 export type WidgetFocusNodePayload = {
@@ -61,6 +61,6 @@ export type WidgetScheduleBundle = {
   display: HeroWidgetSnapshot;
   intelCells: WidgetIntelCellPayload[];
   upcomingToday: WidgetUpcomingRowPayload[];
-  /** Resolved hero look — mirrors Settings → Hero look for the home widget. */
-  appearance: HeroWidgetAppearancePayload;
+  /** Fixed neutral palette for home-screen widgets. */
+  appearance: WidgetTileAppearancePayload;
 };

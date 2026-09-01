@@ -9,8 +9,8 @@ group = 'expo.modules.lowalkappshield'
 android {
   namespace "expo.modules.lowalkappshield"
   defaultConfig {
-    versionCode 5
-    versionName "1.4.0"
+    versionCode 8
+    versionName "1.4.3"
   }
 }
 

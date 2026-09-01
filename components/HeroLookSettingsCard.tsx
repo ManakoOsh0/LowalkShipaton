@@ -1,6 +1,6 @@
 /**
  * HeroLookSettingsCard — collapsible Settings row for hero case, screen, and background.
- * Choices sync to the home screen widget via useWidgetScheduleSync.
+ * Hero look is in-app only; home screen widgets use a fixed neutral palette.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
@@ -69,7 +69,7 @@ export function HeroLookSettingsCard() {
                 color: colors.muted,
               }}
             >
-              {summary} · app + widget
+              Hero look is in-app only · widgets stay neutral gray
             </Text>
           </View>
           <Ionicons

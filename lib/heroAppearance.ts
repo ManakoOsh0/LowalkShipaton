@@ -206,6 +206,7 @@ export type HeroThemeColors = {
   flipSeconds: string;
   flipSeam: string;
   inkOnCase: string;
+  mutedOnCase: string;
 };
 
 type Rgb = { r: number; g: number; b: number };
@@ -274,6 +275,15 @@ function contrastInk(background: string): {
   return { primary: "#FFFFFF", inverse: "#000000", muted: "#D4D4D4" };
 }
 
+/** Contrast-safe ink for flat widget tiles on the hero dashboard background. */
+export function getContrastInkForHex(hex: string): {
+  primary: string;
+  muted: string;
+  inverse: string;
+} {
+  return contrastInk(hex);
+}
+
 export function isHeroCaseId(value: string): value is HeroCaseId {
   return HERO_CASE_SWATCHES.some((swatch) => swatch.id === value);
 }
@@ -307,6 +317,12 @@ export function getHeroBackgroundSwatch(id: string): HeroBackgroundSwatch {
 
 export function getHeroBackgroundColor(id: string): string {
   return getHeroBackgroundSwatch(id).color;
+}
+
+/** Mid-tone well color — matches the hero card LCD screen fill. */
+export function getHeroWellColor(id: string): string {
+  const well = getHeroWellSwatch(id);
+  return mixHex(well.top, well.bottom, 0.5);
 }
 
 /** Build a full hero palette from independently chosen case and well swatches. */
@@ -345,5 +361,6 @@ export function resolveHeroTheme(caseId: string, wellId: string): HeroThemeColor
     flipSeconds: mixHex(wellMid, wellInk.primary, 0.06),
     flipSeam: hexToRgba(wellInk.primary, wellIsLight ? 0.14 : 0.22),
     inkOnCase: caseInk.primary,
+    mutedOnCase: caseInk.muted,
   };
 }

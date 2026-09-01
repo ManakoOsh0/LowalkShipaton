@@ -3,15 +3,15 @@ import { AppState, Platform, type AppStateStatus } from "react-native";
 
 import { buildHeroPreviewData } from "@/lib/heroCard";
 import { mergeBlockedAppsIntoHero, mergeFocusCoinsIntoHero } from "@/lib/heroIntel";
-import { buildHeroWidgetAppearance } from "@/lib/heroWidgetAppearance";
+import { buildWidgetTileAppearance } from "@/lib/heroWidgetAppearance";
 import {
   buildWidgetScheduleBundle,
   serializeWidgetScheduleBundleForCompare,
 } from "@/lib/widgetSchedule";
-import { isAppShieldSupported, syncWidgetSchedule } from "lowalk-app-shield";
+import { persistAndRefreshAndroidWidgets } from "@/widget/syncAndroidWidgets";
+import { setWidgetPremiumAccess } from "lowalk-app-shield";
 import type { PresenceContext } from "@/store/selectors";
 import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";
-import { useHeroAppearanceStore } from "@/store/useHeroAppearanceStore";
 import { useHeroPreviewStore } from "@/store/useHeroPreviewStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useSubscriptionStore } from "@/store/useSubscriptionStore";
@@ -19,8 +19,8 @@ import { useUserStore } from "@/store/useUserStore";
 import type { HeroCardData } from "@/types/dashboard";
 
 /**
- * Pushes schedule + hero display bundle to the Android widget when data changes.
- * Native code owns countdown refresh while the app is backgrounded.
+ * Pushes schedule + hero display to the Android home screen widget when data changes.
+ * Native Kotlin redraws the XML layouts; alarms keep countdowns fresh while backgrounded.
  */
 export function useWidgetScheduleSync(presence: PresenceContext): void {
   const forcedHeroScenario = useHeroPreviewStore((state) => state.forcedScenario);
@@ -43,16 +43,21 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
       .sort()
       .join("|"),
   );
-  const caseId = useHeroAppearanceStore((state) => state.caseId);
-  const wellId = useHeroAppearanceStore((state) => state.wellId);
-  const backgroundId = useHeroAppearanceStore((state) => state.backgroundId);
-  const caseStyleId = useHeroAppearanceStore((state) => state.caseStyleId);
 
   const lastSerializedRef = useRef<string | null>(null);
-  const enabled = Platform.OS === "android" && isAppShieldSupported();
+  const enabled = Platform.OS === "android";
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    void setWidgetPremiumAccess(isPremium).catch((error: unknown) => {
+      if (__DEV__) {
+        console.warn("[useWidgetScheduleSync] setWidgetPremiumAccess failed:", error);
+      }
+    });
+    return undefined;
+  }, [enabled, isPremium]);
 
   const pushBundle = useCallback(() => {
-    // Pro gate in production; dev builds sync without RevenueCat for widget QA.
     if (!enabled || (!isPremium && !__DEV__)) return;
 
     const dailyGoal = getDailyGoal();
@@ -84,27 +89,24 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
       blockedPackageNames,
       classPreBufferMinutes,
       sessionGapMergeMinutes,
-      appearance: buildHeroWidgetAppearance({
-        caseId,
-        wellId,
-        backgroundId,
-        caseStyleId,
-      }),
+      appearance: buildWidgetTileAppearance(),
     });
 
     const compareKey = serializeWidgetScheduleBundleForCompare(bundle);
     if (compareKey === lastSerializedRef.current) return;
 
     lastSerializedRef.current = compareKey;
-    void syncWidgetSchedule(bundle as unknown as Record<string, unknown>);
+
+    void persistAndRefreshAndroidWidgets(bundle).catch((error: unknown) => {
+      if (__DEV__) {
+        console.warn("[useWidgetScheduleSync] Android widget refresh failed:", error);
+      }
+    });
   }, [
     activeSession,
     isPremium,
     blockedAppsCount,
     blockedPackageNamesKey,
-    backgroundId,
-    caseId,
-    caseStyleId,
     classPreBufferMinutes,
     coins,
     enabled,
@@ -115,7 +117,6 @@ export function useWidgetScheduleSync(presence: PresenceContext): void {
     getHeroCardData,
     presence,
     sessionGapMergeMinutes,
-    wellId,
   ]);
 
   useEffect(() => {

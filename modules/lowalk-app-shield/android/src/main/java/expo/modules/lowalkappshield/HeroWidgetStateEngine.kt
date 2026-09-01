@@ -68,7 +68,7 @@ object HeroWidgetStateEngine {
     val display: WidgetSessionStore.Snapshot,
     val intelCells: List<IntelCell>,
     val upcomingToday: List<UpcomingRow>,
-    val appearance: HeroWidgetAppearance.Palette,
+    val appearance: WidgetTileAppearance.Palette,
   )
 
   data class ViewModel(
@@ -90,6 +90,8 @@ object HeroWidgetStateEngine {
     val upNextFooter: String?,
     val progressStartLabel: String?,
     val progressEndLabel: String?,
+    /** Remaining session ms for the active timer row (on-site or wall-clock). */
+    val timerRemainingMs: Long?,
     val blockedAppsLabel: String?,
     val intelCells: List<IntelCell>,
     val upcomingToday: List<UpcomingRow>,
@@ -197,7 +199,7 @@ object HeroWidgetStateEngine {
       display = display,
       intelCells = intelCells,
       upcomingToday = upcomingToday,
-      appearance = HeroWidgetAppearance.parse(json.optJSONObject("appearance")),
+      appearance = WidgetTileAppearance.parse(json.optJSONObject("appearance")),
     )
   }
 
@@ -299,6 +301,7 @@ object HeroWidgetStateEngine {
         locationLabel = session.zoneLabel,
         focusNode = bundle.nodes.firstOrNull { it.id == session.nodeId },
         blockedAppsLabel = blockedAppsLabel,
+        timerRemainingMs = activeMetrics.remainingMs,
         transitions = transitions,
         nowMs = nowMs,
       )
@@ -425,6 +428,7 @@ object HeroWidgetStateEngine {
     locationLabel: String?,
     focusNode: FocusNode?,
     blockedAppsLabel: String?,
+    timerRemainingMs: Long? = null,
     transitions: MutableList<Long>,
     nowMs: Long,
   ): ViewModel {
@@ -469,6 +473,7 @@ object HeroWidgetStateEngine {
       upNextFooter = resolvedFooter,
       progressStartLabel = progressLabels?.first,
       progressEndLabel = progressLabels?.second,
+      timerRemainingMs = timerRemainingMs,
       blockedAppsLabel = blockedAppsLabel,
       intelCells = bundle.intelCells,
       upcomingToday = bundle.upcomingToday,
@@ -540,6 +545,7 @@ object HeroWidgetStateEngine {
     val countdownLabel: String,
     val subline: String,
     val progressRatio: Float?,
+    val remainingMs: Long,
   )
 
   private fun activeSessionMetrics(
@@ -559,6 +565,7 @@ object HeroWidgetStateEngine {
         countdownLabel = formatDurationClock(remainingMs),
         subline = if (remainingMinutes == 1L) "1 minute remaining on site." else "$remainingMinutes minutes remaining on site.",
         progressRatio = ratio,
+        remainingMs = remainingMs,
       )
     }
 
@@ -574,6 +581,7 @@ object HeroWidgetStateEngine {
         else -> "$remainingMinutes minutes remaining."
       },
       progressRatio = min(1f, elapsedMs.toFloat() / totalMs.toFloat()),
+      remainingMs = remainingMs,
     )
   }
 

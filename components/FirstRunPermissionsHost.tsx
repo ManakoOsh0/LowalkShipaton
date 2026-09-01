@@ -1,8 +1,10 @@
 /**
- * First-run permissions sheet — location, notifications, Usage Access, and overlay for shielding.
+ * First-run permissions sheet — walks through each OS grant Lowalk needs.
+ * Stays on a step until that grant is confirmed, including Settings-based
+ * permissions that only update after the user returns to the app.
  */
-import { useEffect, useState } from "react";
-import { Modal, Platform, Pressable, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Modal, Pressable, Text, View } from "react-native";
 import Animated, {
   Easing,
   FadeIn,
@@ -13,37 +15,26 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import {
-  hasOverlayPermission,
-  hasUsageStatsPermission,
-  isAppShieldSupported,
-  openOverlaySettings,
-  openUsageAccessSettings,
-} from "lowalk-app-shield";
 import { useModalAnimationType, useReduceMotion } from "@/hooks/useHeroMotion";
-import { HERO_MOTION } from "@/lib/heroMotion";
+import { useRequiredPermissions } from "@/hooks/useRequiredPermissions";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import {
-  requestBackgroundLocationPermission,
-  requestForegroundLocationPermission,
-} from "@/services/location";
-import { ensureNotificationPermission } from "@/services/sessionReminders";
+import { HERO_MOTION } from "@/lib/heroMotion";
+import { requestOrOpenPermission } from "@/lib/requiredPermissions";
 import { useUserStore } from "@/store/useUserStore";
-
-type OnboardingStep = "location" | "notifications" | "usage" | "overlay" | "done";
 
 export function FirstRunPermissionsHost() {
   const insets = useSafeAreaInsets();
   const colors = useThemeColors();
-  const hasCompletedOnboarding = useUserStore((state) => state.hasCompletedOnboarding);
   const completeOnboarding = useUserStore((state) => state.completeOnboarding);
   const [hydrated, setHydrated] = useState(() => useUserStore.persist.hasHydrated());
-  const [step, setStep] = useState<OnboardingStep>("location");
+  const [sessionDismissed, setSessionDismissed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { ready, nextStep, progress, refresh } = useRequiredPermissions();
   const reduceMotion = useReduceMotion();
   const modalAnimationType = useModalAnimationType("fade");
   const cardY = useSharedValue(reduceMotion ? 0 : 48);
   const cardOpacity = useSharedValue(reduceMotion ? 1 : 0);
+  const completedRef = useRef(false);
 
   useEffect(() => {
     if (reduceMotion) {
@@ -76,135 +67,25 @@ export function FirstRunPermissionsHost() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || hasCompletedOnboarding) return;
-    setStep("location");
-  }, [hydrated, hasCompletedOnboarding]);
+    if (!hydrated || !ready || nextStep || completedRef.current) return;
+    if (progress.total === 0) return;
+    completedRef.current = true;
+    completeOnboarding();
+  }, [completeOnboarding, hydrated, nextStep, progress.total, ready]);
 
-  if (!hydrated || hasCompletedOnboarding || step === "done") {
+  if (!hydrated || !ready || sessionDismissed || !nextStep) {
     return null;
   }
 
-  const finish = () => {
-    completeOnboarding();
-    setStep("done");
-  };
-
-  const advanceAfterUsage = async () => {
-    if (!isAppShieldSupported()) {
-      finish();
-      return;
-    }
-
-    const overlayOk = await hasOverlayPermission();
-    if (!overlayOk) {
-      setStep("overlay");
-      return;
-    }
-
-    finish();
-  };
-
-  const advanceAndroidShieldSteps = async () => {
-    if (!isAppShieldSupported()) {
-      finish();
-      return;
-    }
-
-    const usageOk = await hasUsageStatsPermission();
-    if (!usageOk) {
-      setStep("usage");
-      return;
-    }
-
-    await advanceAfterUsage();
-  };
-
-  const handleLocationContinue = async () => {
+  const handleContinue = async () => {
     setBusy(true);
     try {
-      await requestForegroundLocationPermission();
-      await requestBackgroundLocationPermission();
+      await requestOrOpenPermission(nextStep.id);
+      await refresh();
     } finally {
       setBusy(false);
     }
-    setStep("notifications");
   };
-
-  const handleNotificationsContinue = async () => {
-    setBusy(true);
-    try {
-      await ensureNotificationPermission();
-    } finally {
-      setBusy(false);
-    }
-    await advanceAndroidShieldSteps();
-  };
-
-  const handleUsageContinue = async () => {
-    setBusy(true);
-    try {
-      const granted = await hasUsageStatsPermission();
-      if (!granted) {
-        await openUsageAccessSettings();
-      }
-    } finally {
-      setBusy(false);
-    }
-
-    await advanceAfterUsage();
-  };
-
-  const handleOverlayContinue = async () => {
-    setBusy(true);
-    try {
-      const granted = await hasOverlayPermission();
-      if (!granted) {
-        await openOverlaySettings();
-      }
-    } finally {
-      setBusy(false);
-    }
-
-    finish();
-  };
-
-  const title =
-    step === "location"
-      ? "Stay verified at your venue"
-      : step === "notifications"
-        ? "Session reminders"
-        : step === "usage"
-          ? "Detect blocked apps"
-          : "Cover blocked apps";
-
-  const body =
-    step === "location"
-      ? "Lowalk needs location — including Always / background — so your focus session can pause or resume when you leave or return, even if the phone is locked."
-      : step === "notifications"
-        ? "Allow notifications so Lowalk can remind you before sessions start, alert you when you leave your venue, and celebrate when you hit your daily goal."
-        : step === "usage"
-          ? "Allow Usage Access so Lowalk can detect when you open a blocked app during a focus session."
-          : Platform.OS === "android"
-            ? "Allow Display over other apps so Lowalk can show the full-screen focus shield on top of distracting apps."
-            : "Distraction shielding will be available when native enforcement ships on this platform.";
-
-  const cta =
-    step === "location"
-      ? "Allow location"
-      : step === "notifications"
-        ? "Allow notifications"
-        : step === "usage"
-          ? "Open Usage Access settings"
-          : "Open Display over other apps";
-
-  const onContinue =
-    step === "location"
-      ? handleLocationContinue
-      : step === "notifications"
-        ? handleNotificationsContinue
-        : step === "usage"
-          ? handleUsageContinue
-          : handleOverlayContinue;
 
   return (
     <Modal visible transparent animationType={modalAnimationType} statusBarTranslucent>
@@ -231,11 +112,22 @@ export function FirstRunPermissionsHost() {
           ]}
         >
           <Animated.View
-            key={step}
+            key={nextStep.id}
             entering={reduceMotion ? undefined : FadeIn.duration(200)}
             exiting={reduceMotion ? undefined : FadeOut.duration(120)}
             style={{ gap: 14 }}
           >
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 12,
+                lineHeight: 16,
+                letterSpacing: 0.4,
+                color: colors.muted,
+              }}
+            >
+              Permission {progress.granted + 1} of {progress.total}
+            </Text>
             <Text
               style={{
                 fontFamily: "Poppins-Bold",
@@ -244,7 +136,7 @@ export function FirstRunPermissionsHost() {
                 color: colors.foreground,
               }}
             >
-              {title}
+              {nextStep.title}
             </Text>
             <Text
               style={{
@@ -254,15 +146,27 @@ export function FirstRunPermissionsHost() {
                 color: colors.muted,
               }}
             >
-              {body}
+              {nextStep.body}
             </Text>
+            {nextStep.settingsHint ? (
+              <Text
+                style={{
+                  fontFamily: "Poppins-Regular",
+                  fontSize: 13,
+                  lineHeight: 18,
+                  color: colors.foregroundSubtle,
+                }}
+              >
+                {nextStep.settingsHint}
+              </Text>
+            ) : null}
           </Animated.View>
 
           <Pressable
             accessibilityRole="button"
             disabled={busy}
             onPress={() => {
-              void onContinue();
+              void handleContinue();
             }}
             style={({ pressed }) => ({
               marginTop: 4,
@@ -280,13 +184,13 @@ export function FirstRunPermissionsHost() {
                 color: "#F0EDE9",
               }}
             >
-              {cta}
+              {nextStep.cta}
             </Text>
           </Pressable>
 
           <Pressable
             accessibilityRole="button"
-            onPress={finish}
+            onPress={() => setSessionDismissed(true)}
             style={{ paddingVertical: 8, alignItems: "center" }}
           >
             <Text
@@ -296,7 +200,7 @@ export function FirstRunPermissionsHost() {
                 color: colors.muted,
               }}
             >
-              Not now
+              Later
             </Text>
           </Pressable>
         </Animated.View>

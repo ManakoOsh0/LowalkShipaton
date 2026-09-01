@@ -61,6 +61,23 @@ export async function fetchCustomerInfo(): Promise<CustomerInfo | null> {
   }
 }
 
+/** Bypasses SDK cache — use after paywall dismiss so entitlements reflect immediately. */
+export async function fetchCustomerInfoFresh(): Promise<CustomerInfo | null> {
+  if (!isConfigured) {
+    return null;
+  }
+
+  try {
+    await Purchases.invalidateCustomerInfoCache();
+    return await Purchases.getCustomerInfo();
+  } catch (error) {
+    console.warn("[RevenueCat] fetchCustomerInfoFresh failed:", error);
+    return null;
+  }
+}
+
+export { PAYWALL_RESULT };
+
 export async function restorePurchases(): Promise<CustomerInfo | null> {
   if (!isConfigured) {
     return null;

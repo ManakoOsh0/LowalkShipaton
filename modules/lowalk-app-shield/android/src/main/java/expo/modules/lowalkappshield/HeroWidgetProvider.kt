@@ -1,18 +1,14 @@
 package expo.modules.lowalkappshield
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
+import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
-import java.util.Locale
-import java.util.concurrent.TimeUnit
-import kotlin.math.max
 
-/** Home screen widget mirroring the in-app Hero Card session status. */
+/** Home screen focus widget — three lines on a neutral gray tile. */
 class HeroWidgetProvider : android.appwidget.AppWidgetProvider() {
   override fun onUpdate(
     context: Context,
@@ -22,7 +18,11 @@ class HeroWidgetProvider : android.appwidget.AppWidgetProvider() {
     for (id in appWidgetIds) {
       updateWidget(context, appWidgetManager, id)
     }
-    HeroWidgetAlarmScheduler.reschedule(context)
+    try {
+      HeroWidgetAlarmScheduler.reschedule(context)
+    } catch (error: Exception) {
+      Log.e(TAG, "reschedule failed after onUpdate", error)
+    }
   }
 
   override fun onReceive(context: Context, intent: Intent) {
@@ -34,7 +34,11 @@ class HeroWidgetProvider : android.appwidget.AppWidgetProvider() {
       for (id in ids) {
         updateWidget(context, manager, id)
       }
-      HeroWidgetAlarmScheduler.reschedule(context)
+      try {
+        HeroWidgetAlarmScheduler.reschedule(context)
+      } catch (error: Exception) {
+        Log.e(TAG, "reschedule failed after tick", error)
+      }
     }
   }
 
@@ -43,287 +47,161 @@ class HeroWidgetProvider : android.appwidget.AppWidgetProvider() {
     super.onDisabled(context)
   }
 
+  override fun onEnabled(context: Context) {
+    HeroWidgetAlarmScheduler.reschedule(context)
+    super.onEnabled(context)
+  }
+
   companion object {
     const val ACTION_WIDGET_TICK = "expo.modules.lowalkappshield.action.WIDGET_TICK"
+    private const val TAG = "HeroWidgetProvider"
     private const val TAP_REQUEST_CODE = 42002
+    private const val PAYWALL_TAP_REQUEST_CODE = 42003
 
     fun updateWidget(
       context: Context,
       appWidgetManager: AppWidgetManager,
       appWidgetId: Int,
     ) {
-      val bundle = WidgetSessionStore.loadScheduleBundle(context)
-      val appearance = bundle?.appearance ?: HeroWidgetAppearance.defaults(context)
-      val views = RemoteViews(context.packageName, R.layout.widget_hero)
-      HeroWidgetAppearance.apply(context, views, appearance)
-      if (bundle != null) {
-        bindViewModel(views, HeroWidgetStateEngine.compute(bundle))
-      } else {
-        bindPlaceholder(views)
+      val views =
+        WidgetLayouts.remoteViews(context, "widget_focus_tile")
+          ?: run {
+            Log.e(TAG, "widget_focus_tile missing — cannot update widget")
+            return
+          }
+
+      val palette = WidgetTileAppearance.defaults(context)
+      WidgetTileAppearance.applyFocusTile(views, palette)
+
+      val premiumUnlocked = WidgetSessionStore.isPremiumUnlocked(context)
+      if (!premiumUnlocked) {
+        bindLockedPlaceholder(views)
+        WidgetPremiumGate.applyLockedState(views, R.id.widget_content, R.id.widget_lock_overlay)
+        views.setOnClickPendingIntent(
+          R.id.widget_root,
+          WidgetPremiumGate.buildPaywallTapIntent(context, PAYWALL_TAP_REQUEST_CODE),
+        )
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+        return
       }
-      val tapIntent = buildTapIntent(context)
-      views.setOnClickPendingIntent(R.id.widget_root, tapIntent)
-      appWidgetManager.updateAppWidget(appWidgetId, views)
+
+      WidgetPremiumGate.applyUnlockedState(views, R.id.widget_content, R.id.widget_lock_overlay)
+
+      try {
+        val bundle = WidgetSessionStore.loadScheduleBundle(context)
+        val resolvedPalette = bundle?.appearance ?: palette
+
+        if (bundle != null) {
+          val viewModel = HeroWidgetStateEngine.compute(bundle)
+          WidgetTileAppearance.applyFocusTile(views, resolvedPalette)
+          bindViewModel(views, viewModel, bundle)
+        } else {
+          WidgetTileAppearance.applyFocusTile(views, resolvedPalette)
+          bindPlaceholder(views)
+        }
+        views.setOnClickPendingIntent(
+          R.id.widget_root,
+          WidgetPremiumGate.buildAppLaunchIntent(context, TAP_REQUEST_CODE),
+        )
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+      } catch (error: Exception) {
+        Log.e(TAG, "updateWidget failed", error)
+        try {
+          WidgetTileAppearance.applyFocusTile(views, palette)
+          bindPlaceholder(views)
+          views.setOnClickPendingIntent(
+            R.id.widget_root,
+            WidgetPremiumGate.buildAppLaunchIntent(context, TAP_REQUEST_CODE),
+          )
+          appWidgetManager.updateAppWidget(appWidgetId, views)
+        } catch (fallbackError: Exception) {
+          Log.e(TAG, "widget fallback failed", fallbackError)
+        }
+      }
+    }
+
+    private fun bindLockedPlaceholder(views: RemoteViews) {
+      val date = WidgetDateLabel.format(null, null)
+      views.setTextViewText(R.id.tile_title, "Lowalk")
+      views.setTextViewText(R.id.tile_date_weekday, date.weekday)
+      views.setTextViewText(R.id.tile_date_day, date.day)
+      views.setViewVisibility(R.id.tile_active_timer, View.VISIBLE)
+      views.setViewVisibility(R.id.tile_status, View.GONE)
+      views.setViewVisibility(R.id.tile_detail, View.GONE)
+      views.setProgressBar(R.id.tile_session_progress, 100, 0, false)
+      views.setTextViewText(R.id.tile_timer_start, "0:00")
+      views.setTextViewText(R.id.tile_timer_remaining, "0:00")
     }
 
     private fun bindPlaceholder(views: RemoteViews) {
-      views.setTextViewText(R.id.widget_meta_left, "FOCUS")
-      views.setTextViewText(R.id.widget_meta_right, "TODAY")
-      views.setTextViewText(R.id.widget_session_title, "Lowalk")
-      views.setTextViewText(R.id.widget_headline, "Open Lowalk")
-      views.setViewVisibility(R.id.widget_subline, View.GONE)
-      views.setViewVisibility(R.id.widget_time_location, View.GONE)
-      views.setViewVisibility(R.id.widget_travel, View.GONE)
-      views.setViewVisibility(R.id.widget_progress_row, View.GONE)
-      views.setViewVisibility(R.id.widget_upcoming, View.GONE)
-      views.setViewVisibility(R.id.widget_goal_label, View.GONE)
-      views.setViewVisibility(R.id.widget_blocked_label, View.GONE)
+      val date = WidgetDateLabel.format(null, null)
+      views.setTextViewText(R.id.tile_title, "Lowalk")
+      views.setTextViewText(R.id.tile_date_weekday, date.weekday)
+      views.setTextViewText(R.id.tile_date_day, date.day)
+      views.setTextViewText(R.id.tile_status, "Open Lowalk")
+      views.setViewVisibility(R.id.tile_detail, View.GONE)
+      views.setViewVisibility(R.id.tile_active_timer, View.GONE)
+    }
+
+    private fun bindActiveTimer(
+      views: RemoteViews,
+      viewModel: HeroWidgetStateEngine.ViewModel,
+      timezoneId: String,
+    ) {
+      views.setViewVisibility(R.id.tile_active_timer, View.VISIBLE)
+      views.setViewVisibility(R.id.tile_status, View.GONE)
+      views.setViewVisibility(R.id.tile_detail, View.GONE)
+      views.setProgressBar(
+        R.id.tile_session_progress,
+        100,
+        WidgetSessionTimer.progressPercent(viewModel),
+        false,
+      )
+      views.setTextViewText(
+        R.id.tile_timer_start,
+        WidgetSessionTimer.formatStartLabel(viewModel.sessionStartsAtMs, timezoneId),
+      )
+      views.setTextViewText(
+        R.id.tile_timer_remaining,
+        WidgetSessionTimer.formatRemainingCompact(WidgetSessionTimer.resolveRemainingMs(viewModel)),
+      )
+    }
+
+    private fun bindStandardCopy(views: RemoteViews, copy: WidgetSimpleCopy.Copy) {
+      views.setViewVisibility(R.id.tile_active_timer, View.GONE)
+
+      if (copy.status.isNullOrBlank()) {
+        views.setViewVisibility(R.id.tile_status, View.GONE)
+      } else {
+        views.setViewVisibility(R.id.tile_status, View.VISIBLE)
+        views.setTextViewText(R.id.tile_status, copy.status)
+      }
+
+      if (copy.detail.isNullOrBlank()) {
+        views.setViewVisibility(R.id.tile_detail, View.GONE)
+      } else {
+        views.setViewVisibility(R.id.tile_detail, View.VISIBLE)
+        views.setTextViewText(R.id.tile_detail, copy.detail)
+      }
     }
 
     private fun bindViewModel(
       views: RemoteViews,
       viewModel: HeroWidgetStateEngine.ViewModel,
+      bundle: HeroWidgetStateEngine.ScheduleBundle,
     ) {
-      views.setTextViewText(R.id.widget_meta_left, viewModel.metaLeft.uppercase(Locale.US))
-      views.setTextViewText(R.id.widget_meta_right, resolveStatusChip(viewModel))
+      val copy = WidgetSimpleCopy.resolve(viewModel)
+      val date = WidgetDateLabel.format(bundle.todayIso, bundle.timezoneId)
+      views.setTextViewText(R.id.tile_title, copy.title)
+      views.setTextViewText(R.id.tile_date_weekday, date.weekday)
+      views.setTextViewText(R.id.tile_date_day, date.day)
 
-      views.setTextViewText(R.id.widget_session_title, viewModel.sessionTitle)
-      views.setTextViewText(R.id.widget_headline, resolveHeadline(viewModel))
-
-      bindDetailLine(views, viewModel)
-      bindTimeLocationRow(views, viewModel)
-      bindTravelRow(views, viewModel)
-      bindProgressRow(views, viewModel)
-      bindUpNextFooter(views, viewModel)
-      bindGoalLabel(views, viewModel)
-      bindBlockedLabel(views, viewModel)
-    }
-
-    private fun resolveStatusChip(viewModel: HeroWidgetStateEngine.ViewModel): String {
-      when (viewModel.state) {
-        "active" -> return "LIVE"
-        "up_next" -> return formatUpNextStatus(viewModel.headline)
-        "on_the_way" -> return viewModel.metaRight.uppercase(Locale.US)
-        "weekly_report" -> return viewModel.metaRight.uppercase(Locale.US)
-        else -> return viewModel.metaRight.uppercase(Locale.US)
-      }
-    }
-
-    private fun formatUpNextStatus(headline: String): String {
-      val minuteMatch = Regex("""(\d+)\s*minute""", RegexOption.IGNORE_CASE).find(headline)
-      if (minuteMatch != null) {
-        return "IN ${minuteMatch.groupValues[1]}M"
-      }
-      val hourMatch = Regex("""(\d+)\s*h""", RegexOption.IGNORE_CASE).find(headline)
-      if (hourMatch != null) {
-        return "IN ${hourMatch.groupValues[1]}H"
-      }
-      if (headline.contains("now", ignoreCase = true)) {
-        return "NOW"
-      }
-      return "UP NEXT"
-    }
-
-    private fun bindDetailLine(
-      views: RemoteViews,
-      viewModel: HeroWidgetStateEngine.ViewModel,
-    ) {
-      val detail = resolveDetailLine(viewModel)
-      if (detail.isNullOrBlank()) {
-        views.setViewVisibility(R.id.widget_subline, View.GONE)
-      } else {
-        views.setViewVisibility(R.id.widget_subline, View.VISIBLE)
-        views.setTextViewText(R.id.widget_subline, detail)
-      }
-    }
-
-    private fun resolveDetailLine(viewModel: HeroWidgetStateEngine.ViewModel): String? {
-      if (!viewModel.subline.isNullOrBlank()) {
-        val location = viewModel.locationLabel
-        if (
-          location != null &&
-          viewModel.subline.equals(location, ignoreCase = true)
-        ) {
-          return null
-        }
-        return viewModel.subline
-      }
-      if (viewModel.state == "weekly_report" && viewModel.dailyGoalTarget <= 0) {
-        return "No sessions today"
-      }
-      return null
-    }
-
-    private fun bindTimeLocationRow(
-      views: RemoteViews,
-      viewModel: HeroWidgetStateEngine.ViewModel,
-    ) {
-      val row = buildTimeLocationRow(viewModel)
-      if (row.isNullOrBlank()) {
-        views.setViewVisibility(R.id.widget_time_location, View.GONE)
-      } else {
-        views.setViewVisibility(R.id.widget_time_location, View.VISIBLE)
-        views.setTextViewText(R.id.widget_time_location, row)
-      }
-    }
-
-    private fun buildTimeLocationRow(viewModel: HeroWidgetStateEngine.ViewModel): String? {
-      val time = viewModel.timeWindowLabel?.trim().orEmpty()
-      val location = viewModel.locationLabel?.trim().orEmpty()
-      return when {
-        time.isNotEmpty() && location.isNotEmpty() -> "$time · $location"
-        time.isNotEmpty() -> time
-        location.isNotEmpty() -> location
-        else -> null
-      }
-    }
-
-    private fun bindTravelRow(
-      views: RemoteViews,
-      viewModel: HeroWidgetStateEngine.ViewModel,
-    ) {
-      val travel = viewModel.travelLabel?.trim().orEmpty()
-      if (travel.isEmpty()) {
-        views.setViewVisibility(R.id.widget_travel, View.GONE)
-      } else {
-        views.setViewVisibility(R.id.widget_travel, View.VISIBLE)
-        views.setTextViewText(R.id.widget_travel, travel)
-      }
-    }
-
-    private fun bindProgressRow(
-      views: RemoteViews,
-      viewModel: HeroWidgetStateEngine.ViewModel,
-    ) {
-      val progressPercent = resolveProgressPercent(viewModel)
-      if (progressPercent == null) {
-        views.setViewVisibility(R.id.widget_progress_row, View.GONE)
+      if (viewModel.state == "active") {
+        bindActiveTimer(views, viewModel, bundle.timezoneId)
         return
       }
 
-      views.setViewVisibility(R.id.widget_progress_row, View.VISIBLE)
-      views.setProgressBar(R.id.widget_progress, 100, progressPercent, false)
-
-      val startLabel = viewModel.progressStartLabel
-      val endLabel = viewModel.progressEndLabel
-      if (startLabel.isNullOrBlank() || endLabel.isNullOrBlank()) {
-        views.setViewVisibility(R.id.widget_progress_start, View.GONE)
-        views.setViewVisibility(R.id.widget_progress_end, View.GONE)
-      } else {
-        views.setViewVisibility(R.id.widget_progress_start, View.VISIBLE)
-        views.setViewVisibility(R.id.widget_progress_end, View.VISIBLE)
-        views.setTextViewText(R.id.widget_progress_start, startLabel)
-        views.setTextViewText(R.id.widget_progress_end, endLabel)
-      }
+      bindStandardCopy(views, copy)
     }
-
-    private fun bindUpNextFooter(
-      views: RemoteViews,
-      viewModel: HeroWidgetStateEngine.ViewModel,
-    ) {
-      val footer = viewModel.upNextFooter?.trim().orEmpty()
-      if (footer.isEmpty() || viewModel.state == "active") {
-        views.setViewVisibility(R.id.widget_upcoming, View.GONE)
-        return
-      }
-      views.setViewVisibility(R.id.widget_upcoming, View.VISIBLE)
-      views.setTextViewText(R.id.widget_upcoming, footer)
-    }
-
-    private fun bindGoalLabel(
-      views: RemoteViews,
-      viewModel: HeroWidgetStateEngine.ViewModel,
-    ) {
-      val goalLabel = buildGoalLabel(viewModel)
-      if (goalLabel.isNullOrBlank()) {
-        views.setViewVisibility(R.id.widget_goal_label, View.GONE)
-      } else {
-        views.setViewVisibility(R.id.widget_goal_label, View.VISIBLE)
-        views.setTextViewText(R.id.widget_goal_label, goalLabel)
-      }
-    }
-
-    private fun bindBlockedLabel(
-      views: RemoteViews,
-      viewModel: HeroWidgetStateEngine.ViewModel,
-    ) {
-      if (viewModel.blockedAppsLabel.isNullOrBlank()) {
-        views.setViewVisibility(R.id.widget_blocked_label, View.GONE)
-      } else {
-        views.setViewVisibility(R.id.widget_blocked_label, View.VISIBLE)
-        views.setTextViewText(R.id.widget_blocked_label, viewModel.blockedAppsLabel)
-      }
-    }
-
-    private fun resolveHeadline(viewModel: HeroWidgetStateEngine.ViewModel): String {
-      if (viewModel.state == "active") {
-        val countdown = viewModel.countdownLabel?.trim().orEmpty()
-        if (countdown.isNotEmpty()) return countdown
-        val endsAt = viewModel.sessionEndsAtMs
-        if (endsAt != null) {
-          val remainingMs = max(0L, endsAt - System.currentTimeMillis())
-          return formatCountdown(remainingMs)
-        }
-      }
-      return viewModel.headline.ifBlank { viewModel.sessionTitle }
-    }
-
-    private fun resolveProgressPercent(viewModel: HeroWidgetStateEngine.ViewModel): Int? {
-      viewModel.progressRatio?.let { ratio ->
-        return (ratio.coerceIn(0f, 1f) * 100f).toInt()
-      }
-      if (viewModel.state == "active") {
-        val startsAt = viewModel.sessionStartsAtMs
-        val endsAt = viewModel.sessionEndsAtMs
-        if (startsAt != null && endsAt != null && endsAt > startsAt) {
-          val nowMs = System.currentTimeMillis()
-          val totalMs = endsAt - startsAt
-          val elapsedMs = (nowMs - startsAt).coerceIn(0L, totalMs)
-          return ((elapsedMs.toFloat() / totalMs.toFloat()) * 100f).toInt().coerceIn(0, 100)
-        }
-        val fallbackEndsAt = endsAt ?: return null
-        val remainingMs = max(0L, fallbackEndsAt - System.currentTimeMillis())
-        val totalMs = 60 * 60 * 1000L
-        val elapsed = totalMs - remainingMs
-        return ((elapsed.toFloat() / totalMs.toFloat()) * 100f).toInt().coerceIn(0, 100)
-      }
-      if (viewModel.dailyGoalTarget > 0 && viewModel.state == "weekly_report") {
-        val ratio = viewModel.dailyGoalCompleted.toFloat() / viewModel.dailyGoalTarget.toFloat()
-        return (ratio.coerceIn(0f, 1f) * 100f).toInt()
-      }
-      return null
-    }
-
-    private fun buildGoalLabel(viewModel: HeroWidgetStateEngine.ViewModel): String? {
-      if (viewModel.state == "active") return null
-      if (viewModel.dailyGoalTarget <= 0) return null
-      return "${viewModel.dailyGoalCompleted} / ${viewModel.dailyGoalTarget} sessions today"
-    }
-
-    private fun formatCountdown(remainingMs: Long): String {
-      val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(remainingMs)
-      val hours = totalSeconds / 3600
-      val minutes = (totalSeconds % 3600) / 60
-      val seconds = totalSeconds % 60
-      return if (hours > 0) {
-        String.format(Locale.US, "%d:%02d:%02d", hours, minutes, seconds)
-      } else {
-        String.format(Locale.US, "%02d:%02d", minutes, seconds)
-      }
-    }
-
-    private fun buildTapIntent(context: Context): PendingIntent {
-      val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        ?: Intent(Intent.ACTION_MAIN).apply {
-          addCategory(Intent.CATEGORY_LAUNCHER)
-          setPackage(context.packageName)
-        }
-      launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-      val flags = PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag()
-      return PendingIntent.getActivity(context, TAP_REQUEST_CODE, launchIntent, flags)
-    }
-
-    private fun immutableFlag(): Int =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
   }
 }

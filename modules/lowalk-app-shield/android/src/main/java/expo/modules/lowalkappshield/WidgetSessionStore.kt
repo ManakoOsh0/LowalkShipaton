@@ -9,6 +9,7 @@ import org.json.JSONObject
 object WidgetSessionStore {
   private const val PREF_NAME = "lowalk_hero_widget"
   private const val PREF_BUNDLE_JSON = "bundle_json"
+  private const val PREF_PREMIUM_UNLOCKED = "premium_unlocked"
 
   data class Snapshot(
     val state: String,
@@ -34,10 +35,31 @@ object WidgetSessionStore {
   private fun prefs(context: Context) =
     context.applicationContext.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
 
+  fun isPremiumUnlocked(context: Context): Boolean =
+    prefs(context).getBoolean(PREF_PREMIUM_UNLOCKED, false)
+
+  fun setPremiumUnlocked(context: Context, unlocked: Boolean) {
+    prefs(context).edit()
+      .putBoolean(PREF_PREMIUM_UNLOCKED, unlocked)
+      .commit()
+    requestWidgetRefresh(context)
+  }
+
   fun saveBundle(context: Context, bundle: Map<String, Any?>) {
     val json = JSONObject(bundle as Map<*, *>).toString()
+    saveBundleJson(context, json)
+  }
+
+  /** Persists a schedule bundle serialized on the JS side (nested objects safe). */
+  fun saveBundleJson(context: Context, json: String) {
+    val trimmed = json.trim()
+    if (trimmed.isEmpty() || !trimmed.startsWith("{")) {
+      throw IllegalArgumentException("Widget bundle must be a JSON object.")
+    }
+    // Reject malformed payloads before writing prefs.
+    JSONObject(trimmed)
     prefs(context).edit()
-      .putString(PREF_BUNDLE_JSON, json)
+      .putString(PREF_BUNDLE_JSON, trimmed)
       .commit()
   }
 

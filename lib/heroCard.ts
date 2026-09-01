@@ -422,12 +422,12 @@ export function buildHeroPreviewData(
       return mergeBlockedAppsIntoHero(
         {
           state: "on_the_way",
-          title: "Nothing scheduled today.",
+          title: "Nothing scheduled\ntoday",
           subtitle: "Your day is clear.",
           icon: "sunrise",
           action: null,
           blockedAppsCount: 0,
-          context: buildIdlePreviewContext(kind, "Nothing scheduled today.", "Your day is clear."),
+          context: buildIdlePreviewContext(kind, "Nothing scheduled\ntoday", "Your day is clear."),
         },
         0,
       );

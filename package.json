@@ -1,6 +1,6 @@
 {
   "name": "trylowalk",
-  "main": "expo-router/entry",
+  "main": "index.ts",
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
@@ -11,6 +11,7 @@
     "lint": "expo lint",
     "test:class-completion": "npx --yes tsx --test lib/classCompletion.test.ts",
     "test:shield-schedule": "npx --yes tsx --test lib/shieldSchedule.test.ts",
+    "test:permissions": "npx --yes tsx --test lib/requiredPermissions.test.ts",
     "build:preview:android": "eas build --profile preview --platform android",
     "build:dev:android": "eas build --profile development --platform android"
   },
@@ -44,6 +45,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-android-widget": "^0.22.1",
     "react-native-css": "^3.0.7",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-purchases": "^10.7.0",

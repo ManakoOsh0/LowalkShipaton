@@ -6,7 +6,6 @@
   android:minHeight="110dp"
   android:minResizeWidth="110dp"
   android:minResizeHeight="110dp"
-  android:previewImage="@drawable/lowalk2_logo"
   android:resizeMode="none"
   android:targetCellWidth="2"
   android:targetCellHeight="2"

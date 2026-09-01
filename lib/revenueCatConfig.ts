@@ -19,13 +19,20 @@ export function getRevenueCatApiKey(): string | null {
   const iosKey = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY?.trim();
   const androidKey = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?.trim();
 
-  if (__DEV__ && testStoreKey) {
-    return testStoreKey;
-  }
-
-  return Platform.select({
+  const platformKey = Platform.select({
     ios: iosKey ?? null,
     android: androidKey ?? null,
     default: null,
   });
+
+  // Dev prefers Test Store; preview/internal builds fall back when platform keys are absent.
+  if (__DEV__ && testStoreKey) {
+    return testStoreKey;
+  }
+
+  if (platformKey) {
+    return platformKey;
+  }
+
+  return testStoreKey ?? null;
 }

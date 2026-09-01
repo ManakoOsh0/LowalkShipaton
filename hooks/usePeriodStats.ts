@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 
-import { computePeriodRecap, computeTodayRecap } from "@/lib/consistencyRecap";
 import { computeConsistencyStats } from "@/lib/consistencyStats";
 import {
   computePeriodStats,
@@ -17,18 +16,7 @@ import type { ContributionWeek, StatsPeriod } from "@/types/stats";
 
 export function usePeriodStats(period: StatsPeriod) {
   const focusNodes = useScheduleStore((state) => state.focusNodes);
-  const anchors = useScheduleStore((state) => state.anchors);
   const dayStreak = useUserStore((state) => state.streak);
-
-  const todayRecap = useMemo(
-    () => computeTodayRecap(focusNodes, anchors),
-    [anchors, focusNodes],
-  );
-
-  const periodRecap = useMemo(
-    () => computePeriodRecap(focusNodes, anchors, period),
-    [anchors, focusNodes, period],
-  );
 
   const periodStats = useMemo(
     () => computePeriodStats(focusNodes, period),
@@ -72,8 +60,6 @@ export function usePeriodStats(period: StatsPeriod) {
   );
 
   return {
-    todayRecap,
-    periodRecap,
     periodStats,
     streak: dayStreak,
     totalSessionsAllTime,

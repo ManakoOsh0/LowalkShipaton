@@ -1,11 +1,11 @@
 /**
  * Activity — single stats destination from the home streak pill.
- * Hierarchy: today receipt → period show-up recap → chart → active days → yearly lifetime.
+ * Hierarchy: streak context → one focus metric → chart → active days → yearly lifetime.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PressableScale } from "@/components/PressableScale";
@@ -15,13 +15,11 @@ import { StatsActivityHero } from "@/components/stats/StatsActivityHero";
 import { StatsDayList } from "@/components/stats/StatsDayList";
 import { StatsLifetimeSection } from "@/components/stats/StatsLifetimeSection";
 import { StatsPeriodSheet } from "@/components/stats/StatsPeriodSheet";
-import { StatsTodayRecap } from "@/components/stats/StatsTodayRecap";
 import { usePeriodStats } from "@/hooks/usePeriodStats";
 import { useCoreStoresHydrated } from "@/hooks/usePersistedStoreHydration";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { CARD_RADIUS_SM } from "@/lib/cardStyle";
 import { SCREEN_PADDING } from "@/lib/layout";
-import { FONT_FAMILY } from "@/theme/fonts";
 import type { StatsPeriod } from "@/types/stats";
 
 function HeaderIconButton({
@@ -65,8 +63,6 @@ export default function StatsScreen() {
   const [period, setPeriod] = useState<StatsPeriod>("week");
   const [periodSheetOpen, setPeriodSheetOpen] = useState(false);
   const {
-    todayRecap,
-    periodRecap,
     periodStats,
     streak,
     totalSessionsAllTime,
@@ -116,29 +112,13 @@ export default function StatsScreen() {
               gap: 32,
             }}
           >
-            <StatsTodayRecap recap={todayRecap} />
-
             <StatsActivityHero
-              recap={periodRecap}
+              stats={periodStats}
               streak={streak}
               onPressPeriod={() => setPeriodSheetOpen(true)}
             />
 
-            <View style={{ gap: 12 }}>
-              <Text
-                style={{
-                  fontFamily: FONT_FAMILY.semibold,
-                  fontSize: 11,
-                  lineHeight: 14,
-                  letterSpacing: 1.4,
-                  color: colors.muted,
-                  textTransform: "uppercase",
-                }}
-              >
-                Focus time
-              </Text>
-              <SessionsBarChart stats={periodStats} bare metric="focusMinutes" />
-            </View>
+            <SessionsBarChart stats={periodStats} bare metric="focusMinutes" />
 
             {dayList.length > 0 ? (
               <StatsDayList days={dayList} maxFocusMinutes={maxDayMinutes} />

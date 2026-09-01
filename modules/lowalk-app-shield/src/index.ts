@@ -47,9 +47,13 @@ declare class LowalkAppShieldNativeModule extends NativeModule<LowalkAppShieldEv
   isSupported(): Promise<boolean>;
   hasUsageStatsPermission(): Promise<boolean>;
   hasOverlayPermission(): Promise<boolean>;
+  canScheduleExactAlarms?(): Promise<boolean>;
+  isIgnoringBatteryOptimizations?(): Promise<boolean>;
   isMonitoringActive(): Promise<boolean>;
   openUsageAccessSettings(): Promise<void>;
   openOverlaySettings(): Promise<void>;
+  openExactAlarmSettings?(): Promise<void>;
+  openBatteryOptimizationSettings?(): Promise<void>;
   getInstalledApps(): Promise<NativeInstalledApp[]>;
   getAppIcons(packages: string[]): Promise<NativeAppIcon[]>;
   startMonitoring(
@@ -58,7 +62,9 @@ declare class LowalkAppShieldNativeModule extends NativeModule<LowalkAppShieldEv
     overlayContext?: ShieldOverlayContext,
   ): Promise<void>;
   stopMonitoring(): Promise<void>;
-  syncWidgetSchedule(bundle: Record<string, unknown>): Promise<void>;
+  syncWidgetSchedule(bundleJson: string): Promise<void>;
+  setWidgetPremiumAccess(unlocked: boolean): Promise<void>;
+  refreshWidgets(): Promise<void>;
   updateHeroWidgetSnapshot(snapshot: Record<string, unknown>): Promise<void>;
 }
 
@@ -94,6 +100,26 @@ export async function openUsageAccessSettings(): Promise<void> {
 export async function openOverlaySettings(): Promise<void> {
   if (!nativeModule) return;
   await nativeModule.openOverlaySettings();
+}
+
+export async function canScheduleExactAlarms(): Promise<boolean> {
+  if (!nativeModule?.canScheduleExactAlarms) return true;
+  return nativeModule.canScheduleExactAlarms();
+}
+
+export async function isIgnoringBatteryOptimizations(): Promise<boolean> {
+  if (!nativeModule?.isIgnoringBatteryOptimizations) return true;
+  return nativeModule.isIgnoringBatteryOptimizations();
+}
+
+export async function openExactAlarmSettings(): Promise<void> {
+  if (!nativeModule?.openExactAlarmSettings) return;
+  await nativeModule.openExactAlarmSettings();
+}
+
+export async function openBatteryOptimizationSettings(): Promise<void> {
+  if (!nativeModule?.openBatteryOptimizationSettings) return;
+  await nativeModule.openBatteryOptimizationSettings();
 }
 
 function toIconUri(base64?: string): string | undefined {
@@ -141,7 +167,18 @@ export async function syncWidgetSchedule(
   bundle: Record<string, unknown>,
 ): Promise<void> {
   if (!nativeModule) return;
-  await nativeModule.syncWidgetSchedule(bundle);
+  // Nested bundle fields must be JSON-stringified — Expo cannot marshal deep objects to Kotlin.
+  await nativeModule.syncWidgetSchedule(JSON.stringify(bundle));
+}
+
+export async function setWidgetPremiumAccess(unlocked: boolean): Promise<void> {
+  if (!nativeModule?.setWidgetPremiumAccess) return;
+  await nativeModule.setWidgetPremiumAccess(unlocked);
+}
+
+export async function refreshWidgets(): Promise<void> {
+  if (!nativeModule?.refreshWidgets) return;
+  await nativeModule.refreshWidgets();
 }
 
 /** @deprecated Use syncWidgetSchedule */
@@ -150,7 +187,7 @@ export async function updateHeroWidgetSnapshot(
 ): Promise<void> {
   if (!nativeModule) return;
   if (nativeModule.syncWidgetSchedule) {
-    await nativeModule.syncWidgetSchedule(snapshot);
+    await nativeModule.syncWidgetSchedule(JSON.stringify(snapshot));
     return;
   }
   await nativeModule.updateHeroWidgetSnapshot(snapshot);

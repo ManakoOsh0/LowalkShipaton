@@ -4,7 +4,6 @@
  */
 import { ShieldMinimalistic } from "@solar-icons/react-native/Bold";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -20,33 +19,34 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ScreenHeader } from "@/components/ScreenHeader";
-import {
-  getInstalledApps,
-  hasOverlayPermission,
-  hasUsageStatsPermission,
-  isAppShieldSupported,
-  openOverlaySettings,
-  openUsageAccessSettings,
-  type InstalledAppInfo,
-} from "lowalk-app-shield";
-import {
-  describeAppShieldBlocker,
-  getAppShieldBlockersAsync,
-  isRunningInExpoGo,
-} from "@/lib/appShieldStatus";
 import { BlockedAppIcon } from "@/components/BlockedAppIcon";
+import { FormSectionCard } from "@/components/form/FormSectionCard";
+import { PressableScale } from "@/components/PressableScale";
+import { ScreenHeader } from "@/components/ScreenHeader";
+import { SectionLabel } from "@/components/SectionLabel";
 import { AppListSkeleton } from "@/components/skeleton/AppListSkeleton";
 import { useBlockedAppIcons } from "@/hooks/useBlockedAppIcons";
 import { useBlockedAppsRemovalLocked } from "@/hooks/useBlockedAppsRemovalLocked";
 import { usePenaltyShieldActive } from "@/hooks/usePenaltyShieldActive";
 import { useModalAnimationType } from "@/hooks/useHeroMotion";
 import { useBlockedAppsHydrated } from "@/hooks/usePersistedStoreHydration";
+import { useRequiredPermissions } from "@/hooks/useRequiredPermissions";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import {
+  describeAppShieldBlocker,
+  getAppShieldBlockersAsync,
+  isRunningInExpoGo,
+} from "@/lib/appShieldStatus";
+import { SCREEN_PADDING } from "@/lib/layout";
+import { requestOrOpenPermission } from "@/lib/requiredPermissions";
 import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";
+import {
+  getInstalledApps,
+  isAppShieldSupported,
+  type InstalledAppInfo,
+} from "lowalk-app-shield";
 
 export default function BlockedAppsScreen() {
-  const router = useRouter();
   const colors = useThemeColors();
   const modalAnimationType = useModalAnimationType("slide");
   const apps = useBlockedAppsStore((state) => state.apps);
@@ -57,6 +57,7 @@ export default function BlockedAppsScreen() {
   const iconsByPackage = useBlockedAppIcons(apps);
   const removalLocked = useBlockedAppsRemovalLocked();
   const penaltyLocked = usePenaltyShieldActive();
+  const { checks: permissionChecks } = useRequiredPermissions();
 
   const shieldSupported = isAppShieldSupported() && !isRunningInExpoGo();
   const [draftName, setDraftName] = useState("");
@@ -65,47 +66,31 @@ export default function BlockedAppsScreen() {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [pickerSelected, setPickerSelected] = useState<Set<string>>(() => new Set());
-  const [usageGranted, setUsageGranted] = useState<boolean | null>(null);
-  const [overlayGranted, setOverlayGranted] = useState<boolean | null>(null);
   const [shieldBlockers, setShieldBlockers] = useState<string[]>([]);
 
-  const refreshPermissions = useCallback(async () => {
-    if (!shieldSupported) {
-      setUsageGranted(false);
-      setOverlayGranted(false);
-      return;
-    }
-    const [usage, overlay] = await Promise.all([
-      hasUsageStatsPermission(),
-      hasOverlayPermission(),
-    ]);
-    setUsageGranted(usage);
-    setOverlayGranted(overlay);
-  }, [shieldSupported]);
+  const missingShieldPermissions = useMemo(
+    () =>
+      permissionChecks.filter(
+        (check) =>
+          (check.id === "usageAccess" || check.id === "overlay") &&
+          check.applicable &&
+          !check.granted,
+      ),
+    [permissionChecks],
+  );
 
-  const refreshShieldStatus = useCallback(async () => {
+  const refreshShieldBlockers = useCallback(async () => {
     const blockers = await getAppShieldBlockersAsync();
     setShieldBlockers(blockers.map(describeAppShieldBlocker));
-    await refreshPermissions();
-  }, [refreshPermissions]);
+  }, []);
 
   useEffect(() => {
-    void refreshShieldStatus();
-    const interval = setInterval(() => {
-      void refreshShieldStatus();
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [refreshShieldStatus]);
-
-  useEffect(() => {
-    if (!shieldSupported) return;
+    void refreshShieldBlockers();
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") {
-        void refreshShieldStatus();
-      }
+      if (state === "active") void refreshShieldBlockers();
     });
     return () => sub.remove();
-  }, [refreshShieldStatus, shieldSupported]);
+  }, [refreshShieldBlockers]);
 
   const blockedPackageNames = useMemo(
     () =>
@@ -148,7 +133,6 @@ export default function BlockedAppsScreen() {
     setPickerSelected(new Set());
     try {
       const list = await getInstalledApps();
-      // Prefer user-installed apps first for distraction targeting.
       setInstalledApps(
         [...list].sort((a, b) => {
           if (a.isSystem !== b.isSystem) return a.isSystem ? 1 : -1;
@@ -213,444 +197,362 @@ export default function BlockedAppsScreen() {
     removeApp(id);
   };
 
+  const listHeader = (
+    <View style={{ gap: 16, paddingBottom: 12 }}>
+      {removalLocked ? (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            borderRadius: 12,
+            backgroundColor: "rgba(255, 119, 0, 0.08)",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}
+        >
+          <Ionicons name="lock-closed" size={16} color={colors.primary} />
+          <Text
+            style={{
+              flex: 1,
+              fontFamily: "Poppins-Regular",
+              fontSize: 13,
+              lineHeight: 18,
+              color: colors.muted,
+            }}
+          >
+            {penaltyLocked
+              ? "Removals unlock when the penalty ends."
+              : "Removals unlock when this session ends."}
+          </Text>
+        </View>
+      ) : null}
+
+      {shieldBlockers.length > 0 ? (
+        <View
+          style={{
+            borderRadius: 12,
+            backgroundColor: "rgba(255, 119, 0, 0.08)",
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            gap: 4,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: "Poppins-SemiBold",
+              fontSize: 13,
+              lineHeight: 18,
+              color: colors.foreground,
+            }}
+          >
+            Blocking unavailable
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Poppins-Regular",
+              fontSize: 12,
+              lineHeight: 17,
+              color: colors.muted,
+            }}
+          >
+            {shieldBlockers[0]}
+          </Text>
+        </View>
+      ) : null}
+
+      {shieldSupported && missingShieldPermissions.length > 0 ? (
+        <FormSectionCard title="Setup needed">
+          {missingShieldPermissions.map((check, index) => (
+            <Pressable
+              key={check.id}
+              accessibilityRole="button"
+              accessibilityLabel={`${check.title}, needed`}
+              onPress={() => {
+                void requestOrOpenPermission(check.id);
+              }}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 12,
+                borderBottomWidth: index < missingShieldPermissions.length - 1 ? 1 : 0,
+                borderBottomColor: colors.border,
+                gap: 12,
+                opacity: pressed ? 0.72 : 1,
+              })}
+            >
+              <Text
+                style={{
+                  flex: 1,
+                  fontFamily: "Poppins-SemiBold",
+                  fontSize: 15,
+                  lineHeight: 20,
+                  color: colors.foreground,
+                }}
+              >
+                {check.title}
+              </Text>
+              <Text
+                style={{
+                  fontFamily: "Poppins-SemiBold",
+                  fontSize: 13,
+                  color: colors.primary,
+                }}
+              >
+                Allow
+              </Text>
+            </Pressable>
+          ))}
+        </FormSectionCard>
+      ) : null}
+
+      {!shieldSupported ? (
+        <View style={{ gap: 10 }}>
+          <SectionLabel>Add app</SectionLabel>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            <TextInput
+              accessibilityLabel="App name"
+              placeholder="e.g. Instagram"
+              placeholderTextColor={colors.muted}
+              value={draftName}
+              onChangeText={setDraftName}
+              onSubmitEditing={handleAddManual}
+              returnKeyType="done"
+              style={{
+                flex: 1,
+                fontFamily: "Poppins-Regular",
+                fontSize: 15,
+                lineHeight: 20,
+                color: colors.foreground,
+                borderRadius: 14,
+                backgroundColor: colors.background,
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+              }}
+            />
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Add blocked app"
+              onPress={handleAddManual}
+              disabled={!draftName.trim()}
+              style={{
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 14,
+                backgroundColor: colors.primary,
+                paddingHorizontal: 18,
+                opacity: !draftName.trim() ? 0.45 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: "Poppins-Bold",
+                  fontSize: 15,
+                  lineHeight: 20,
+                  color: "#F0EDE9",
+                }}
+              >
+                Add
+              </Text>
+            </PressableScale>
+          </View>
+        </View>
+      ) : null}
+
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <SectionLabel style={{ marginBottom: 0 }}>
+          {appsReady ? `Blocked (${apps.length})` : "Blocked"}
+        </SectionLabel>
+
+        {shieldSupported && appsReady && apps.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add apps"
+            onPress={() => void openPicker()}
+            hitSlop={8}
+            style={({ pressed }) => ({ opacity: pressed ? 0.65 : 1 })}
+          >
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 14,
+                color: colors.primary,
+              }}
+            >
+              + Add apps
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+
+  const listEmpty = !appsReady ? (
+    <AppListSkeleton rows={5} label="Loading blocked apps" />
+  ) : apps.length === 0 ? (
+    <View
+      style={{
+        alignItems: "center",
+        borderRadius: 20,
+        backgroundColor: colors.background,
+        borderWidth: 1,
+        borderColor: colors.border,
+        paddingVertical: 28,
+        paddingHorizontal: 20,
+      }}
+    >
+      <View
+        style={{
+          width: 44,
+          height: 44,
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 12,
+          backgroundColor: colors.surface,
+        }}
+      >
+        <ShieldMinimalistic size={22} color={colors.primary} />
+      </View>
+      <Text
+        style={{
+          marginTop: 12,
+          fontFamily: "Poppins-SemiBold",
+          fontSize: 15,
+          lineHeight: 20,
+          color: colors.foreground,
+          textAlign: "center",
+        }}
+      >
+        No apps blocked yet
+      </Text>
+      <Text
+        style={{
+          marginTop: 4,
+          fontFamily: "Poppins-Regular",
+          fontSize: 13,
+          lineHeight: 18,
+          color: colors.muted,
+          textAlign: "center",
+        }}
+      >
+        {shieldSupported
+          ? "These apps get covered by the focus shield during sessions."
+          : "Add distracting apps. Native shielding works on Android builds."}
+      </Text>
+
+      {shieldSupported ? (
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="Add apps"
+          onPress={() => void openPicker()}
+          haptic
+          style={{
+            marginTop: 16,
+            borderRadius: 14,
+            backgroundColor: colors.primary,
+            paddingHorizontal: 20,
+            paddingVertical: 12,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: "Poppins-Bold",
+              fontSize: 15,
+              color: "#F0EDE9",
+            }}
+          >
+            Add apps
+          </Text>
+        </PressableScale>
+      ) : null}
+    </View>
+  ) : null;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScreenHeader
-          title="Blocked Apps"
-          subtitle={
-            shieldSupported
-              ? "Shielded during active focus sessions on Android"
-              : "Apps to shield during active focus sessions"
-          }
-        />
+        <ScreenHeader title="Blocked Apps" />
 
-        {removalLocked ? (
-          <View
-            style={{
-              marginHorizontal: 16,
-              marginBottom: 16,
-              borderRadius: 14,
-              backgroundColor: "rgba(255, 119, 0, 0.1)",
-              borderWidth: 1,
-              borderColor: "rgba(255, 119, 0, 0.2)",
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: "Poppins-SemiBold",
-                fontSize: 13,
-                lineHeight: 18,
-                color: colors.foreground,
-              }}
-            >
-              {penaltyLocked ? "Penalty lock is active" : "Focus is active"}
-            </Text>
-            <Text
-              style={{
-                marginTop: 4,
-                fontFamily: "Poppins-Regular",
-                fontSize: 12,
-                lineHeight: 17,
-                color: colors.muted,
-              }}
-            >
-              {penaltyLocked
-                ? "You can still add apps. Removals unlock when the extra lock time ends."
-                : "You can still add apps to your block list. Removals unlock when this session ends."}
-            </Text>
-          </View>
-        ) : null}
-
-        {shieldBlockers.length > 0 ? (
-          <View
-            style={{
-              marginHorizontal: 16,
-              marginBottom: 16,
-              borderRadius: 14,
-              backgroundColor: "rgba(255, 119, 0, 0.1)",
-              borderWidth: 1,
-              borderColor: "rgba(255, 119, 0, 0.2)",
-              paddingHorizontal: 14,
-              paddingVertical: 12,
-              gap: 6,
-            }}
-          >
-            <Text
-              style={{
-                fontFamily: "Poppins-SemiBold",
-                fontSize: 13,
-                lineHeight: 18,
-                color: colors.foreground,
-              }}
-            >
-              App blocking unavailable
-            </Text>
-            {shieldBlockers.map((message) => (
-              <Text
-                key={message}
-                style={{
-                  fontFamily: "Poppins-Regular",
-                  fontSize: 12,
-                  lineHeight: 17,
-                  color: colors.muted,
-                }}
-              >
-                {message}
-              </Text>
-            ))}
-          </View>
-        ) : null}
-
-        {shieldSupported ? (
-          <View style={{ paddingHorizontal: 16, marginBottom: 16, gap: 10 }}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Pick installed apps"
-              onPress={() => void openPicker()}
-              style={({ pressed }) => ({
-                borderRadius: 14,
-                backgroundColor: colors.primary,
-                paddingVertical: 14,
-                alignItems: "center",
-                opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <Text
-                style={{
-                  fontFamily: "Poppins-Bold",
-                  fontSize: 15,
-                  color: "#F0EDE9",
-                }}
-              >
-                Pick installed apps
-              </Text>
-            </Pressable>
-
+        <FlatList
+          data={appsReady && apps.length > 0 ? apps : []}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{
+            paddingHorizontal: SCREEN_PADDING,
+            paddingBottom: 24,
+            flexGrow: 1,
+          }}
+          ListHeaderComponent={listHeader}
+          ListEmptyComponent={listEmpty}
+          ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+          renderItem={({ item }) => (
             <View
               style={{
-                borderRadius: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                borderRadius: 14,
                 backgroundColor: colors.background,
                 borderWidth: 1,
                 borderColor: colors.border,
                 paddingHorizontal: 14,
-                paddingVertical: 12,
-                gap: 10,
+                paddingVertical: 11,
               }}
             >
-              <Text
-                style={{
-                  fontFamily: "Poppins-Regular",
-                  fontSize: 12,
-                  lineHeight: 17,
-                  color: colors.muted,
-                }}
-              >
-                Usage Access detects blocked apps. Display over other apps lets Lowalk cover them with the focus shield.
-              </Text>
+              <BlockedAppIcon
+                iconUri={item.packageName ? iconsByPackage[item.packageName] : null}
+                size={36}
+                radius={10}
+              />
 
               <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 13,
-                  color: colors.foreground,
-                }}
-              >
-                Usage access:{" "}
-                {usageGranted == null
-                  ? "checking…"
-                  : usageGranted
-                    ? "granted"
-                    : "required"}
-              </Text>
-              {usageGranted === false ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    void openUsageAccessSettings().then(() => {
-                      setTimeout(() => void refreshPermissions(), 800);
-                    });
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: "Poppins-SemiBold",
-                      fontSize: 13,
-                      color: colors.primary,
-                    }}
-                  >
-                    Open Usage Access settings
-                  </Text>
-                </Pressable>
-              ) : null}
-
-              <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 13,
-                  color: colors.foreground,
-                  marginTop: 4,
-                }}
-              >
-                Display over other apps:{" "}
-                {overlayGranted == null
-                  ? "checking…"
-                  : overlayGranted
-                    ? "granted"
-                    : "required"}
-              </Text>
-              {overlayGranted === false ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    void openOverlaySettings().then(() => {
-                      setTimeout(() => void refreshPermissions(), 800);
-                    });
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: "Poppins-SemiBold",
-                      fontSize: 13,
-                      color: colors.primary,
-                    }}
-                  >
-                    Open Display over other apps settings
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-        ) : (
-          <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-            <Text
-              style={{
-                marginBottom: 10,
-                fontFamily: "Poppins-SemiBold",
-                fontSize: 11,
-                lineHeight: 14,
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                color: colors.muted,
-              }}
-            >
-              Add app
-            </Text>
-
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TextInput
-                accessibilityLabel="App name"
-                placeholder="e.g. Instagram"
-                placeholderTextColor={colors.muted}
-                value={draftName}
-                onChangeText={setDraftName}
-                onSubmitEditing={handleAddManual}
-                returnKeyType="done"
                 style={{
                   flex: 1,
-                  fontFamily: "Poppins-Regular",
+                  marginLeft: 12,
+                  fontFamily: "Poppins-SemiBold",
                   fontSize: 15,
                   lineHeight: 20,
                   color: colors.foreground,
-                  borderRadius: 14,
-                  backgroundColor: colors.background,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  paddingHorizontal: 14,
-                  paddingVertical: 12,
                 }}
-              />
+                numberOfLines={1}
+              >
+                {item.name}
+              </Text>
 
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Add blocked app"
-                onPress={handleAddManual}
-                disabled={!draftName.trim()}
+                accessibilityLabel={
+                  removalLocked
+                    ? `Can't remove ${item.name} during ${penaltyLocked ? "a penalty" : "focus"}`
+                    : `Remove ${item.name}`
+                }
+                accessibilityState={{ disabled: removalLocked }}
+                onPress={() => handleRemoveApp(item.id)}
+                hitSlop={8}
                 style={({ pressed }) => ({
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 14,
-                  backgroundColor: colors.primary,
-                  paddingHorizontal: 18,
-                  opacity: !draftName.trim() ? 0.45 : pressed ? 0.85 : 1,
+                  opacity: removalLocked ? 0.35 : pressed ? 0.6 : 1,
                 })}
               >
-                <Text
-                  style={{
-                    fontFamily: "Poppins-Bold",
-                    fontSize: 15,
-                    lineHeight: 20,
-                    color: "#F0EDE9",
-                  }}
-                >
-                  Add
-                </Text>
+                <Ionicons
+                  name="trash-outline"
+                  size={20}
+                  color={removalLocked ? colors.border : colors.muted}
+                />
               </Pressable>
             </View>
-          </View>
-        )}
-
-        <View style={{ flex: 1, paddingHorizontal: 16 }}>
-          <Text
-            style={{
-              marginBottom: 10,
-              fontFamily: "Poppins-SemiBold",
-              fontSize: 11,
-              lineHeight: 14,
-              letterSpacing: 1,
-              textTransform: "uppercase",
-              color: colors.muted,
-            }}
-          >
-            {appsReady ? `Your list (${apps.length})` : "Your list"}
-          </Text>
-
-          {!appsReady ? (
-            <AppListSkeleton rows={5} label="Loading blocked apps" />
-          ) : apps.length === 0 ? (
-            <View
-              style={{
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: 20,
-                backgroundColor: colors.background,
-                borderWidth: 1,
-                borderColor: colors.border,
-                paddingVertical: 32,
-                paddingHorizontal: 20,
-              }}
-            >
-              <View
-                style={{
-                  width: 48,
-                  height: 48,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 14,
-                  backgroundColor: colors.surface,
-                }}
-              >
-                <ShieldMinimalistic size={24} color={colors.primary} />
-              </View>
-              <Text
-                style={{
-                  marginTop: 12,
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 15,
-                  lineHeight: 20,
-                  color: colors.foreground,
-                  textAlign: "center",
-                }}
-              >
-                No apps blocked yet
-              </Text>
-              <Text
-                style={{
-                  marginTop: 6,
-                  fontFamily: "Poppins-Regular",
-                  fontSize: 13,
-                  lineHeight: 18,
-                  color: colors.muted,
-                  textAlign: "center",
-                }}
-              >
-                {shieldSupported
-                  ? "Pick installed apps above. During an active session, opening one covers that app with the focus shield."
-                  : "Add distracting apps above. Native shielding is available on Android preview builds."}
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={apps}
-              keyExtractor={(item) => item.id}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingBottom: 24 }}
-              renderItem={({ item }) => (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    borderRadius: 16,
-                    backgroundColor: colors.background,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    paddingHorizontal: 14,
-                    paddingVertical: 12,
-                  }}
-                >
-                  <BlockedAppIcon
-                    iconUri={item.packageName ? iconsByPackage[item.packageName] : null}
-                    size={36}
-                    radius={10}
-                  />
-
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text
-                      style={{
-                        fontFamily: "Poppins-SemiBold",
-                        fontSize: 15,
-                        lineHeight: 20,
-                        color: colors.foreground,
-                      }}
-                    >
-                      {item.name}
-                    </Text>
-                    {item.packageName ? (
-                      <Text
-                        style={{
-                          marginTop: 2,
-                          fontFamily: "Poppins-Regular",
-                          fontSize: 11,
-                          color: colors.muted,
-                        }}
-                        numberOfLines={1}
-                      >
-                        {item.packageName}
-                      </Text>
-                    ) : (
-                      <Text
-                        style={{
-                          marginTop: 2,
-                          fontFamily: "Poppins-Regular",
-                          fontSize: 11,
-                          color: colors.muted,
-                        }}
-                      >
-                        No package ID — re-pick on Android to enforce
-                      </Text>
-                    )}
-                  </View>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      removalLocked
-                        ? `Can't remove ${item.name} during ${penaltyLocked ? "a penalty" : "focus"}`
-                        : `Remove ${item.name}`
-                    }
-                    accessibilityState={{ disabled: removalLocked }}
-                    onPress={() => handleRemoveApp(item.id)}
-                    hitSlop={8}
-                    style={({ pressed }) => ({
-                      opacity: removalLocked ? 0.35 : pressed ? 0.6 : 1,
-                    })}
-                  >
-                    <Ionicons
-                      name="trash-outline"
-                      size={20}
-                      color={removalLocked ? colors.border : colors.muted}
-                    />
-                  </Pressable>
-                </View>
-              )}
-            />
           )}
-        </View>
+        />
       </KeyboardAvoidingView>
 
       <Modal visible={pickerVisible} animationType={modalAnimationType} onRequestClose={closePicker}>
@@ -759,17 +661,18 @@ export default function BlockedAppsScreen() {
                       >
                         {item.name}
                       </Text>
-                      <Text
-                        style={{
-                          marginTop: 2,
-                          fontFamily: "Poppins-Regular",
-                          fontSize: 11,
-                          color: colors.muted,
-                        }}
-                        numberOfLines={1}
-                      >
-                        {alreadyBlocked ? "Already blocked" : item.packageName}
-                      </Text>
+                      {alreadyBlocked ? (
+                        <Text
+                          style={{
+                            marginTop: 2,
+                            fontFamily: "Poppins-Regular",
+                            fontSize: 11,
+                            color: colors.muted,
+                          }}
+                        >
+                          Already blocked
+                        </Text>
+                      ) : null}
                     </View>
                     <Ionicons name={selectionIcon} size={24} color={selectionColor} />
                   </Pressable>
@@ -788,20 +691,21 @@ export default function BlockedAppsScreen() {
               backgroundColor: colors.surface,
             }}
           >
-            <Pressable
+            <PressableScale
               accessibilityRole="button"
               accessibilityLabel={
                 pickerAddCount > 0 ? `Add ${pickerAddCount} apps` : "Add selected apps"
               }
               disabled={pickerAddCount === 0}
               onPress={handleConfirmPicker}
-              style={({ pressed }) => ({
+              haptic
+              style={{
                 borderRadius: 14,
                 backgroundColor: colors.primary,
                 paddingVertical: 14,
                 alignItems: "center",
-                opacity: pickerAddCount === 0 ? 0.45 : pressed ? 0.85 : 1,
-              })}
+                opacity: pickerAddCount === 0 ? 0.45 : 1,
+              }}
             >
               <Text
                 style={{
@@ -812,7 +716,7 @@ export default function BlockedAppsScreen() {
               >
                 {pickerAddCount > 0 ? `Add ${pickerAddCount} apps` : "Add apps"}
               </Text>
-            </Pressable>
+            </PressableScale>
           </View>
         </SafeAreaView>
       </Modal>

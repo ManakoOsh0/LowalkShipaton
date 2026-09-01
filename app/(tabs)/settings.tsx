@@ -2,61 +2,45 @@
  * Settings screen — app preferences and focus session configuration.
  */
 import { useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { DevToolsEntryRow } from "@/components/dev/DevToolsEntryRow";
 import { FocusRewardsCard } from "@/components/FocusRewardsCard";
 import { HeroLookSettingsCard } from "@/components/HeroLookSettingsCard";
 import { SettingsControlsCard } from "@/components/settings/SettingsControlsCard";
+import { SettingsPermissionsCard } from "@/components/settings/SettingsPermissionsCard";
 import { SettingsSupportCard } from "@/components/settings/SettingsSupportCard";
 import { SettingsScreenSkeleton } from "@/components/skeleton/SettingsScreenSkeleton";
 import { useCoreStoresHydrated } from "@/hooks/usePersistedStoreHydration";
+import { useProPaywall } from "@/hooks/useProPaywall";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { isDevToolsHubEnabled } from "@/lib/devToolsAccess";
-import { isPremiumFromCustomerInfo, presentPaywall, restorePurchases } from "@/services/revenueCat";
 import { useSubscriptionStore } from "@/store/useSubscriptionStore";
 
 function LowalkProCard() {
   const colors = useThemeColors();
   const isPremium = useSubscriptionStore((state) => state.isPremium);
-  const setFromCustomerInfo = useSubscriptionStore((state) => state.setFromCustomerInfo);
-  const refreshSubscriptionStatus = useSubscriptionStore(
-    (state) => state.refreshSubscriptionStatus,
-  );
+  const { openProPaywall, restoreProPurchases } = useProPaywall();
   const [busy, setBusy] = useState(false);
 
+  if (isPremium) {
+    return null;
+  }
+
   const onUpgrade = async () => {
+    setBusy(true);
     try {
-      setBusy(true);
-      await presentPaywall();
-      await refreshSubscriptionStatus();
-    } catch {
-      Alert.alert(
-        "Could not open paywall",
-        "Rebuild the dev client after installing RevenueCat, then try again.",
-      );
+      await openProPaywall();
     } finally {
       setBusy(false);
     }
   };
 
   const onRestore = async () => {
+    setBusy(true);
     try {
-      setBusy(true);
-      const customerInfo = await restorePurchases();
-      if (customerInfo) {
-        setFromCustomerInfo(customerInfo);
-      }
-      const active = customerInfo ? isPremiumFromCustomerInfo(customerInfo) : false;
-      Alert.alert(
-        "Restore complete",
-        active
-          ? "Your Pro access is active."
-          : "No active subscription was found for this device.",
-      );
-    } catch {
-      Alert.alert("Restore failed", "Could not restore purchases. Try again later.");
+      await restoreProPurchases();
     } finally {
       setBusy(false);
     }
@@ -98,7 +82,7 @@ function LowalkProCard() {
               color: colors.foreground,
             }}
           >
-            {isPremium ? "Pro active" : "Home screen widget"}
+            Home screen widget
           </Text>
           <Text
             style={{
@@ -109,38 +93,32 @@ function LowalkProCard() {
               color: colors.muted,
             }}
           >
-            {isPremium
-              ? Platform.OS === "android"
-                ? "Long-press your home screen, open Widgets, and add Lowalk to mirror your Hero Card."
-                : "Pro is active on this device."
-              : "See your focus session on your home screen without opening the app."}
+            See your focus session on your home screen without opening the app.
           </Text>
         </View>
 
-        {!isPremium ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => void onUpgrade()}
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={() => void onUpgrade()}
+          style={{
+            borderRadius: 14,
+            backgroundColor: colors.primaryDeep,
+            paddingVertical: 12,
+            alignItems: "center",
+            opacity: busy ? 0.7 : 1,
+          }}
+        >
+          <Text
             style={{
-              borderRadius: 14,
-              backgroundColor: colors.skyDeep,
-              paddingVertical: 12,
-              alignItems: "center",
-              opacity: busy ? 0.7 : 1,
+              fontFamily: "Poppins-SemiBold",
+              fontSize: 14,
+              color: colors.background,
             }}
           >
-            <Text
-              style={{
-                fontFamily: "Poppins-SemiBold",
-                fontSize: 14,
-                color: colors.background,
-              }}
-            >
-              Upgrade to Pro
-            </Text>
-          </Pressable>
-        ) : null}
+            Upgrade to Pro
+          </Text>
+        </Pressable>
 
         <Pressable
           accessibilityRole="button"
@@ -152,7 +130,7 @@ function LowalkProCard() {
             style={{
               fontFamily: "Poppins-SemiBold",
               fontSize: 13,
-              color: colors.skyDeep,
+              color: colors.primary,
               opacity: busy ? 0.7 : 1,
             }}
           >
@@ -197,6 +175,7 @@ export default function SettingsScreen() {
           <LowalkProCard />
           <FocusRewardsCard />
           <HeroLookSettingsCard />
+          <SettingsPermissionsCard />
           <SettingsControlsCard />
           <SettingsSupportCard />
           {showDevTools ? <DevToolsEntryRow /> : null}

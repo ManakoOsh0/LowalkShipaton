@@ -1,16 +1,12 @@
 package expo.modules.lowalkappshield
 
-import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
-import android.content.Intent
-import android.os.Build
+import android.util.Log
 import android.widget.RemoteViews
-import java.util.Locale
 
 /**
- * Compact home-screen widget: lifetime focus hours + tilted hourglass.
- * Duolingo-style hierarchy — big number, short label, bottom graphic.
+ * Compact home-screen widget: lifetime focus hours on a flat dashboard tile.
  */
 class FocusHoursWidgetProvider : android.appwidget.AppWidgetProvider() {
   override fun onUpdate(
@@ -24,48 +20,82 @@ class FocusHoursWidgetProvider : android.appwidget.AppWidgetProvider() {
   }
 
   companion object {
+    private const val TAG = "FocusHoursWidget"
     private const val TAP_REQUEST_CODE = 42012
+    private const val PAYWALL_TAP_REQUEST_CODE = 42013
 
     fun updateWidget(
       context: Context,
       appWidgetManager: AppWidgetManager,
       appWidgetId: Int,
     ) {
-      val views = RemoteViews(context.packageName, R.layout.widget_focus_hours)
-      val minutes = WidgetSessionStore.loadScheduleBundle(context)?.totalFocusMinutes ?: 0
-      val (value, label) = formatFocusHours(minutes)
-      views.setTextViewText(R.id.focus_hours_value, value)
-      views.setTextViewText(R.id.focus_hours_label, label)
-      views.setOnClickPendingIntent(R.id.focus_hours_root, buildTapIntent(context))
-      appWidgetManager.updateAppWidget(appWidgetId, views)
+      val views =
+        WidgetLayouts.remoteViews(context, "widget_focus_hours")
+          ?: run {
+            Log.e(TAG, "widget_focus_hours missing — cannot update widget")
+            return
+          }
+
+      val palette = WidgetTileAppearance.defaults(context)
+      WidgetTileAppearance.applyHoursTile(views, palette)
+
+      val premiumUnlocked = WidgetSessionStore.isPremiumUnlocked(context)
+      if (!premiumUnlocked) {
+        views.setTextViewText(R.id.focus_hours_value, "0h")
+        views.setTextViewText(R.id.focus_hours_label, "time saved")
+        WidgetPremiumGate.applyLockedState(views, R.id.widget_content, R.id.widget_lock_overlay)
+        views.setOnClickPendingIntent(
+          R.id.focus_hours_root,
+          WidgetPremiumGate.buildPaywallTapIntent(context, PAYWALL_TAP_REQUEST_CODE),
+        )
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+        return
+      }
+
+      WidgetPremiumGate.applyUnlockedState(views, R.id.widget_content, R.id.widget_lock_overlay)
+
+      try {
+        val bundle = WidgetSessionStore.loadScheduleBundle(context)
+        val resolvedPalette = bundle?.appearance ?: palette
+        val minutes = bundle?.totalFocusMinutes ?: 0
+        val (value, label) = formatFocusHours(minutes)
+        WidgetTileAppearance.applyHoursTile(views, resolvedPalette)
+        views.setTextViewText(R.id.focus_hours_value, value)
+        views.setTextViewText(R.id.focus_hours_label, label)
+        views.setOnClickPendingIntent(
+          R.id.focus_hours_root,
+          WidgetPremiumGate.buildAppLaunchIntent(context, TAP_REQUEST_CODE),
+        )
+        appWidgetManager.updateAppWidget(appWidgetId, views)
+      } catch (error: Exception) {
+        Log.e(TAG, "updateWidget failed", error)
+        try {
+          WidgetTileAppearance.applyHoursTile(views, palette)
+          views.setTextViewText(R.id.focus_hours_value, "0h")
+          views.setTextViewText(R.id.focus_hours_label, "time saved")
+          views.setOnClickPendingIntent(
+            R.id.focus_hours_root,
+            WidgetPremiumGate.buildAppLaunchIntent(context, TAP_REQUEST_CODE),
+          )
+          appWidgetManager.updateAppWidget(appWidgetId, views)
+        } catch (fallbackError: Exception) {
+          Log.e(TAG, "widget fallback failed", fallbackError)
+        }
+      }
     }
 
-    /** Matches JS weekly focus formatting — scannable number + unit line. */
+    /** Matches JS `formatFocusDuration` — e.g. 40h 30m, 40h, 45m. */
     fun formatFocusHours(totalMinutes: Int): Pair<String, String> {
-      if (totalMinutes <= 0) return "0" to "hours saved"
-      if (totalMinutes < 60) return totalMinutes.toString() to "min saved"
-      val hours = totalMinutes / 60.0
+      if (totalMinutes <= 0) return "0h" to "time saved"
+      val hours = totalMinutes / 60
+      val minutes = totalMinutes % 60
       val value =
-        if (hours >= 10.0) {
-          hours.toInt().toString()
-        } else {
-          String.format(Locale.US, "%.1f", hours)
+        when {
+          hours > 0 && minutes > 0 -> "${hours}h ${minutes}m"
+          hours > 0 -> "${hours}h"
+          else -> "${minutes}m"
         }
-      return value to "hours saved"
+      return value to "time saved"
     }
-
-    private fun buildTapIntent(context: Context): PendingIntent {
-      val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        ?: Intent(Intent.ACTION_MAIN).apply {
-          addCategory(Intent.CATEGORY_LAUNCHER)
-          setPackage(context.packageName)
-        }
-      launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-      val flags = PendingIntent.FLAG_UPDATE_CURRENT or immutableFlag()
-      return PendingIntent.getActivity(context, TAP_REQUEST_CODE, launchIntent, flags)
-    }
-
-    private fun immutableFlag(): Int =
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) PendingIntent.FLAG_IMMUTABLE else 0
   }
 }

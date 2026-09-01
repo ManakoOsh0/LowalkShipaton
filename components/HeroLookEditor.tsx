@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { HeroSoftFrameShell } from "@/components/hero/HeroSoftFrameShell";
 import { HeroWellBezel } from "@/components/hero/HeroWellBezel";
+import { WidgetPreviewPanel } from "@/components/settings/WidgetPreviewPanel";
 import { HeroWellGloss } from "@/components/hero/HeroWellGloss";
 import { HeroWellStroke } from "@/components/hero/HeroWellStroke";
 import { TrmnlText } from "@/components/trmnl/TrmnlText";
@@ -224,6 +225,18 @@ export function HeroLookEditor() {
         borderTopColor: colors.border,
       }}
     >
+      <Text
+        style={{
+          fontFamily: "Poppins-SemiBold",
+          fontSize: 11,
+          lineHeight: 14,
+          letterSpacing: 0.6,
+          textTransform: "uppercase",
+          color: colors.foregroundSubtle,
+        }}
+      >
+        In-app hero
+      </Text>
       <HeroLookPreview />
 
       <SwatchRow title="Style">
@@ -249,6 +262,18 @@ export function HeroLookEditor() {
         ))}
       </SwatchRow>
 
+      <SwatchRow title="Background">
+        {HERO_BACKGROUND_SWATCHES.map((swatch) => (
+          <SwatchChip
+            key={swatch.id}
+            label={swatch.label}
+            selected={backgroundId === swatch.id}
+            colors={[swatch.color, swatch.color]}
+            onPress={() => setBackgroundId(swatch.id)}
+          />
+        ))}
+      </SwatchRow>
+
       <SwatchRow title="Screen">
         {HERO_WELL_SWATCHES.map((swatch) => (
           <SwatchChip
@@ -261,17 +286,8 @@ export function HeroLookEditor() {
         ))}
       </SwatchRow>
 
-      <SwatchRow title="Background">
-        {HERO_BACKGROUND_SWATCHES.map((swatch) => (
-          <SwatchChip
-            key={swatch.id}
-            label={swatch.label}
-            selected={backgroundId === swatch.id}
-            colors={[swatch.color, swatch.color]}
-            onPress={() => setBackgroundId(swatch.id)}
-          />
-        ))}
-      </SwatchRow>
+      <WidgetPreviewPanel />
+
     </View>
   );
 }

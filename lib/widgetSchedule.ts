@@ -4,8 +4,8 @@
  */
 import { buildHeroWidgetSnapshot } from "@/lib/heroWidget";
 import {
-  buildHeroWidgetAppearance,
-  type HeroWidgetAppearancePayload,
+  buildWidgetTileAppearance,
+  type WidgetTileAppearancePayload,
 } from "@/lib/heroWidgetAppearance";
 import { estimateFocusMinutes } from "@/lib/periodStats";
 import { getScheduleWindow, toIsoDateString } from "@/lib/time";
@@ -75,7 +75,7 @@ export function buildWidgetScheduleBundle(input: {
   classPreBufferMinutes: number;
   sessionGapMergeMinutes: number;
   referenceDate?: Date;
-  appearance: HeroWidgetAppearancePayload;
+  appearance: WidgetTileAppearancePayload;
 }): WidgetScheduleBundle {
   const referenceDate = input.referenceDate ?? new Date();
   const todayIso = toIsoDateString(referenceDate);

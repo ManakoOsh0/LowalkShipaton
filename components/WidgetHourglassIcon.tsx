@@ -1,0 +1,23 @@
+/**
+ * WidgetHourglassIcon — hourglass mark for the hours-saved home-screen widget preview.
+ */
+import Svg, { Path } from "react-native-svg";
+
+const WIDGET_HOURGLASS_PATH =
+  "M42.92,37.65l2.86,2.9C49.79,44.63,52,50.04,52,55.8c0,2.87-2.32,5.2-5.17,5.2H25.17C22.32,61,20,58.67,20,55.8 c0-5.76,2.21-11.17,6.22-15.25l2.86-2.9c0.43-0.43,0.67-1.03,0.67-1.65s-0.24-1.22-0.67-1.65l-2.94-2.99 c-2.849-2.892-4.776-6.467-5.634-10.36C20.172,19.481,20,17.914,20,16.32c0-2.98,2.32-5.32,5.16-5.32h21.68 c2.84,0,5.16,2.34,5.16,5.22c0,1.635-0.174,3.235-0.514,4.78c-0.862,3.916-2.786,7.477-5.626,10.36l-2.94,2.99 c-0.43,0.43-0.67,1.03-0.67,1.65S42.49,37.22,42.92,37.65z M30.414,27.149l3.461,3.471c1.172,1.175,3.076,1.175,4.248,0l3.457-3.467 c1.364-1.385,2.43-2.997,3.173-4.757C45.034,21.736,44.545,21,43.827,21H28.162c-0.718,0-1.207,0.736-0.927,1.397 C27.978,24.15,29.046,25.761,30.414,27.149z";
+
+type WidgetHourglassIconProps = {
+  size?: number;
+  color?: string;
+};
+
+export function WidgetHourglassIcon({
+  size = 40,
+  color = "#636366",
+}: WidgetHourglassIconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 72 72">
+      <Path d={WIDGET_HOURGLASS_PATH} fill={color} />
+    </Svg>
+  );
+}

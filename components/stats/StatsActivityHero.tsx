@@ -1,6 +1,5 @@
 /**
- * Period consistency recap — sessions first, then hours, show-up days, and places.
- * Period picker stays here so week / month / year share one story shape.
+ * StatsActivityHero — period title, streak context, and one huge focus-time number.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { Text, View } from "react-native";
@@ -8,34 +7,54 @@ import { Text, View } from "react-native";
 import { PressableScale } from "@/components/PressableScale";
 import { StreakFlame } from "@/components/StreakFlame";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { formatFocusDuration } from "@/lib/periodStats";
 import { textStyle } from "@/lib/typography";
 import { FONT_FAMILY } from "@/theme/fonts";
-import type { ConsistencyRecap } from "@/types/stats";
+import type { PeriodStats } from "@/types/stats";
 
 type StatsActivityHeroProps = {
-  recap: ConsistencyRecap;
+  stats: PeriodStats;
   streak: number;
   onPressPeriod: () => void;
 };
 
+function trendCopy(stats: PeriodStats): {
+  icon: keyof typeof Ionicons.glyphMap;
+  text: string;
+} | null {
+  const { trend } = stats;
+  if (trend.direction === "new") {
+    return { icon: "sparkles-outline", text: "First activity in this period" };
+  }
+  if (trend.percentChange == null) return null;
+  if (trend.direction === "up") {
+    return {
+      icon: "arrow-up",
+      text: `${trend.percentChange}% ${trend.comparisonLabel}`,
+    };
+  }
+  if (trend.direction === "down") {
+    return {
+      icon: "arrow-down",
+      text: `${trend.percentChange}% ${trend.comparisonLabel}`,
+    };
+  }
+  return { icon: "remove", text: `Same ${trend.comparisonLabel}` };
+}
+
 export function StatsActivityHero({
-  recap,
+  stats,
   streak,
   onPressPeriod,
 }: StatsActivityHeroProps) {
   const colors = useThemeColors();
-  const sessionNoun = recap.sessionsCompleted === 1 ? "session" : "sessions";
-  const dayNoun = recap.plannedDays === 1 ? "day" : "days";
-  const locationNoun = recap.locationCount === 1 ? "location" : "locations";
-  const hasPlan = recap.sessionsPlanned > 0;
+  const trend = trendCopy(stats);
 
   return (
     <View style={{ gap: 28, paddingTop: 4 }}>
       <View style={{ gap: 10, alignItems: "center" }}>
         <PressableScale
           accessibilityRole="button"
-          accessibilityLabel={`Change period, currently ${recap.title}`}
+          accessibilityLabel={`Change period, currently ${stats.activityTitle}`}
           onPress={onPressPeriod}
           style={{
             flexDirection: "row",
@@ -53,7 +72,7 @@ export function StatsActivityHero({
               color: colors.foreground,
             }}
           >
-            {recap.title}
+            {stats.activityTitle}
           </Text>
           <Ionicons name="chevron-down" size={22} color={colors.muted} />
         </PressableScale>
@@ -71,10 +90,33 @@ export function StatsActivityHero({
           >
             {streak}-day streak
           </Text>
+          <Text style={{ color: colors.border }}>·</Text>
+          <Text
+            style={{
+              fontFamily: FONT_FAMILY.semibold,
+              fontSize: 11,
+              lineHeight: 14,
+              letterSpacing: 1.4,
+              color: colors.muted,
+              textTransform: "uppercase",
+            }}
+          >
+            {stats.sectionTitle}
+          </Text>
         </View>
       </View>
 
       <View style={{ gap: 8 }}>
+        <Text
+          style={{
+            fontFamily: FONT_FAMILY.medium,
+            fontSize: 15,
+            lineHeight: 20,
+            color: colors.muted,
+          }}
+        >
+          {stats.heroLabel}
+        </Text>
         <Text
           style={{
             fontFamily: FONT_FAMILY.bold,
@@ -85,37 +127,19 @@ export function StatsActivityHero({
             fontVariant: ["tabular-nums"],
           }}
         >
-          {recap.sessionsCompleted}
+          {stats.heroValue}
         </Text>
-        <Text
-          style={{
-            fontFamily: FONT_FAMILY.medium,
-            fontSize: 15,
-            lineHeight: 20,
-            color: colors.muted,
-          }}
-        >
-          {sessionNoun} completed
-        </Text>
-        {hasPlan ? (
-          <View style={{ gap: 4 }}>
-            <Text style={textStyle("bodyMd", colors.foregroundSubtle)}>
-              {formatFocusDuration(recap.focusMinutes)} focused
-            </Text>
-            <Text style={textStyle("bodyMd", colors.foregroundSubtle)}>
-              {recap.sessionCompletionPercent}% of planned sessions
-            </Text>
-            {recap.plannedDays > 0 ? (
-              <Text style={textStyle("bodyMd", colors.foregroundSubtle)}>
-                {recap.showedUpDays}/{recap.plannedDays} planned {dayNoun} showed up
-                {recap.locationCount > 0
-                  ? ` · ${recap.locationCount} ${locationNoun}`
-                  : ""}
-              </Text>
-            ) : null}
+        {trend ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name={trend.icon} size={15} color={colors.foregroundSubtle} />
+            <Text style={textStyle("bodyMd", colors.foregroundSubtle)}>{trend.text}</Text>
           </View>
         ) : (
-          <Text style={textStyle("bodyMd", colors.muted)}>{recap.emptyMessage}</Text>
+          <Text style={textStyle("bodyMd", colors.muted)}>
+            {stats.totalSessions === 0
+              ? "Your first sessions will show up here."
+              : stats.summaryLabel}
+          </Text>
         )}
       </View>
     </View>

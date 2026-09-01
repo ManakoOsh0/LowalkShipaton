@@ -3,6 +3,7 @@ import { create } from "zustand";
 
 import {
   fetchCustomerInfo,
+  fetchCustomerInfoFresh,
   isPremiumFromCustomerInfo,
 } from "@/services/revenueCat";
 
@@ -10,7 +11,7 @@ type SubscriptionState = {
   isPremium: boolean;
   isLoaded: boolean;
   setFromCustomerInfo: (customerInfo: CustomerInfo) => void;
-  refreshSubscriptionStatus: () => Promise<void>;
+  refreshSubscriptionStatus: (options?: { fresh?: boolean }) => Promise<void>;
 };
 
 /** Subscription status from RevenueCat — not persisted locally. */
@@ -23,8 +24,10 @@ export const useSubscriptionStore = create<SubscriptionState>((set) => ({
       isLoaded: true,
     });
   },
-  refreshSubscriptionStatus: async () => {
-    const customerInfo = await fetchCustomerInfo();
+  refreshSubscriptionStatus: async (options) => {
+    const customerInfo = options?.fresh
+      ? await fetchCustomerInfoFresh()
+      : await fetchCustomerInfo();
     if (customerInfo) {
       set({
         isPremium: isPremiumFromCustomerInfo(customerInfo),

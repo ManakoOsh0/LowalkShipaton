@@ -1,32 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Small 2×2 focus-hours widget — big number, short label, hourglass along the bottom. -->
+<!-- Minimal 2×2 hours tile — keep in sync with lib/widgetLayoutSpec.ts (WIDGET_HOURS_SPEC). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:id="@+id/focus_hours_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
-  android:background="@drawable/widget_focus_hours_bg">
+  android:clipToOutline="true"
+  android:padding="12dp">
 
   <LinearLayout
+    android:id="@+id/widget_content"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:gravity="center_horizontal"
-    android:orientation="vertical"
-    android:paddingTop="12dp"
-    android:paddingHorizontal="10dp"
-    android:paddingBottom="4dp">
+    android:orientation="vertical">
+
+    <ImageView
+      android:id="@+id/focus_hours_hourglass"
+      android:layout_width="40dp"
+      android:layout_height="40dp"
+      android:layout_marginBottom="4dp"
+      android:contentDescription="@string/focus_hours_widget_hourglass"
+      android:scaleType="fitCenter"
+      android:src="@drawable/widget_hourglass" />
 
     <TextView
       android:id="@+id/focus_hours_value"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:ellipsize="end"
-      android:fontFamily="@font/space_mono_bold"
-      android:gravity="center_horizontal"
+      android:autoSizeMaxTextSize="28sp"
+      android:autoSizeMinTextSize="8sp"
+      android:autoSizeStepGranularity="1sp"
+      android:autoSizeTextType="uniform"
+      android:gravity="center"
       android:includeFontPadding="false"
       android:maxLines="1"
-      android:text="0"
-      android:textColor="@color/widget_focus_hours_ink"
-      android:textSize="32sp"
+      android:text="0h"
+      android:textColor="#1C1C1E"
+      android:textSize="28sp"
       android:textStyle="bold" />
 
     <TextView
@@ -34,27 +44,42 @@
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:layout_marginTop="2dp"
-      android:ellipsize="end"
-      android:fontFamily="sans-serif"
-      android:gravity="center_horizontal"
+      android:autoSizeMaxTextSize="11sp"
+      android:autoSizeMinTextSize="8sp"
+      android:autoSizeStepGranularity="1sp"
+      android:autoSizeTextType="uniform"
+      android:gravity="center"
       android:includeFontPadding="false"
       android:maxLines="1"
-      android:text="hours saved"
-      android:textColor="@color/widget_focus_hours_ink_muted"
+      android:text="time saved"
+      android:textColor="#636366"
       android:textSize="11sp" />
+  </LinearLayout>
+
+  <FrameLayout
+    android:id="@+id/widget_lock_overlay"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:visibility="gone">
 
     <View
-      android:layout_width="0dp"
-      android:layout_height="0dp"
-      android:layout_weight="1" />
+      android:id="@+id/widget_lock_scrim"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent"
+      android:background="@drawable/widget_lock_scrim" />
 
-    <ImageView
-      android:id="@+id/focus_hours_hourglass"
-      android:layout_width="52dp"
-      android:layout_height="52dp"
-      android:layout_gravity="center_horizontal"
-      android:contentDescription="@string/focus_hours_widget_hourglass"
-      android:scaleType="fitCenter"
-      android:src="@drawable/widget_hourglass" />
-  </LinearLayout>
+    <TextView
+      android:id="@+id/widget_pro_badge"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_gravity="center"
+      android:background="@drawable/widget_pro_badge"
+      android:includeFontPadding="false"
+      android:paddingHorizontal="14dp"
+      android:paddingVertical="6dp"
+      android:text="PRO"
+      android:textColor="#141210"
+      android:textSize="13sp"
+      android:textStyle="bold" />
+  </FrameLayout>
 </FrameLayout>

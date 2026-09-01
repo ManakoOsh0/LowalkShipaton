@@ -20,6 +20,7 @@ import { LeaveSessionWarningHost } from "@/components/LeaveSessionWarningModal";
 import { SessionCompleteHost } from "@/components/SessionCompleteScreen";
 import { SessionPenaltyHost } from "@/components/SessionPenaltyModal";
 import { StreakCelebrationHost } from "@/components/StreakCelebrationModal";
+import { PaywallDeepLinkHost } from "@/components/PaywallDeepLinkHost";
 import { SessionPresenceProvider } from "@/components/SessionPresenceProvider";
 import { useAppFonts } from "@/hooks/useAppFonts";
 import { useNotificationResponses } from "@/hooks/useNotificationResponses";
@@ -63,6 +64,7 @@ export default function RootLayout() {
         <SessionPresenceProvider>
           <AppLifecycleHooks />
           <SubscriptionLifecycle />
+          <PaywallDeepLinkHost />
           <StatusBar style="light" />
           <Stack
             screenOptions={{

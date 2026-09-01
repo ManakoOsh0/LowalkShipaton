@@ -182,92 +182,6 @@ function ensureHeroWidgetBootReceiver(androidManifest) {
   return androidManifest;
 }
 
-function ensureHeroWidgetReceiver(androidManifest) {
-  const app = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
-  if (!app.receiver) {
-    app.receiver = [];
-  }
-
-  const receiverName = "expo.modules.lowalkappshield.HeroWidgetProvider";
-  const exists = app.receiver.some(
-    (receiver) => receiver.$?.["android:name"] === receiverName,
-  );
-
-  if (!exists) {
-    app.receiver.push({
-      $: {
-        "android:name": receiverName,
-        "android:exported": "true",
-        "android:label": "Lowalk Focus",
-      },
-      "intent-filter": [
-        {
-          action: [
-            {
-              $: {
-                "android:name": "android.appwidget.action.APPWIDGET_UPDATE",
-              },
-            },
-          ],
-        },
-      ],
-      "meta-data": [
-        {
-          $: {
-            "android:name": "android.appwidget.provider",
-            "android:resource": "@xml/hero_widget_info",
-          },
-        },
-      ],
-    });
-  }
-
-  return androidManifest;
-}
-
-function ensureFocusHoursWidgetReceiver(androidManifest) {
-  const app = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
-  if (!app.receiver) {
-    app.receiver = [];
-  }
-
-  const receiverName = "expo.modules.lowalkappshield.FocusHoursWidgetProvider";
-  const exists = app.receiver.some(
-    (receiver) => receiver.$?.["android:name"] === receiverName,
-  );
-
-  if (!exists) {
-    app.receiver.push({
-      $: {
-        "android:name": receiverName,
-        "android:exported": "true",
-        "android:label": "Hours saved",
-      },
-      "intent-filter": [
-        {
-          action: [
-            {
-              $: {
-                "android:name": "android.appwidget.action.APPWIDGET_UPDATE",
-              },
-            },
-          ],
-        },
-      ],
-      "meta-data": [
-        {
-          $: {
-            "android:name": "android.appwidget.provider",
-            "android:resource": "@xml/focus_hours_widget_info",
-          },
-        },
-      ],
-    });
-  }
-
-  return androidManifest;
-}
-
 function ensureMonitorService(androidManifest) {
   const app = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
   if (!app.service) {
@@ -312,14 +226,13 @@ function withLowalkAppShield(config) {
     "android.permission.QUERY_ALL_PACKAGES",
     "android.permission.RECEIVE_BOOT_COMPLETED",
     "android.permission.SCHEDULE_EXACT_ALARM",
+    "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
   ]);
 
   config = withAndroidManifest(config, (config) => {
     config.modResults = ensureQueries(config.modResults);
     config.modResults = ensureShieldActivity(config.modResults);
     config.modResults = ensureMonitorService(config.modResults);
-    config.modResults = ensureHeroWidgetReceiver(config.modResults);
-    config.modResults = ensureFocusHoursWidgetReceiver(config.modResults);
     config.modResults = ensureHeroWidgetBootReceiver(config.modResults);
     AndroidConfig.Permissions.ensurePermissions(config.modResults, [
       "android.permission.PACKAGE_USAGE_STATS",
@@ -329,6 +242,7 @@ function withLowalkAppShield(config) {
       "android.permission.QUERY_ALL_PACKAGES",
       "android.permission.RECEIVE_BOOT_COMPLETED",
       "android.permission.SCHEDULE_EXACT_ALARM",
+      "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
     ]);
     return config;
   });
@@ -338,4 +252,4 @@ function withLowalkAppShield(config) {
   return config;
 }
 
-module.exports = createRunOncePlugin(withLowalkAppShield, PACKAGE_NAME, "1.4.1");
+module.exports = createRunOncePlugin(withLowalkAppShield, PACKAGE_NAME, "1.6.2");

@@ -48,6 +48,22 @@ class LowalkAppShieldModule : Module() {
       AppShieldOverlayController.openOverlaySettings(context)
     }
 
+    AsyncFunction("canScheduleExactAlarms") {
+      AppShieldSystemSettings.canScheduleExactAlarms(context)
+    }
+
+    AsyncFunction("isIgnoringBatteryOptimizations") {
+      AppShieldSystemSettings.isIgnoringBatteryOptimizations(context)
+    }
+
+    AsyncFunction("openExactAlarmSettings") {
+      AppShieldSystemSettings.openExactAlarmSettings(context)
+    }
+
+    AsyncFunction("openBatteryOptimizationSettings") {
+      AppShieldSystemSettings.openBatteryOptimizationSettings(context)
+    }
+
     AsyncFunction("getInstalledApps") {
       listLaunchableApps(context)
     }
@@ -99,11 +115,22 @@ class LowalkAppShieldModule : Module() {
       ShieldOverlayContextStore.clear(context)
     }
 
-    AsyncFunction("syncWidgetSchedule") { bundle: Map<String, Any?> ->
-      WidgetSessionStore.saveBundle(context, bundle)
+    AsyncFunction("refreshWidgets") {
       WidgetSessionStore.requestWidgetRefresh(context)
-      HeroWidgetAlarmScheduler.reschedule(context)
-      ShieldOrchestrator.sync(context)
+    }
+
+    AsyncFunction("setWidgetPremiumAccess") { unlocked: Boolean ->
+      WidgetSessionStore.setPremiumUnlocked(context, unlocked)
+    }
+
+    AsyncFunction("syncWidgetSchedule") { bundleJson: String ->
+      try {
+        WidgetSessionStore.saveBundleJson(context, bundleJson)
+        WidgetSessionStore.requestWidgetRefresh(context)
+        ShieldOrchestrator.sync(context)
+      } catch (error: Exception) {
+        throw Exception("syncWidgetSchedule failed: ${error.message}", error)
+      }
     }
 
     AsyncFunction("updateHeroWidgetSnapshot") { snapshot: Map<String, Any?> ->
@@ -127,7 +154,6 @@ class LowalkAppShieldModule : Module() {
       )
       WidgetSessionStore.saveBundle(context, legacyBundle)
       WidgetSessionStore.requestWidgetRefresh(context)
-      HeroWidgetAlarmScheduler.reschedule(context)
     }
 
     OnDestroy {
