@@ -150,70 +150,6 @@ function withShieldDebugAndroidManifest(config) {
   ]);
 }
 
-function ensureHeroWidgetBootReceiver(androidManifest) {
-  const app = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
-  if (!app.receiver) {
-    app.receiver = [];
-  }
-
-  const receiverName = "expo.modules.lowalkappshield.HeroWidgetBootReceiver";
-  const exists = app.receiver.some(
-    (receiver) => receiver.$?.["android:name"] === receiverName,
-  );
-
-  if (!exists) {
-    app.receiver.push({
-      $: {
-        "android:name": receiverName,
-        "android:exported": "false",
-      },
-      "intent-filter": [
-        {
-          action: [
-            { $: { "android:name": "android.intent.action.BOOT_COMPLETED" } },
-            { $: { "android:name": "android.intent.action.TIMEZONE_CHANGED" } },
-            { $: { "android:name": "android.intent.action.TIME_SET" } },
-          ],
-        },
-      ],
-    });
-  }
-
-  return androidManifest;
-}
-
-function ensureMonitorService(androidManifest) {
-  const app = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
-  if (!app.service) {
-    app.service = [];
-  }
-
-  const serviceName = "expo.modules.lowalkappshield.AppShieldMonitorService";
-  const exists = app.service.some(
-    (service) => service.$?.["android:name"] === serviceName,
-  );
-
-  if (!exists) {
-    app.service.push({
-      $: {
-        "android:name": serviceName,
-        "android:exported": "false",
-        "android:foregroundServiceType": "specialUse",
-      },
-      property: [
-        {
-          $: {
-            "android:name": "android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE",
-            "android:value": "Focus session distraction shielding",
-          },
-        },
-      ],
-    });
-  }
-
-  return androidManifest;
-}
-
 /**
  * Usage Access + draw-over overlay + launcher package visibility for the Android shield spike.
  */
@@ -232,8 +168,6 @@ function withLowalkAppShield(config) {
   config = withAndroidManifest(config, (config) => {
     config.modResults = ensureQueries(config.modResults);
     config.modResults = ensureShieldActivity(config.modResults);
-    config.modResults = ensureMonitorService(config.modResults);
-    config.modResults = ensureHeroWidgetBootReceiver(config.modResults);
     AndroidConfig.Permissions.ensurePermissions(config.modResults, [
       "android.permission.PACKAGE_USAGE_STATS",
       "android.permission.SYSTEM_ALERT_WINDOW",
@@ -252,4 +186,4 @@ function withLowalkAppShield(config) {
   return config;
 }
 
-module.exports = createRunOncePlugin(withLowalkAppShield, PACKAGE_NAME, "1.6.2");
+module.exports = createRunOncePlugin(withLowalkAppShield, PACKAGE_NAME, "1.6.3");

@@ -1,3 +1,7 @@
+# Generated native projects — let EAS run a fresh prebuild instead of uploading stale local copies.
+/android
+/ios
+
 # Agent / IDE tooling (symlinks break EAS archive on Windows)
 .agents/
 .claude/
