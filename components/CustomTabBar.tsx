@@ -19,7 +19,6 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 import { ROUTES } from "@/lib/routes";
 import type { IconProps } from "@solar-icons/react-native/lib/types";
 
-const FAB_COLOR = "#FF8A3D";
 const BAR_BODY_HEIGHT = 62;
 const FAB_SIZE = 64;
 const TAB_ICON_SIZE = 30;
@@ -197,7 +196,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
                 justifyContent: "center",
                 backgroundColor: colors.card,
                 borderWidth: 2.5,
-                borderColor: FAB_COLOR,
+                borderColor: colors.skyDeep,
                 opacity: pressed ? 0.9 : 1,
                 transform: [{ scale: pressed ? 0.96 : 1 }],
               })}
@@ -209,7 +208,7 @@ export function CustomTabBar({ state, navigation }: BottomTabBarProps) {
                   ],
                 }}
               >
-                <QuickActionHourglassIcon size={30} color={FAB_COLOR} />
+                <QuickActionHourglassIcon size={30} color={colors.skyDeep} />
               </View>
             </Pressable>
           </View>

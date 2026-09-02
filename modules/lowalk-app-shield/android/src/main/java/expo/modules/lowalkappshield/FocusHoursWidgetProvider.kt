@@ -43,7 +43,7 @@ class FocusHoursWidgetProvider : android.appwidget.AppWidgetProvider() {
       if (!premiumUnlocked) {
         views.setTextViewText(R.id.focus_hours_value, "0h")
         views.setTextViewText(R.id.focus_hours_label, "time saved")
-        WidgetPremiumGate.applyLockedState(views, R.id.widget_content, R.id.widget_lock_overlay)
+        WidgetPremiumGate.applyLockedState(views, R.id.widget_lock_overlay)
         views.setOnClickPendingIntent(
           R.id.focus_hours_root,
           WidgetPremiumGate.buildPaywallTapIntent(context, PAYWALL_TAP_REQUEST_CODE),
@@ -52,7 +52,7 @@ class FocusHoursWidgetProvider : android.appwidget.AppWidgetProvider() {
         return
       }
 
-      WidgetPremiumGate.applyUnlockedState(views, R.id.widget_content, R.id.widget_lock_overlay)
+      WidgetPremiumGate.applyUnlockedState(views, R.id.widget_lock_overlay)
 
       try {
         val bundle = WidgetSessionStore.loadScheduleBundle(context)

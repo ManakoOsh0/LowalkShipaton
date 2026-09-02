@@ -6,6 +6,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 
 import { ShieldBlockedIcon } from "@/components/ShieldBlockedIcon";
 import { ShieldOpenLowalkButton } from "@/components/ShieldOpenLowalkButton";
+import { SHIELD_OVERLAY_CONTENT_MAX_WIDTH } from "@/constants/shieldOverlay";
 import { colors } from "@/theme/tokens";
 import { FONT_FAMILY } from "@/theme/fonts";
 
@@ -40,7 +41,13 @@ export function ShieldOverlayLayout({
           alignItems: "center",
         }}
       >
-        <View style={{ alignItems: "center", width: "100%", maxWidth: 340 }}>
+        <View
+          style={{
+            alignItems: "center",
+            width: "100%",
+            maxWidth: SHIELD_OVERLAY_CONTENT_MAX_WIDTH,
+          }}
+        >
           <ShieldBlockedIcon />
 
           <Text

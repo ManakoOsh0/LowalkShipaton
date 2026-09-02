@@ -56,7 +56,7 @@
           android:layout_marginStart="3dp"
           android:includeFontPadding="false"
           android:text="01"
-          android:textColor="#FF8A3D"
+          android:textColor="#6B8FB8"
           android:textSize="13sp"
           android:textStyle="bold" />
       </LinearLayout>
@@ -113,10 +113,6 @@
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
       android:layout_marginTop="4dp"
-      android:autoSizeMaxTextSize="14sp"
-      android:autoSizeMinTextSize="10sp"
-      android:autoSizeStepGranularity="1sp"
-      android:autoSizeTextType="uniform"
       android:maxLines="2"
       android:text="41:00"
       android:textColor="#1C1C1E"
@@ -138,13 +134,8 @@
     android:id="@+id/widget_lock_overlay"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/widget_lock_scrim"
     android:visibility="gone">
-
-    <View
-      android:id="@+id/widget_lock_scrim"
-      android:layout_width="match_parent"
-      android:layout_height="match_parent"
-      android:background="@drawable/widget_lock_scrim" />
 
     <TextView
       android:id="@+id/widget_pro_badge"
@@ -153,10 +144,12 @@
       android:layout_gravity="center"
       android:background="@drawable/widget_pro_badge"
       android:includeFontPadding="false"
-      android:paddingHorizontal="14dp"
-      android:paddingVertical="6dp"
+      android:paddingLeft="14dp"
+      android:paddingRight="14dp"
+      android:paddingTop="6dp"
+      android:paddingBottom="6dp"
       android:text="PRO"
-      android:textColor="#141210"
+      android:textColor="#FFFFFF"
       android:textSize="13sp"
       android:textStyle="bold" />
   </FrameLayout>

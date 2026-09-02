@@ -4,8 +4,8 @@
  */
 
 export const colors = {
-  primary: "#FF8F33",
-  primaryDeep: "#FF7700",
+  primary: "#6B8FB8",
+  primaryDeep: "#6B8FB8",
   blue: "#9BB8D9",
   sky: "#9BB8D9",
   skyDeep: "#6B8FB8",
@@ -23,7 +23,7 @@ export const colors = {
   card: "#2F2B25",
   cardStroke: "rgba(255, 255, 255, 0.15)",
   iconTile: "rgba(143, 175, 212, 0.22)",
-  primarySoft: "rgba(255, 143, 51, 0.14)",
+  primarySoft: "rgba(107, 143, 184, 0.14)",
   /** Neutral ring for upcoming / incomplete task indicators. */
   ring: "rgba(255, 255, 255, 0.3)",
   cardShadow: "#000000",

@@ -18,6 +18,10 @@ object ShieldOverlayUi {
   private const val DAWN_PATH_FOREGROUND = "#F5F2ED"
   private const val CTA_BACKGROUND = "#FFFFFF"
   private const val CTA_TEXT = "#141210"
+  /** Match constants/shieldOverlay.ts + ShieldBlockedIcon preview. */
+  private const val LOGO_SIZE_DP = 124f
+  private const val LOGO_OFFSET_X_DP = 6f
+  private const val CONTENT_MAX_WIDTH_DP = 340f
 
   data class Copy(
     val nodeKind: String,
@@ -61,8 +65,21 @@ object ShieldOverlayUi {
       )
     }
 
-    centerStack.addView(buildLogoIcon(context, density))
-    centerStack.addView(
+    val screenWidth = context.resources.displayMetrics.widthPixels
+    val maxContentPx = (CONTENT_MAX_WIDTH_DP * density).toInt()
+    val contentWidth = minOf(screenWidth - horizontalPad * 2, maxContentPx)
+
+    val contentColumn = LinearLayout(context).apply {
+      orientation = LinearLayout.VERTICAL
+      gravity = Gravity.CENTER_HORIZONTAL
+      layoutParams = LinearLayout.LayoutParams(
+        contentWidth,
+        LinearLayout.LayoutParams.WRAP_CONTENT,
+      )
+    }
+
+    contentColumn.addView(buildLogoIcon(context, density))
+    contentColumn.addView(
       titleText(context, resolveHeadline(copy, blockedAppLabel)).apply {
         layoutParams = LinearLayout.LayoutParams(
           LinearLayout.LayoutParams.MATCH_PARENT,
@@ -72,7 +89,7 @@ object ShieldOverlayUi {
         }
       },
     )
-    centerStack.addView(
+    contentColumn.addView(
       bodyText(context, copy.subtitle).apply {
         layoutParams = LinearLayout.LayoutParams(
           LinearLayout.LayoutParams.MATCH_PARENT,
@@ -82,6 +99,8 @@ object ShieldOverlayUi {
         }
       },
     )
+
+    centerStack.addView(contentColumn)
 
     content.addView(centerStack)
     content.addView(
@@ -115,14 +134,22 @@ object ShieldOverlayUi {
     return navBarPx + (12 * density).toInt()
   }
 
-  private fun buildLogoIcon(context: Context, density: Float): ImageView {
-    val iconSize = (124 * density).toInt()
-    return ImageView(context).apply {
-      setImageResource(R.drawable.lowalk2_logo)
-      scaleType = ImageView.ScaleType.FIT_CENTER
-      translationX = 6f * density
+  private fun buildLogoIcon(context: Context, density: Float): View {
+    val iconSize = (LOGO_SIZE_DP * density).toInt()
+    val wrapper = FrameLayout(context).apply {
       layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+      translationX = LOGO_OFFSET_X_DP * density
     }
+    val image = ImageView(context).apply {
+      setImageResource(R.drawable.lowal2_logo)
+      scaleType = ImageView.ScaleType.FIT_XY
+      layoutParams = FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT,
+        FrameLayout.LayoutParams.MATCH_PARENT,
+      )
+    }
+    wrapper.addView(image)
+    return wrapper
   }
 
   private fun displayBoldTypeface(context: Context): Typeface {

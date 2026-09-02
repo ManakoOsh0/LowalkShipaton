@@ -23,7 +23,8 @@
         "EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY": "@revenuecat_test_store_api_key"
       },
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
       }
     },
     "production": {

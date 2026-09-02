@@ -5,9 +5,10 @@ import { View } from "react-native";
 import { SvgXml } from "react-native-svg";
 
 import { lowal2LogoXml } from "@/constants/lowal2Logo";
-
-const LOGO_SIZE = 124;
-const LOGO_OFFSET_X = 6;
+import {
+  SHIELD_BLOCKED_ICON_OFFSET_X,
+  SHIELD_BLOCKED_ICON_SIZE,
+} from "@/constants/shieldOverlay";
 
 type ShieldBlockedIconProps = {
   size?: number;
@@ -15,8 +16,8 @@ type ShieldBlockedIconProps = {
 };
 
 export function ShieldBlockedIcon({
-  size = LOGO_SIZE,
-  offsetX = LOGO_OFFSET_X,
+  size = SHIELD_BLOCKED_ICON_SIZE,
+  offsetX = SHIELD_BLOCKED_ICON_OFFSET_X,
 }: ShieldBlockedIconProps) {
   return (
     <View

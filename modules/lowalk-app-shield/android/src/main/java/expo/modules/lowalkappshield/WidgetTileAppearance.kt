@@ -21,7 +21,7 @@ object WidgetTileAppearance {
       tileBg = Color.parseColor("#DEDEDE"),
       textPrimary = Color.parseColor("#1C1C1E"),
       textMuted = Color.parseColor("#636366"),
-      dateAccent = Color.parseColor("#FF8A3D"),
+      dateAccent = Color.parseColor("#6B8FB8"),
     )
   }
 

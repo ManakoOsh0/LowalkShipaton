@@ -76,7 +76,7 @@ class HeroWidgetProvider : android.appwidget.AppWidgetProvider() {
       val premiumUnlocked = WidgetSessionStore.isPremiumUnlocked(context)
       if (!premiumUnlocked) {
         bindLockedPlaceholder(views)
-        WidgetPremiumGate.applyLockedState(views, R.id.widget_content, R.id.widget_lock_overlay)
+        WidgetPremiumGate.applyLockedState(views, R.id.widget_lock_overlay)
         views.setOnClickPendingIntent(
           R.id.widget_root,
           WidgetPremiumGate.buildPaywallTapIntent(context, PAYWALL_TAP_REQUEST_CODE),
@@ -85,7 +85,7 @@ class HeroWidgetProvider : android.appwidget.AppWidgetProvider() {
         return
       }
 
-      WidgetPremiumGate.applyUnlockedState(views, R.id.widget_content, R.id.widget_lock_overlay)
+      WidgetPremiumGate.applyUnlockedState(views, R.id.widget_lock_overlay)
 
       try {
         val bundle = WidgetSessionStore.loadScheduleBundle(context)

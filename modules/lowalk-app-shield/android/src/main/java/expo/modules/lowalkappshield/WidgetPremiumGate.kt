@@ -12,13 +12,11 @@ import android.widget.RemoteViews
 object WidgetPremiumGate {
   const val PAYWALL_DEEP_LINK = "trylowalk://paywall"
 
-  fun applyLockedState(views: RemoteViews, contentId: Int, overlayId: Int) {
-    views.setFloat(contentId, "setAlpha", 0.45f)
+  fun applyLockedState(views: RemoteViews, overlayId: Int) {
     views.setViewVisibility(overlayId, View.VISIBLE)
   }
 
-  fun applyUnlockedState(views: RemoteViews, contentId: Int, overlayId: Int) {
-    views.setFloat(contentId, "setAlpha", 1f)
+  fun applyUnlockedState(views: RemoteViews, overlayId: Int) {
     views.setViewVisibility(overlayId, View.GONE)
   }
 
