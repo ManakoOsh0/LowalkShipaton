@@ -3,6 +3,7 @@ package expo.modules.lowalkappshield
 import android.content.Context
 import android.graphics.Color
 import android.os.Build
+import android.util.TypedValue
 import android.widget.RemoteViews
 import org.json.JSONObject
 
@@ -48,12 +49,10 @@ object WidgetTileAppearance {
     views.setTextColor(R.id.tile_timer_remaining, palette.textPrimary)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      views.setViewOutlinePreferredCornersRadius(
+      views.setViewOutlinePreferredRadius(
         R.id.widget_root,
         48f,
-        48f,
-        48f,
-        48f,
+        TypedValue.COMPLEX_UNIT_DIP,
       )
     }
   }
@@ -65,12 +64,10 @@ object WidgetTileAppearance {
     views.setInt(R.id.focus_hours_hourglass, "setColorFilter", palette.textMuted)
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      views.setViewOutlinePreferredCornersRadius(
+      views.setViewOutlinePreferredRadius(
         R.id.focus_hours_root,
         48f,
-        48f,
-        48f,
-        48f,
+        TypedValue.COMPLEX_UNIT_DIP,
       )
     }
   }
