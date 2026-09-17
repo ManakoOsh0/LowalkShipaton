@@ -60,6 +60,7 @@ export default function HomeScreen() {
             items={schedule}
             onItemPress={(item) => router.push(ROUTES.sessionDetail(item.id))}
             onItemLongPress={showScheduleItemActions}
+            onItemMenuPress={showScheduleItemActions}
             onEmptyPress={() => router.push(ROUTES.focusNodeNewWithTemplate("custom"))}
           />
         </View>

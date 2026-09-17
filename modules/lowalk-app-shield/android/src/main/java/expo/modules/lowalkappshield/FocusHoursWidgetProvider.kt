@@ -17,6 +17,21 @@ class FocusHoursWidgetProvider : android.appwidget.AppWidgetProvider() {
     for (id in appWidgetIds) {
       updateWidget(context, appWidgetManager, id)
     }
+    try {
+      HeroWidgetAlarmScheduler.reschedule(context)
+    } catch (error: Exception) {
+      Log.e(TAG, "reschedule failed after onUpdate", error)
+    }
+  }
+
+  override fun onEnabled(context: Context) {
+    HeroWidgetAlarmScheduler.reschedule(context)
+    super.onEnabled(context)
+  }
+
+  override fun onDisabled(context: Context) {
+    WidgetSessionStore.cancelAlarmsIfNoWidgets(context)
+    super.onDisabled(context)
   }
 
   companion object {

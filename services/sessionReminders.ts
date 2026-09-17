@@ -193,6 +193,7 @@ async function scheduleDaySessionReminders(
           body: buildPreBufferBody(node, anchors),
           sound: true,
           data: { nodeId: node.id, type: "pre-buffer" },
+          ...(Platform.OS === "android" ? { priority: "max" } : {}),
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -293,6 +294,7 @@ export async function ensureAndroidReminderChannel(): Promise<void> {
   const Notifications = await getNotificationsModule();
   await Notifications.setNotificationChannelAsync("session-reminders", {
     name: "Session reminders",
+    description: "Pre-buffer, missed session, and completion alerts.",
     importance: Notifications.AndroidImportance.HIGH,
     sound: "default",
     vibrationPattern: [0, 250, 120, 250],

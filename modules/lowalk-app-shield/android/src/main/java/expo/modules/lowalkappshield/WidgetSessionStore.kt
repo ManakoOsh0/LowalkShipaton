@@ -3,6 +3,7 @@ package expo.modules.lowalkappshield
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** Persists widget schedule bundles from JS and renders offline via HeroWidgetStateEngine. */
@@ -10,6 +11,9 @@ object WidgetSessionStore {
   private const val PREF_NAME = "lowalk_hero_widget"
   private const val PREF_BUNDLE_JSON = "bundle_json"
   private const val PREF_PREMIUM_UNLOCKED = "premium_unlocked"
+  /** Authoritative blocked-app packages from JS — not gated on widget premium sync. */
+  private const val PREF_USER_BLOCKED_PACKAGES = "user_blocked_packages"
+  private const val PREF_USER_BLOCKED_PACKAGES_SET = "user_blocked_packages_set"
 
   data class Snapshot(
     val state: String,
@@ -45,6 +49,22 @@ object WidgetSessionStore {
     requestWidgetRefresh(context)
   }
 
+  fun hasPlacedWidgets(context: Context): Boolean {
+    val appContext = context.applicationContext
+    val manager = AppWidgetManager.getInstance(appContext)
+    val heroIds =
+      manager.getAppWidgetIds(ComponentName(appContext, HeroWidgetProvider::class.java))
+    val hoursIds =
+      manager.getAppWidgetIds(ComponentName(appContext, FocusHoursWidgetProvider::class.java))
+    return heroIds.isNotEmpty() || hoursIds.isNotEmpty()
+  }
+
+  fun cancelAlarmsIfNoWidgets(context: Context) {
+    if (!hasPlacedWidgets(context)) {
+      HeroWidgetAlarmScheduler.cancel(context)
+    }
+  }
+
   fun saveBundle(context: Context, bundle: Map<String, Any?>) {
     val json = JSONObject(bundle as Map<*, *>).toString()
     saveBundleJson(context, json)
@@ -61,6 +81,45 @@ object WidgetSessionStore {
     prefs(context).edit()
       .putString(PREF_BUNDLE_JSON, trimmed)
       .commit()
+  }
+
+  /**
+   * Persists the user's blocked-app package list from JS and patches the widget bundle copy.
+   * ShieldOrchestrator prefers this over stale bundle-only data (e.g. old dev seed apps).
+   */
+  fun saveUserBlockedPackageNames(context: Context, packages: List<String>) {
+    val cleaned = packages.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+    val pref = prefs(context)
+    pref.edit()
+      .putStringSet(PREF_USER_BLOCKED_PACKAGES, cleaned.toSet())
+      .putBoolean(PREF_USER_BLOCKED_PACKAGES_SET, true)
+      .commit()
+
+    val raw = pref.getString(PREF_BUNDLE_JSON, null)
+    if (raw == null) return
+    try {
+      val json = JSONObject(raw)
+      json.put("blockedPackageNames", JSONArray(cleaned))
+      json.put("blockedAppsCount", cleaned.size)
+      saveBundleJson(context, json.toString())
+    } catch (_: Exception) {
+      // Bundle patch is best-effort; user prefs remain authoritative for shielding.
+    }
+  }
+
+  fun resolveBlockedPackageNames(
+    context: Context,
+    bundle: HeroWidgetStateEngine.ScheduleBundle?,
+  ): List<String> {
+    val pref = prefs(context)
+    if (pref.getBoolean(PREF_USER_BLOCKED_PACKAGES_SET, false)) {
+      return pref.getStringSet(PREF_USER_BLOCKED_PACKAGES, emptySet())
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        ?.distinct()
+        ?: emptyList()
+    }
+    return bundle?.blockedPackageNames?.filter { it.isNotBlank() } ?: emptyList()
   }
 
   fun loadScheduleBundle(context: Context): HeroWidgetStateEngine.ScheduleBundle? {
@@ -82,7 +141,7 @@ object WidgetSessionStore {
     val sessionStartsAt = json.optLong("sessionStartsAtMs", -1L)
     val sessionEndsAt = json.optLong("sessionEndsAtMs", -1L)
     return Snapshot(
-      state = json.optString("state", "weekly_report"),
+      state = json.optString("state", "up_next"),
       sessionTitle = json.optString("sessionTitle", ""),
       metaLeft = json.optString("metaLeft", "FOCUS"),
       metaRight = json.optString("metaRight", ""),
@@ -103,6 +162,7 @@ object WidgetSessionStore {
     )
   }
 
+  /** Redraws every placed home-screen widget, then keeps the shared tick alarm in sync. */
   fun requestWidgetRefresh(context: Context) {
     val appContext = context.applicationContext
     val manager = AppWidgetManager.getInstance(appContext)
@@ -115,6 +175,16 @@ object WidgetSessionStore {
     val focusHoursComponent = ComponentName(appContext, FocusHoursWidgetProvider::class.java)
     for (id in manager.getAppWidgetIds(focusHoursComponent)) {
       FocusHoursWidgetProvider.updateWidget(appContext, manager, id)
+    }
+
+    try {
+      if (hasPlacedWidgets(appContext)) {
+        HeroWidgetAlarmScheduler.reschedule(appContext)
+      } else {
+        HeroWidgetAlarmScheduler.cancel(appContext)
+      }
+    } catch (_: Exception) {
+      // Alarm permission / OEM restrictions should not block the redraw.
     }
   }
 }

@@ -8,6 +8,8 @@ import { NeuCard } from "@/components/NeuCard";
 import { SkeletonBone } from "@/components/skeleton/SkeletonBone";
 import { CARD_RADIUS_LG, ICON_TILE_RADIUS_LG } from "@/lib/cardStyle";
 
+const SCHEDULE_ROW_HEIGHT = 80;
+
 type ScheduleRowSkeletonProps = {
   titleWidth?: number;
 };
@@ -20,6 +22,7 @@ export function ScheduleRowSkeleton({ titleWidth = 148 }: ScheduleRowSkeletonPro
       contentStyle={{
         flexDirection: "row",
         alignItems: "center",
+        height: SCHEDULE_ROW_HEIGHT,
         paddingHorizontal: 14,
         paddingVertical: 11,
         gap: 12,

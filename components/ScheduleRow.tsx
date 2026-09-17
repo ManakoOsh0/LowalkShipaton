@@ -24,6 +24,14 @@ const ICON_SIZE = 40;
 const STATUS_SIZE = 24;
 const ROW_PADDING_H = 14;
 const ROW_PADDING_V = 11;
+const TITLE_LINE_HEIGHT = 20;
+const META_LINE_HEIGHT = 18;
+const TITLE_META_GAP = 2;
+/** Room for one title line plus a wrapped class time/location meta line. */
+const SCHEDULE_ROW_TEXT_HEIGHT =
+  TITLE_LINE_HEIGHT + TITLE_META_GAP + META_LINE_HEIGHT * 2;
+/** Fixed row height — matches the natural class card footprint. */
+const SCHEDULE_ROW_HEIGHT = ROW_PADDING_V * 2 + SCHEDULE_ROW_TEXT_HEIGHT;
 
 const KIND_ICONS: Record<ScheduleItemKind, ComponentType<IconProps>> = {
   class: ClassKindIcon,
@@ -33,10 +41,34 @@ const KIND_ICONS: Record<ScheduleItemKind, ComponentType<IconProps>> = {
 };
 
 type ScheduleRowProps = ScheduleItem & {
-  variant?: "default" | "week" | "today";
+  variant?: "default" | "today";
   onPress?: () => void;
   onLongPress?: () => void;
+  onMenuPress?: () => void;
 };
+
+function ScheduleRowMenuButton({ onPress }: { onPress: () => void }) {
+  const colors = useThemeColors();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Session options"
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => ({
+        width: 32,
+        height: 32,
+        alignItems: "center",
+        justifyContent: "center",
+        marginRight: 2,
+        opacity: pressed ? 0.55 : 1,
+      })}
+    >
+      <Ionicons name="ellipsis-horizontal" size={18} color={colors.muted} />
+    </Pressable>
+  );
+}
 
 function StatusRing({ status }: { status: ScheduleItem["status"] }) {
   const colors = useThemeColors();
@@ -117,7 +149,11 @@ function TodayScheduleRowContent({
   locationLabel,
   kind,
   status,
-}: Pick<ScheduleRowProps, "title" | "timeLabel" | "locationLabel" | "kind" | "status">) {
+  onMenuPress,
+}: Pick<
+  ScheduleRowProps,
+  "title" | "timeLabel" | "locationLabel" | "kind" | "status" | "onMenuPress"
+>) {
   const colors = useThemeColors();
   const KindIcon = KIND_ICONS[kind] ?? MagicStick;
   const iconColor = getKindAccentColor(kind);
@@ -154,6 +190,7 @@ function TodayScheduleRowContent({
       style={{
         flexDirection: "row",
         alignItems: "center",
+        height: SCHEDULE_ROW_HEIGHT,
         paddingHorizontal: ROW_PADDING_H,
         paddingVertical: ROW_PADDING_V,
         borderCurve: "continuous",
@@ -175,24 +212,32 @@ function TodayScheduleRowContent({
         <KindIcon size={20} color={iconColor} />
       </View>
 
-      <View style={{ flex: 1, marginRight: 8, minWidth: 0 }}>
+      <View
+        style={{
+          flex: 1,
+          marginRight: 8,
+          minWidth: 0,
+          height: SCHEDULE_ROW_TEXT_HEIGHT,
+          justifyContent: "center",
+        }}
+      >
         <Text
           style={{
             fontFamily: "Poppins-SemiBold",
             fontSize: 15,
-            lineHeight: 20,
+            lineHeight: TITLE_LINE_HEIGHT,
             color: titleColor,
           }}
-          numberOfLines={2}
+          numberOfLines={1}
         >
           {title}
         </Text>
         <Text
           style={{
-            marginTop: 2,
+            marginTop: TITLE_META_GAP,
             fontFamily: "Poppins-Regular",
             fontSize: 13,
-            lineHeight: 18,
+            lineHeight: META_LINE_HEIGHT,
             color: metaColor,
           }}
           numberOfLines={2}
@@ -211,96 +256,7 @@ function TodayScheduleRowContent({
         </Text>
       </View>
 
-      <StatusRing status={status} />
-    </View>
-  );
-}
-
-function WeekScheduleRowContent({
-  title,
-  timeLabel,
-  locationLabel,
-  kind,
-  status,
-}: Pick<ScheduleRowProps, "title" | "timeLabel" | "locationLabel" | "kind" | "status">) {
-  const colors = useThemeColors();
-  const accentColor = getKindAccentColor(kind);
-  const isCompleted = status === "completed";
-  const isSkipped = status === "skipped";
-
-  const statusLine =
-    status === "skipped"
-      ? "Skipped"
-      : status === "missed"
-        ? "Missed"
-        : status === "overdue"
-          ? "Overdue"
-          : status === "active"
-            ? "In progress"
-            : null;
-
-  const subline = statusLine ?? locationLabel;
-  const sublineColor =
-    status === "missed" || status === "overdue" ? colors.error : colors.muted;
-
-  const titleColor = isCompleted
-    ? colors.foreground
-    : isSkipped
-      ? colors.muted
-      : colors.foreground;
-
-  const titleOpacity = isCompleted ? 0.7 : isSkipped ? 0.6 : 1;
-
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: ROW_PADDING_H,
-        paddingVertical: ROW_PADDING_V,
-      }}
-    >
-      <View style={{ flex: 1, marginRight: 10, minWidth: 0, gap: 3 }}>
-        <Text
-          style={{
-            fontFamily: "Poppins-SemiBold",
-            fontSize: 13,
-            lineHeight: 17,
-            color: accentColor,
-            fontVariant: ["tabular-nums"],
-          }}
-          numberOfLines={1}
-        >
-          {timeLabel}
-        </Text>
-
-        <Text
-          style={{
-            fontFamily: "Poppins-SemiBold",
-            fontSize: 15,
-            lineHeight: 20,
-            color: titleColor,
-            opacity: titleOpacity,
-          }}
-          numberOfLines={2}
-        >
-          {title}
-        </Text>
-
-        {subline ? (
-          <Text
-            style={{
-              fontFamily: "Poppins-Regular",
-              fontSize: 13,
-              lineHeight: 18,
-              color: sublineColor,
-            }}
-            numberOfLines={1}
-          >
-            {subline}
-          </Text>
-        ) : null}
-      </View>
+      {onMenuPress ? <ScheduleRowMenuButton onPress={onMenuPress} /> : null}
 
       <StatusRing status={status} />
     </View>
@@ -316,6 +272,7 @@ export function ScheduleRow({
   variant = "default",
   onPress,
   onLongPress,
+  onMenuPress,
 }: ScheduleRowProps) {
   const colors = useThemeColors();
   const KindIcon = KIND_ICONS[kind] ?? MagicStick;
@@ -348,27 +305,21 @@ export function ScheduleRow({
   const titleOpacity = isCompleted ? 0.65 : isSkipped ? 0.6 : 1;
 
   const content =
-    variant === "week" ? (
-      <WeekScheduleRowContent
-        title={title}
-        timeLabel={timeLabel}
-        locationLabel={locationLabel}
-        kind={kind}
-        status={status}
-      />
-    ) : variant === "today" ? (
+    variant === "today" ? (
       <TodayScheduleRowContent
         title={title}
         timeLabel={timeLabel}
         locationLabel={locationLabel}
         kind={kind}
         status={status}
+        onMenuPress={onMenuPress}
       />
     ) : (
       <View
         style={{
           flexDirection: "row",
           alignItems: "center",
+          height: SCHEDULE_ROW_HEIGHT,
           paddingHorizontal: ROW_PADDING_H,
           paddingVertical: ROW_PADDING_V,
         }}
@@ -388,31 +339,42 @@ export function ScheduleRow({
           <KindIcon size={20} color={iconColor} />
         </View>
 
-        <View style={{ flex: 1, marginRight: 10, minWidth: 0 }}>
+        <View
+          style={{
+            flex: 1,
+            marginRight: 10,
+            minWidth: 0,
+            height: SCHEDULE_ROW_TEXT_HEIGHT,
+            justifyContent: "center",
+          }}
+        >
           <Text
             style={{
               fontFamily: "Poppins-SemiBold",
               fontSize: 15,
-              lineHeight: 20,
+              lineHeight: TITLE_LINE_HEIGHT,
               color: titleColor,
               opacity: titleOpacity,
             }}
+            numberOfLines={1}
           >
             {title}
           </Text>
           <Text
             style={{
-              marginTop: 2,
+              marginTop: TITLE_META_GAP,
               fontFamily: "Poppins-Regular",
               fontSize: 13,
-              lineHeight: 18,
+              lineHeight: META_LINE_HEIGHT,
               color: metaColor,
             }}
-            numberOfLines={1}
+            numberOfLines={2}
           >
             {metaLine}
           </Text>
         </View>
+
+        {onMenuPress ? <ScheduleRowMenuButton onPress={onMenuPress} /> : null}
 
         <StatusRing status={status} />
       </View>
@@ -424,7 +386,7 @@ export function ScheduleRow({
         accessibilityRole="button"
         accessibilityLabel={title}
         accessibilityHint={
-          onLongPress ? "Long press for edit or delete options" : undefined
+          onLongPress ? "Long press for edit, skip, or delete options" : undefined
         }
         android_disableSound
         onPress={onPress}

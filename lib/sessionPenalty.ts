@@ -19,8 +19,43 @@ const DEFAULT_SHIELD_SETTINGS: ShieldScheduleSettings = {
   sessionGapMergeMinutes: 30,
 };
 
-/** Grace before a presence penalty locks apps for the Settings tier duration. */
+/** Grace before a class presence penalty locks apps for the Settings tier duration. */
 export const PRESENCE_PENALTY_GRACE_MS = 5 * 60 * 1000;
+
+/** Gym/library/custom: on-site time is paused; shield holds until quota or midnight. */
+export const DURATION_AWAY_HERO_SUBTITLE =
+  "Return to finish · locked until midnight";
+
+export const DURATION_AWAY_LEAVE_SHEET_BODY =
+  "On-site time is paused. Return to finish your session, or apps stay blocked until midnight.";
+
+export const CLASS_AWAY_LEAVE_SHEET_BODY =
+  "Return to the focus zone within 5 minutes to avoid a penalty";
+
+export function isDurationQuotaSession(session: ActiveSessionSnapshot): boolean {
+  return session.scheduleType === "duration" && session.requiredOnSiteMs != null;
+}
+
+export function getDurationOnSiteRemainingMs(
+  session: ActiveSessionSnapshot,
+): number | null {
+  if (!isDurationQuotaSession(session) || session.requiredOnSiteMs == null) {
+    return null;
+  }
+  return Math.max(session.requiredOnSiteMs - session.onSiteAccumulatedMs, 0);
+}
+
+export function getLeaveSessionWarningBody(
+  scheduleType: ActiveSessionSnapshot["scheduleType"] | null | undefined,
+): string {
+  if (scheduleType === "duration") return DURATION_AWAY_LEAVE_SHEET_BODY;
+  return CLASS_AWAY_LEAVE_SHEET_BODY;
+}
+
+export function formatDurationAwayNotificationBody(zoneLabel: string): string {
+  const zone = zoneLabel.trim() || "your venue";
+  return `Return to ${zone} to finish. Apps stay locked until you complete, or midnight.`;
+}
 
 export const PENALTY_TIER_OPTIONS = [
   { minutes: 30 as const, label: "30 minutes" },
@@ -68,10 +103,12 @@ export function isSessionTimerExpired(
   return new Date(session.endsAt).getTime() <= now;
 }
 
+/** Class-only — gym/library leaving pauses quota without a grace countdown. */
 export function getAwayGraceRemainingMs(
   session: ActiveSessionSnapshot,
   now = Date.now(),
 ): number | null {
+  if (session.scheduleType !== "class") return null;
   if (!session.awaySince || session.penaltyShieldEndsAt) return null;
   const awayMs = now - new Date(session.awaySince).getTime();
   const remaining = PRESENCE_PENALTY_GRACE_MS - awayMs;
@@ -107,12 +144,8 @@ export function formatSessionDetailLabel(
       );
       return `${onSiteLabel} · +${session.penaltyMinutes}m lock (${formatDurationClock(lockRemainingMs)})`;
     }
-    const graceRemaining = getAwayGraceRemainingMs(session, nowMs);
-    if (session.awaySince && graceRemaining != null && graceRemaining > 0) {
-      return `${onSiteLabel} · Return within ${formatDurationClock(graceRemaining)}`;
-    }
     if (session.awaySince) {
-      return `${onSiteLabel} · Away from venue`;
+      return `${onSiteLabel} · return to finish, or locked until midnight`;
     }
     if (nowMs >= new Date(session.endsAt).getTime()) {
       return `Finish before midnight · ${onSiteLabel}`;
@@ -162,6 +195,25 @@ export function formatSessionDetailLabel(
   return sessionLabel;
 }
 
+/** Check-in hero detail — omits the pre-start countdown; the main subtitle carries travel guidance. */
+export function formatAwaitingCheckInDetailLine(
+  session: ActiveSessionSnapshot,
+  now = new Date(),
+  settings: ShieldScheduleSettings = DEFAULT_SHIELD_SETTINGS,
+): string | undefined {
+  const nowMs = now.getTime();
+  const nominalStartMs =
+    session.scheduleType === "duration" && session.requiredOnSiteMs != null
+      ? getSessionNominalStartMs(session, settings)
+      : getClassNominalStartMs(session, settings);
+
+  if (nowMs < nominalStartMs) {
+    return undefined;
+  }
+
+  return formatSessionDetailLabel(session, now, settings);
+}
+
 export function isShieldActiveForNodes(
   nodes: FocusNode[],
   session: ActiveSessionSnapshot | null,
@@ -178,6 +230,57 @@ export function isPenaltyShieldActive(
 ): boolean {
   if (!session?.penaltyShieldEndsAt) return false;
   return new Date(session.penaltyShieldEndsAt).getTime() > now;
+}
+
+/**
+ * Missed class snapshots can outlive their penalty. They must not keep pinning
+ * the Hero or block the next calendar obligation from taking over.
+ */
+export function isStaleUnverifiedClassSession(
+  session: ActiveSessionSnapshot,
+  now = Date.now(),
+): boolean {
+  if (session.scheduleType !== "class" || session.presenceVerified) return false;
+  if (new Date(session.endsAt).getTime() > now) return false;
+  return !isPenaltyShieldActive(session, now);
+}
+
+/** Node that incurred the lock — the live node when the penalty was not carried. */
+export function getPenaltyOriginNodeId(session: ActiveSessionSnapshot): string {
+  return session.penaltyOriginNodeId ?? session.nodeId;
+}
+
+export type CarriedPenaltyFields = {
+  penaltyShieldEndsAt: string;
+  penaltyMinutes: number;
+  penaltyOriginNodeId: string;
+};
+
+/** Remaining lock to copy onto the next live session. Null if none or expired. */
+export function getCarriedPenaltyFields(
+  session: ActiveSessionSnapshot | null,
+  now = Date.now(),
+): CarriedPenaltyFields | null {
+  if (!session?.penaltyShieldEndsAt || !isPenaltyShieldActive(session, now)) {
+    return null;
+  }
+  return {
+    penaltyShieldEndsAt: session.penaltyShieldEndsAt,
+    penaltyMinutes: session.penaltyMinutes ?? DEFAULT_PENALTY_TIER_MINUTES,
+    penaltyOriginNodeId: getPenaltyOriginNodeId(session),
+  };
+}
+
+/**
+ * True when Hero should treat the penalty as the primary beat (return to this
+ * venue). False when the lock was carried onto a later overlapping session.
+ */
+export function isPenaltyTakeoverForLiveSession(
+  session: ActiveSessionSnapshot | null,
+  now = Date.now(),
+): boolean {
+  if (!session || !isPenaltyShieldActive(session, now)) return false;
+  return getPenaltyOriginNodeId(session) === session.nodeId;
 }
 
 export type FocusNodeRemovalLockReason = "active" | "penalty";

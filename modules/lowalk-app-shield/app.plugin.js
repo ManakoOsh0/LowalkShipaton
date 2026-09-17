@@ -153,7 +153,56 @@ function withShieldDebugAndroidManifest(config) {
 /**
  * Usage Access + draw-over overlay + launcher package visibility for the Android shield spike.
  */
+const SESSION_STATUS_GROUP = "lowalk_session_status";
+
+/** Groups expo-location FGS with the shield status summary (separate from session-reminders). */
+function withLocationSessionStatusNotificationGroup(config) {
+  return withDangerousMod(config, [
+    "android",
+    async (config) => {
+      const ktPath = path.join(
+        config.modRequest.projectRoot,
+        "node_modules/expo-location/android/src/main/java/expo/modules/location/services/LocationTaskService.kt",
+      );
+
+      if (!fs.existsSync(ktPath)) {
+        return config;
+      }
+
+      let source = fs.readFileSync(ktPath, "utf8");
+      const groupMarker = '.setCategory(Notification.CATEGORY_SERVICE)';
+      const groupPatch = `${groupMarker}\n      .setGroup("${SESSION_STATUS_GROUP}")\n      .setSortKey("2")`;
+
+      if (!source.includes(`setGroup("${SESSION_STATUS_GROUP}")`)) {
+        source = source.replace(groupMarker, groupPatch);
+      }
+
+      const lowChannel =
+        "channel = NotificationChannel(id, appName, NotificationManager.IMPORTANCE_LOW)";
+      const minChannel =
+        'channel = NotificationChannel(id, "Session location", NotificationManager.IMPORTANCE_MIN)';
+
+      if (source.includes(lowChannel)) {
+        source = source.replace(lowChannel, minChannel);
+      }
+
+      const colorizedBlock =
+        /color\?\.let \{\s*builder\.setColorized\(true\)\.setColor\(color\)\s*\} \?: run \{\s*builder\.setColorized\(false\)\s*\}/;
+      const neutralColorBlock =
+        "color?.let { builder.setColor(it) }\n    builder.setColorized(false)";
+
+      if (colorizedBlock.test(source)) {
+        source = source.replace(colorizedBlock, neutralColorBlock);
+      }
+
+      fs.writeFileSync(ktPath, source);
+      return config;
+    },
+  ]);
+}
+
 function withLowalkAppShield(config) {
+  config = withLocationSessionStatusNotificationGroup(config);
   config = AndroidConfig.Permissions.withPermissions(config, [
     "android.permission.PACKAGE_USAGE_STATS",
     "android.permission.SYSTEM_ALERT_WINDOW",
@@ -186,4 +235,4 @@ function withLowalkAppShield(config) {
   return config;
 }
 
-module.exports = createRunOncePlugin(withLowalkAppShield, PACKAGE_NAME, "1.6.3");
+module.exports = createRunOncePlugin(withLowalkAppShield, PACKAGE_NAME, "1.6.5");

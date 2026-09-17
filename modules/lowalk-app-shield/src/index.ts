@@ -63,6 +63,7 @@ declare class LowalkAppShieldNativeModule extends NativeModule<LowalkAppShieldEv
   ): Promise<void>;
   stopMonitoring(): Promise<void>;
   syncWidgetSchedule(bundleJson: string): Promise<void>;
+  syncBlockedPackageNames?(packages: string[]): Promise<void>;
   setWidgetPremiumAccess(unlocked: boolean): Promise<void>;
   refreshWidgets(): Promise<void>;
   updateHeroWidgetSnapshot(snapshot: Record<string, unknown>): Promise<void>;
@@ -169,6 +170,12 @@ export async function syncWidgetSchedule(
   if (!nativeModule) return;
   // Nested bundle fields must be JSON-stringified — Expo cannot marshal deep objects to Kotlin.
   await nativeModule.syncWidgetSchedule(JSON.stringify(bundle));
+}
+
+/** Mirrors the blocked-apps store to native prefs so boot-time shield sync stays accurate. */
+export async function syncBlockedPackageNames(packageNames: string[]): Promise<void> {
+  if (!nativeModule?.syncBlockedPackageNames) return;
+  await nativeModule.syncBlockedPackageNames(packageNames);
 }
 
 export async function setWidgetPremiumAccess(unlocked: boolean): Promise<void> {

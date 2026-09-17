@@ -1,6 +1,6 @@
 /**
  * LeaveSessionWarningModal — bottom sheet when the user steps out during a focus session.
- * Dismissible like other session sheets; away state and penalty timing continue in the background.
+ * Dismissible like other session sheets; away state continues in the background.
  */
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
@@ -8,21 +8,25 @@ import Animated from "react-native-reanimated";
 
 import { BottomSheet } from "@/components/BottomSheet";
 import { LeaveSessionWarningBadge } from "@/components/LeaveSessionWarningBadge";
-import { SHEET_CAUTION_YELLOW } from "@/lib/sheetMascotTone";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { arrivalMascotEntering } from "@/lib/heroMotion";
+import { getLeaveSessionWarningBody } from "@/lib/sessionPenalty";
+import { SHEET_CAUTION_YELLOW } from "@/lib/sheetMascotTone";
 import { useLeaveSessionWarningStore } from "@/store/useLeaveSessionWarningStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
+import type { SessionScheduleType } from "@/types/session";
 
 type LeaveSessionWarningContentProps = {
   anchorName: string;
   nodeTitle: string;
+  scheduleType: SessionScheduleType | null;
 };
 
 function LeaveSessionWarningContent({
   anchorName,
   nodeTitle,
+  scheduleType,
 }: LeaveSessionWarningContentProps) {
   const colors = useThemeColors();
   const reduceMotion = useReduceMotion();
@@ -81,7 +85,7 @@ function LeaveSessionWarningContent({
           textAlign: "center",
         }}
       >
-        Return to the focus zone within 5 minutes to avoid a penalty
+        {getLeaveSessionWarningBody(scheduleType)}
       </Text>
     </View>
   );
@@ -96,6 +100,9 @@ export function LeaveSessionWarningHost() {
   const preview = useLeaveSessionWarningStore((state) => state.preview);
   const previewNodeTitle = useLeaveSessionWarningStore((state) => state.nodeTitle);
   const previewAnchorName = useLeaveSessionWarningStore((state) => state.anchorName);
+  const previewScheduleType = useLeaveSessionWarningStore(
+    (state) => state.scheduleType,
+  );
   const hidePreview = useLeaveSessionWarningStore((state) => state.hide);
 
   const sessionAwayRaw = Boolean(
@@ -115,6 +122,9 @@ export function LeaveSessionWarningHost() {
   const nodeTitle = previewVisible
     ? previewNodeTitle
     : activeSession?.nodeTitle ?? "";
+  const scheduleType: SessionScheduleType | null = previewVisible
+    ? (previewScheduleType ?? null)
+    : (activeSession?.scheduleType ?? null);
 
   useEffect(() => {
     if (!awaySince) {
@@ -137,6 +147,7 @@ export function LeaveSessionWarningHost() {
       <LeaveSessionWarningContent
         anchorName={anchorName}
         nodeTitle={nodeTitle}
+        scheduleType={scheduleType}
       />
     </BottomSheet>
   );

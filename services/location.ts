@@ -2,6 +2,7 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 
 import { MAX_PRESENCE_ACCURACY_METERS, type Coordinates } from "@/lib/geo";
+import { ensureAndroidSessionStatusChannels } from "@/services/androidSessionStatus";
 
 export type LocationPermissionStatus = "undetermined" | "granted" | "denied";
 
@@ -144,15 +145,15 @@ export async function startSessionLocationTracking(): Promise<{ success: boolean
   }
 
   try {
+    await ensureAndroidSessionStatusChannels();
     await Location.startLocationUpdatesAsync(LOWALK_SESSION_LOCATION_TASK, {
       accuracy: Location.Accuracy.Balanced,
       timeInterval: BACKGROUND_TIME_INTERVAL_MS,
       distanceInterval: BACKGROUND_DISTANCE_INTERVAL_M,
       showsBackgroundLocationIndicator: true,
       foregroundService: {
-        notificationTitle: "Lowalk focus session",
-        notificationBody: "Verifying you are at your Focus Node.",
-        notificationColor: "#FF7700",
+        notificationTitle: "Location active",
+        notificationBody: "Verifying your focus zone in the background.",
       },
     });
     return { success: true };

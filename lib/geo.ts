@@ -49,6 +49,15 @@ export function presetIdForKind(kind: FocusNodeKind): AnchorRadiusPresetId {
 /** If a new GPS point is within this distance of an Anchor, offer reuse. */
 export const NEARBY_ANCHOR_MATCH_METERS = 50;
 
+/** Max map drag from the on-site GPS capture — seat fine-tune only, not relocation. */
+export const MAX_CALIBRATION_MAP_NUDGE_METERS = 50;
+
+/**
+ * Max distance from the venue pin (source coords) for calibration capture/save.
+ * Covers large-building presets (up to 150m radius) with margin for GPS offset.
+ */
+export const MAX_CALIBRATION_DRIFT_FROM_SOURCE_METERS = 175;
+
 /** Seconds inside the geofence before a session may start — brief presence verification. */
 export const PRESENCE_VERIFICATION_SECONDS = 5;
 
@@ -132,6 +141,86 @@ export function hasUsableCoordinates(
     Number.isFinite(anchor.longitude) &&
     !(anchor.latitude === 0 && anchor.longitude === 0)
   );
+}
+
+/** True when the anchor still has a real venue pin from search or map drop. */
+export function hasUsableSourceCoordinates(
+  anchor: Pick<Anchor, "sourceLatitude" | "sourceLongitude">,
+): boolean {
+  return hasUsableCoordinates({
+    latitude: anchor.sourceLatitude,
+    longitude: anchor.sourceLongitude,
+  });
+}
+
+/** Clamp a point to at most `maxMeters` from `origin` (small-offset map nudges). */
+export function clampCoordinatesWithinMeters(
+  origin: Coordinates,
+  point: Coordinates,
+  maxMeters: number,
+): Coordinates {
+  const distance = haversineDistanceMeters(origin, point);
+  if (distance <= maxMeters) return point;
+
+  const ratio = maxMeters / distance;
+  return {
+    latitude: origin.latitude + (point.latitude - origin.latitude) * ratio,
+    longitude: origin.longitude + (point.longitude - origin.longitude) * ratio,
+  };
+}
+
+/**
+ * On-site checks for hold-to-capture GPS before calibration can continue.
+ * Deferred anchors (0,0) skip venue checks until the first capture is saved.
+ */
+export function validateCalibrationCapture(
+  anchor: Anchor,
+  captured: Coordinates,
+): string | null {
+  if (!hasUsableCoordinates(anchor)) return null;
+
+  if (anchor.calibrated && !isInsideGeofence(captured, anchor)) {
+    return "Move into your focus zone to calibrate. Your GPS must be inside the current geofence.";
+  }
+
+  if (hasUsableSourceCoordinates(anchor)) {
+    const fromSource = haversineDistanceMeters(captured, {
+      latitude: anchor.sourceLatitude,
+      longitude: anchor.sourceLongitude,
+    });
+    if (fromSource > MAX_CALIBRATION_DRIFT_FROM_SOURCE_METERS) {
+      return "You're too far from the scheduled venue to calibrate. Go to your focus location first.";
+    }
+  }
+
+  return null;
+}
+
+/** Validates proposed geofence center against capture + venue pin before persisting. */
+export function validateCalibrationSave(
+  anchor: Anchor,
+  captured: Coordinates,
+  proposed: Coordinates,
+): string | null {
+  const captureError = validateCalibrationCapture(anchor, captured);
+  if (captureError) return captureError;
+
+  const nudge = haversineDistanceMeters(captured, proposed);
+  if (nudge > MAX_CALIBRATION_MAP_NUDGE_METERS) {
+    return `Keep the pin within ${MAX_CALIBRATION_MAP_NUDGE_METERS}m of where you stood — only fine-tune your seat.`;
+  }
+
+  if (hasUsableSourceCoordinates(anchor)) {
+    const fromSource = haversineDistanceMeters(proposed, {
+      latitude: anchor.sourceLatitude,
+      longitude: anchor.sourceLongitude,
+    });
+    if (fromSource > MAX_CALIBRATION_DRIFT_FROM_SOURCE_METERS) {
+      return "This spot is too far from your venue. Calibrate only near where you study or train.";
+    }
+  }
+
+  return null;
 }
 
 /** True when the user coordinate lies within the Anchor's geofence radius. */

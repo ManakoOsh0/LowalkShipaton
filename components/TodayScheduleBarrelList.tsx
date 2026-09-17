@@ -18,8 +18,8 @@ import { CARD_RADIUS_LG } from "@/lib/cardStyle";
 import type { ScheduleItem } from "@/types/dashboard";
 
 const ROW_GAP = 8;
-/** Approximate row + gap for scroll-depth math — layout itself stays natural height. */
-const SLOT_HEIGHT = 84;
+/** Approximate row + gap for scroll-depth math — matches icon schedule row height. */
+const SLOT_HEIGHT = 88;
 
 /** Smooth 0→1 focus curve — no snap points, no linear segments. */
 function focusFromDistance(absDistance: number, slot: number): number {

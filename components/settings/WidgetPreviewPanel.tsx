@@ -9,6 +9,7 @@ import { WidgetHourglassIcon } from "@/components/WidgetHourglassIcon";
 import { WidgetPaywallOverlay } from "@/components/settings/WidgetPaywallOverlay";
 import { useProPaywall } from "@/hooks/useProPaywall";
 import { useThemeColors } from "@/hooks/useThemeColors";
+import { useWidgetPremiumAccess } from "@/hooks/useWidgetPremiumAccess";
 import {
   buildWidgetTileAppearance,
   type WidgetTileAppearancePayload,
@@ -27,7 +28,6 @@ import {
   type HeroPreviewScenario,
 } from "@/store/useHeroPreviewStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
-import { useSubscriptionStore } from "@/store/useSubscriptionStore";
 
 function PreviewLabel({ children }: { children: string }) {
   const colors = useThemeColors();
@@ -258,13 +258,14 @@ function FocusHoursWidgetPreview({
         backgroundColor: appearance.tileBg,
         padding: spec.paddingDp,
         alignSelf: "flex-start",
+        justifyContent: "center",
+        alignItems: "center",
       }}
     >
-      <View style={{ alignItems: "center", width: "100%", marginBottom: spec.icon.marginBottom }}>
-        <WidgetHourglassIcon
-          size={spec.icon.sizeDp}
-          color={appearance.textMuted}
-        />
+      <View style={{ alignItems: "center", width: "100%" }}>
+        <View style={{ marginBottom: spec.icon.marginBottom }}>
+          <WidgetHourglassIcon size={spec.icon.sizeDp} color={appearance.textMuted} />
+        </View>
       </View>
       <Text
         numberOfLines={spec.value.maxLines}
@@ -304,9 +305,9 @@ function FocusHoursWidgetPreview({
 export function WidgetPreviewPanel() {
   const [scenario, setScenario] = useState<HeroPreviewScenario>("traveling");
   const colors = useThemeColors();
-  const isPremium = useSubscriptionStore((state) => state.isPremium);
+  const widgetUnlocked = useWidgetPremiumAccess();
   const { openProPaywall } = useProPaywall();
-  const locked = !isPremium;
+  const locked = !widgetUnlocked;
   const appearance = buildWidgetTileAppearance();
   const content = buildWidgetPreviewContent(scenario, "class");
 
@@ -331,12 +332,20 @@ export function WidgetPreviewPanel() {
         </ScrollView>
       ) : null}
 
-      <WidgetPaywallOverlay locked={locked} onUnlockPress={() => void openProPaywall()}>
+      <WidgetPaywallOverlay
+        locked={locked}
+        cornerRadius={WIDGET_FOCUS_SPEC.cornerRadiusDp}
+        onUnlockPress={() => void openProPaywall()}
+      >
         <HeroFocusWidgetPreview content={content} appearance={appearance} />
       </WidgetPaywallOverlay>
 
       <PreviewLabel>Home screen · Hours saved</PreviewLabel>
-      <WidgetPaywallOverlay locked={locked} onUnlockPress={() => void openProPaywall()}>
+      <WidgetPaywallOverlay
+        locked={locked}
+        cornerRadius={WIDGET_HOURS_SPEC.cornerRadiusDp}
+        onUnlockPress={() => void openProPaywall()}
+      >
         <FocusHoursWidgetPreview appearance={appearance} />
       </WidgetPaywallOverlay>
 
@@ -348,7 +357,7 @@ export function WidgetPreviewPanel() {
           color: colors.muted,
         }}
       >
-        {isPremium && Platform.OS === "android"
+        {widgetUnlocked && Platform.OS === "android"
           ? "Long-press your home screen, open Widgets, and add Lowalk to mirror your Hero Card."
           : "Previews mirror production widget layout. Hero look settings apply in-app only."}
       </Text>

@@ -22,9 +22,18 @@ import {
   selectPrimaryObligationNode,
   type ShieldScheduleSettings,
 } from "@/lib/shieldSchedule";
-import { PRESENCE_PENALTY_GRACE_MS } from "@/lib/sessionPenalty";
+import {
+  isPenaltyShieldActive,
+  isStaleUnverifiedClassSession,
+  PRESENCE_PENALTY_GRACE_MS,
+} from "@/lib/sessionPenalty";
+import {
+  buildArrivalCelebrationPayload,
+  shouldShowArrivalCelebration,
+} from "@/lib/arrivalCelebration";
 import { isDurationSessionExpired, isSessionExpired, toIsoDateString } from "@/lib/time";
 import { selectAnchoringRequest } from "@/store/selectors";
+import { useArrivalCelebrationStore } from "@/store/useArrivalCelebrationStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useUserStore } from "@/store/useUserStore";
 import type { Anchor } from "@/types/anchor";
@@ -36,6 +45,13 @@ let outsideSince: number | null = null;
 let insideSince: number | null = null;
 /** When the user entered the geofence while awaiting presence verification. */
 let verificationInsideSince: number | null = null;
+/** Brief GPS blips during verify — do not reset the 5s timer immediately. */
+let verificationOutsideSince: number | null = null;
+/** Hero / arrival latch — holds through coarse fixes and brief exits. */
+let displayInsideGeofence = false;
+let displayOutsideSince: number | null = null;
+
+const DISPLAY_GEOFENCE_HOLD_MS = 15_000;
 
 export type PresenceTrackingContext = {
   needsLocation: boolean;
@@ -139,6 +155,65 @@ export function resetPresenceTimers(): void {
   outsideSince = null;
   insideSince = null;
   verificationInsideSince = null;
+  verificationOutsideSince = null;
+  displayInsideGeofence = false;
+  displayOutsideSince = null;
+}
+
+/** Debounced inside signal for Hero and arrival — avoids GPS accuracy flapping. */
+export function getDisplayInsideGeofence(): boolean {
+  return displayInsideGeofence;
+}
+
+function updateDisplayInsideGeofence(rawInside: boolean, now: number): void {
+  if (rawInside) {
+    displayOutsideSince = null;
+    displayInsideGeofence = true;
+    return;
+  }
+
+  if (!displayInsideGeofence) return;
+
+  if (!displayOutsideSince) displayOutsideSince = now;
+  const holdMs =
+    verificationInsideSince != null
+      ? SESSION_GEOFENCE_PAUSE_SECONDS * 1000
+      : DISPLAY_GEOFENCE_HOLD_MS;
+  if (now - displayOutsideSince >= holdMs) {
+    displayInsideGeofence = false;
+    displayOutsideSince = null;
+  }
+}
+
+function tryShowArrivalOnVerificationStart(
+  obligationNode: FocusNode | null,
+  presenceAnchor: Anchor | null,
+  activeSession: ActiveSessionSnapshot | null,
+  anchoringRequest: ReturnType<typeof selectAnchoringRequest>,
+): void {
+  if (!obligationNode || !presenceAnchor) return;
+
+  const lastCelebratedSessionNodeId =
+    useArrivalCelebrationStore.getState().lastCelebratedSessionNodeId;
+
+  if (
+    !shouldShowArrivalCelebration({
+      activeSession,
+      obligationNodeId: obligationNode.id,
+      anchoringRequest: Boolean(anchoringRequest),
+      insideGeofence: true,
+      lastCelebratedSessionNodeId,
+    })
+  ) {
+    return;
+  }
+
+  useArrivalCelebrationStore.getState().show(
+    buildArrivalCelebrationPayload({
+      node: obligationNode,
+      anchorName: presenceAnchor.name ?? "your location",
+    }),
+  );
 }
 
 /** Countdown for Hero Card arrived / verification beats — null when not verifying. */
@@ -150,7 +225,7 @@ export function getVerificationSecondsRemaining(now = Date.now()): number | null
 }
 
 /**
- * Imperative presence tick — calendar sessions, on-site accumulation, away penalties.
+ * Imperative presence tick — calendar sessions, on-site accumulation, class away penalties.
  * Callable from React hooks and TaskManager headless handlers.
  */
 export function runPresenceTick(
@@ -161,6 +236,22 @@ export function runPresenceTick(
   const store = useScheduleStore.getState();
   let { activeSession, focusNodes, anchors } = store;
   const settings = getShieldSettings();
+
+  // Expired penalty metadata blocks miss-penalty bookkeeping — strip it once time is up.
+  if (
+    activeSession?.penaltyShieldEndsAt &&
+    !isPenaltyShieldActive(activeSession, now)
+  ) {
+    useScheduleStore.setState({
+      activeSession: {
+        ...activeSession,
+        penaltyShieldEndsAt: null,
+        penaltyMinutes: null,
+        penaltyOriginNodeId: null,
+      },
+    });
+    activeSession = useScheduleStore.getState().activeSession;
+  }
 
   // Drop stale or end-of-day duration sessions so shielding cannot carry overnight.
   if (
@@ -189,13 +280,17 @@ export function runPresenceTick(
     Boolean(position && anchorBeforeSwitch && hasUsableCoordinates(anchorBeforeSwitch)) &&
     isInsideGeofence(position!, anchorBeforeSwitch!);
 
+  const shouldFinalizeClassHandoff =
+    sessionBeforeSwitch?.scheduleType === "class" &&
+    (sessionBeforeSwitch.presenceVerified ||
+      isStaleUnverifiedClassSession(sessionBeforeSwitch, now));
+
   if (
     !anchoringRequest &&
     obligationNode &&
     sessionBeforeSwitch &&
     sessionBeforeSwitch.nodeId !== obligationNode.id &&
-    sessionBeforeSwitch.scheduleType === "class" &&
-    sessionBeforeSwitch.presenceVerified
+    shouldFinalizeClassHandoff
   ) {
     finalizeClassSessionIfEligible(
       sessionBeforeSwitch,
@@ -212,6 +307,7 @@ export function runPresenceTick(
     if (interval && now >= interval.startsAtMs) {
       if (!activeSession || activeSession.nodeId !== obligationNode.id) {
         store.beginCalendarSession(obligationNode.id);
+        resetPresenceTimers();
       }
     }
   }
@@ -226,6 +322,8 @@ export function runPresenceTick(
     accurateEnough &&
     Boolean(position && presenceAnchor && hasUsableCoordinates(presenceAnchor)) &&
     isInsideGeofence(position!, presenceAnchor!);
+
+  updateDisplayInsideGeofence(insideGeofence, now);
 
   const canResumeSession =
     accurateEnough &&
@@ -242,17 +340,36 @@ export function runPresenceTick(
 
   if (sessionAwaitingVerification) {
     if (insideGeofence) {
-      if (!verificationInsideSince) verificationInsideSince = now;
+      verificationOutsideSince = null;
+      if (!verificationInsideSince) {
+        verificationInsideSince = now;
+        tryShowArrivalOnVerificationStart(
+          obligationNode,
+          presenceAnchor,
+          currentSession,
+          anchoringRequest,
+        );
+      }
       const insideSeconds = (now - verificationInsideSince) / 1000;
       if (insideSeconds >= PRESENCE_VERIFICATION_SECONDS) {
         store.markSessionPresenceVerified();
         verificationInsideSince = null;
+        verificationOutsideSince = null;
+      }
+    } else if (verificationInsideSince != null) {
+      if (!verificationOutsideSince) verificationOutsideSince = now;
+      const outsideSeconds = (now - verificationOutsideSince) / 1000;
+      if (outsideSeconds >= SESSION_GEOFENCE_PAUSE_SECONDS) {
+        verificationInsideSince = null;
+        verificationOutsideSince = null;
       }
     } else {
       verificationInsideSince = null;
+      verificationOutsideSince = null;
     }
   } else {
     verificationInsideSince = null;
+    verificationOutsideSince = null;
   }
 
   if (currentSession) {
@@ -316,9 +433,12 @@ export function runPresenceTick(
       return;
     }
 
-    const awayMs = now - new Date(sessionAfterAway.awaySince).getTime();
-    if (awayMs >= PRESENCE_PENALTY_GRACE_MS) {
-      useScheduleStore.getState().applyPresencePenalty();
+    // Duration sessions stay away without a penalty — shield already holds until quota or midnight.
+    if (sessionAfterAway.scheduleType === "class") {
+      const awayMs = now - new Date(sessionAfterAway.awaySince).getTime();
+      if (awayMs >= PRESENCE_PENALTY_GRACE_MS) {
+        useScheduleStore.getState().applyPresencePenalty();
+      }
     }
   }
 
@@ -370,10 +490,22 @@ export function runPresenceTick(
     new Date(now),
   );
   if (missedClassCandidate) {
+    const obligation = selectPrimaryObligationNode(
+      useScheduleStore.getState().focusNodes,
+      useScheduleStore.getState().activeSession,
+      settings,
+      now,
+    );
     const active = useScheduleStore.getState().activeSession;
-    if (!active || active.nodeId !== missedClassCandidate.id) {
-      storeState.beginCalendarSession(missedClassCandidate.id);
+    if (obligation && obligation.id !== missedClassCandidate.id) {
+      // Later session is live — apply the miss lock without stealing the Hero / GPS target.
+      useScheduleStore.getState().applyClassMissPenalty(missedClassCandidate.id);
+    } else {
+      if (!active || active.nodeId !== missedClassCandidate.id) {
+        storeState.beginCalendarSession(missedClassCandidate.id);
+        resetPresenceTimers();
+      }
+      useScheduleStore.getState().applyClassMissPenalty();
     }
-    useScheduleStore.getState().applyClassMissPenalty();
   }
 }

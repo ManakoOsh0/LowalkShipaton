@@ -8,6 +8,7 @@ import { Alert, Pressable, Text, View } from "react-native";
 import { DailyGoalCard } from "@/components/DailyGoalCard";
 import { HeroPreviewControls } from "@/components/HeroPreviewControls";
 import { useOpenPreviewOnHome } from "@/hooks/useOpenPreviewOnHome";
+import { useProPaywall } from "@/hooks/useProPaywall";
 import { useSchedulePreviewFixture } from "@/hooks/useSchedulePreviewFixture";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { getBackgroundPresenceDebugState } from "@/lib/backgroundPresenceDebug";
@@ -16,6 +17,9 @@ import { HERO_PREVIEW_KIND_LABELS } from "@/lib/heroCard";
 import { getTestDataSummary, loadTestData } from "@/lib/loadTestData";
 import { isPresenceDebugEnabled } from "@/lib/presenceDebug";
 import { ROUTES } from "@/lib/routes";
+import { resetProTestState } from "@/lib/resetProTestState";
+import { markNativeWidgetPremiumUnlocked } from "@/lib/widgetPremiumSync";
+import { readWidgetPremiumMirror } from "@/lib/widgetPremiumMirror";
 import {
   getBackgroundPermissionStatus,
   isSessionLocationTaskRegistered,
@@ -517,6 +521,7 @@ function OverlayPreviewsSection() {
               showLeaveWarning({
                 nodeTitle: previewNode?.title ?? "Study Session",
                 anchorName: previewAnchor?.name ?? "Campus Library",
+                scheduleType: previewNode?.schedule.type ?? "duration",
                 preview: true,
               });
             });
@@ -711,8 +716,8 @@ function BackgroundPresenceSection() {
           }}
         >
           Checklist: grant Always → start session at anchor → background 2+ min inside → leave fence
-          (away + shield stays on) → return before 5 min or incur penalty lock → let timer end
-          inside venue (complete + coin).
+          (on-site pauses, shield stays on until you finish or midnight) → return and complete inside
+          venue (complete + coin). Classes: return within 5 min or incur penalty lock.
         </Text>
       </DevCard>
     </DevSection>
@@ -723,6 +728,35 @@ function SubscriptionDebugSection() {
   const colors = useThemeColors();
   const isPremium = useSubscriptionStore((state) => state.isPremium);
   const isLoaded = useSubscriptionStore((state) => state.isLoaded);
+  const { openProPaywall } = useProPaywall();
+  const [mirrored, setMirrored] = useState(false);
+  const [resettingPro, setResettingPro] = useState(false);
+
+  useEffect(() => {
+    void readWidgetPremiumMirror().then(setMirrored);
+  }, [isPremium]);
+
+  const handleResetProTestState = async () => {
+    setResettingPro(true);
+    try {
+      const result = await resetProTestState();
+      setMirrored(result.widgetMirror);
+      Alert.alert(
+        "Pro test state reset",
+        [
+          `App User ID: ${result.appUserId ?? "unknown"}`,
+          `premium=${result.isPremium ? "yes" : "no"} · widget_mirror=${result.widgetMirror ? "yes" : "no"}`,
+          "",
+          "Local widget unlock was cleared and RevenueCat was refreshed.",
+          "If premium is still yes, delete this App User ID in RevenueCat and clear sandbox purchase history (lifetime stays on the store receipt until then).",
+        ].join("\n"),
+      );
+    } catch {
+      Alert.alert("Reset failed", "Could not reset Pro test state. Check Metro logs.");
+    } finally {
+      setResettingPro(false);
+    }
+  };
 
   return (
     <DevSection title="Subscriptions">
@@ -745,8 +779,37 @@ function SubscriptionDebugSection() {
             color: colors.foreground,
           }}
         >
-          loaded={isLoaded ? "yes" : "no"} · premium={isPremium ? "yes" : "no"}
+          loaded={isLoaded ? "yes" : "no"} · premium={isPremium ? "yes" : "no"} ·
+          widget_mirror={mirrored ? "yes" : "no"}
         </Text>
+        <Pressable
+          accessibilityRole="button"
+          disabled={resettingPro}
+          onPress={() => void handleResetProTestState()}
+          style={{ marginTop: 10 }}
+        >
+          <Text style={{ fontFamily: "Poppins-Medium", fontSize: 13, color: colors.primary }}>
+            {resettingPro ? "Resetting Pro test state…" : "Reset Pro test state"}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void markNativeWidgetPremiumUnlocked().then(() => readWidgetPremiumMirror().then(setMirrored))}
+          style={{ marginTop: 8 }}
+        >
+          <Text style={{ fontFamily: "Poppins-Medium", fontSize: 13, color: colors.primary }}>
+            Force unlock widgets (native)
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void openProPaywall()}
+          style={{ marginTop: 8 }}
+        >
+          <Text style={{ fontFamily: "Poppins-Medium", fontSize: 13, color: colors.primary }}>
+            Open paywall
+          </Text>
+        </Pressable>
       </DevCard>
     </DevSection>
   );

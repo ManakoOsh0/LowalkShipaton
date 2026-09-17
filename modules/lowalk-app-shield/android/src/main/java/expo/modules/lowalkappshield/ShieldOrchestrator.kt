@@ -9,7 +9,7 @@ object ShieldOrchestrator {
   fun sync(context: Context) {
     val appContext = context.applicationContext
     val bundle = WidgetSessionStore.loadScheduleBundle(appContext)
-    val packages = bundle?.blockedPackageNames?.filter { it.isNotBlank() } ?: emptyList()
+    val packages = WidgetSessionStore.resolveBlockedPackageNames(appContext, bundle)
 
     if (bundle == null || packages.isEmpty()) {
       if (AppShieldMonitorService.isMonitoringActive(appContext)) {
@@ -30,7 +30,7 @@ object ShieldOrchestrator {
             headline = "Apps locked.",
             subtitle = "Stay present for ${obligation.title}.",
             detail = obligation.title,
-            ctaLabel = "Open Lowalk",
+            ctaLabel = "Close",
           )
         }
         val endsAt = ShieldScheduleEngine.computeShieldEndsAtMs(bundle, nowMs)

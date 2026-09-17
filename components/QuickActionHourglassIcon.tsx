@@ -13,7 +13,7 @@ type QuickActionHourglassIconProps = {
 
 export function QuickActionHourglassIcon({
   size = 30,
-  color = "#6B8FB8",
+  color = "#FF8A3D",
 }: QuickActionHourglassIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 72 72">

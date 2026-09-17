@@ -2,9 +2,11 @@ import { useEffect } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import type { CustomerInfo } from "react-native-purchases";
 
+import { syncAndroidWidgetPremiumGate } from "@/lib/widgetPremiumSync";
 import {
   addCustomerInfoUpdateListener,
   configureRevenueCat,
+  isPremiumFromCustomerInfo,
   presentPaywall as presentPaywallService,
   removeCustomerInfoUpdateListener,
   restorePurchases,
@@ -27,6 +29,7 @@ export function useSubscription() {
 
     const onCustomerInfoUpdated = (customerInfo: CustomerInfo) => {
       setFromCustomerInfo(customerInfo);
+      void syncAndroidWidgetPremiumGate(isPremiumFromCustomerInfo(customerInfo));
     };
 
     addCustomerInfoUpdateListener(onCustomerInfoUpdated);

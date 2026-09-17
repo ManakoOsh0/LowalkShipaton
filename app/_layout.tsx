@@ -39,7 +39,7 @@ function SubscriptionLifecycle() {
   return null;
 }
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useAppFonts();

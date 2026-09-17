@@ -1,6 +1,5 @@
 package expo.modules.lowalkappshield
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -18,8 +17,8 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 
 /**
- * Foreground UsageStats monitor — draws a full-screen shield over blocked apps.
- * Uses SYSTEM_ALERT_WINDOW when granted (reliable on Android 10+); falls back to ShieldActivity.
+ * Foreground UsageStats monitor — launches ShieldActivity when a blocked app opens.
+ * Persists lock state so swiping Lowalk from recents does not end enforcement.
  */
 class AppShieldMonitorService : Service() {
   private val handler = Handler(Looper.getMainLooper())
@@ -140,12 +139,22 @@ class AppShieldMonitorService : Service() {
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 
+    // Group summary for enforcement FGS — pre-buffer alerts use a separate expo-notifications channel.
     val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-      .setContentTitle("Lowalk focus shield")
-      .setContentText("Blocking distracting apps during your session.")
-      .setSmallIcon(android.R.drawable.ic_lock_lock)
+      .setContentTitle("Lowalk session")
+      .setContentText("Apps blocked in the background.")
+      .setSmallIcon(R.drawable.ic_notification)
+      .setColor(0xFFFF7700.toInt())
       .setContentIntent(pending)
       .setOngoing(true)
+      .setOnlyAlertOnce(true)
+      .setShowWhen(false)
+      .setSilent(true)
+      .setPriority(NotificationCompat.PRIORITY_MIN)
+      .setCategory(NotificationCompat.CATEGORY_SERVICE)
+      .setGroup(SESSION_STATUS_GROUP)
+      .setGroupSummary(true)
+      .setSortKey("1")
       .build()
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -164,35 +173,19 @@ class AppShieldMonitorService : Service() {
     val manager = getSystemService(NotificationManager::class.java)
     val channel = NotificationChannel(
       CHANNEL_ID,
-      "Focus shield",
-      NotificationManager.IMPORTANCE_LOW,
-    )
+      "Session status",
+      NotificationManager.IMPORTANCE_MIN,
+    ).apply {
+      description =
+        "Keeps app blocking active. Pre-buffer and session reminders use Session reminders."
+      setShowBadge(false)
+    }
     manager.createNotificationChannel(channel)
   }
 
   private fun clearBlockedShield() {
     AppShieldOverlayController.hide(this)
     lastBlockedPackage = null
-  }
-
-  private fun sendUserHome() {
-    val home = Intent(Intent.ACTION_MAIN).apply {
-      addCategory(Intent.CATEGORY_HOME)
-      flags = Intent.FLAG_ACTIVITY_NEW_TASK
-    }
-    startActivity(home)
-  }
-
-  private fun showBlockedShield(blockedPackage: String, appLabel: String) {
-    if (AppShieldOverlayController.canDrawOverlays(this)) {
-      AppShieldOverlayController.show(this, appLabel) {
-        sendUserHome()
-      }
-      return
-    }
-
-    // Fallback when overlay permission is missing — may fail on Android 10+ background limits.
-    ShieldActivity.launch(this, blockedPackage, appLabel)
   }
 
   private fun pollOnce() {
@@ -218,12 +211,12 @@ class AppShieldMonitorService : Service() {
       return
     }
 
-    if (lastBlockedPackage == foreground && AppShieldOverlayController.isShowing()) {
+    if (lastBlockedPackage == foreground) {
       return
     }
 
     lastBlockedPackage = foreground
-    showBlockedShield(foreground, resolveLabel(foreground))
+    ShieldActivity.launch(this, foreground, resolveLabel(foreground))
   }
 
   private fun resolveLabel(packageName: String): String {
@@ -241,7 +234,8 @@ class AppShieldMonitorService : Service() {
     const val EXTRA_PACKAGES = "packages"
     const val EXTRA_SHIELD_ENDS_AT_MS = "shield_ends_at_ms"
 
-    private const val CHANNEL_ID = "lowalk_app_shield"
+    private const val CHANNEL_ID = "lowalk_session_status"
+    private const val SESSION_STATUS_GROUP = "lowalk_session_status"
     private const val NOTIFICATION_ID = 7142
     private const val POLL_INTERVAL_MS = 500L
     private const val PREF_NAME = "lowalk_app_shield"

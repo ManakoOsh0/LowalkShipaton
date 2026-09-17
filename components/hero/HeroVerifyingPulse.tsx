@@ -37,7 +37,7 @@ export function HeroVerifyingPulse({
 
     opacity.value = withRepeat(
       withSequence(
-        withTiming(0.28, { duration: halfBlink, easing: HERO_MOTION.linearEasing }),
+        withTiming(0.62, { duration: halfBlink, easing: HERO_MOTION.linearEasing }),
         withTiming(1, { duration: halfBlink, easing: HERO_MOTION.linearEasing }),
       ),
       -1,

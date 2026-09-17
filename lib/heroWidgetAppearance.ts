@@ -6,7 +6,7 @@ export const WIDGET_NEUTRAL_THEME = {
   tileBg: "#DEDEDE",
   textPrimary: "#1C1C1E",
   textMuted: "#636366",
-  dateAccent: "#6B8FB8",
+  dateAccent: "#FF8A3D",
 } as const;
 
 export type WidgetTileAppearancePayload = {

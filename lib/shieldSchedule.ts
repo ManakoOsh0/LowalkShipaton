@@ -159,9 +159,60 @@ export function computeRequiredOnSiteMs(node: FocusNode): number | null {
   return Math.round(node.schedule.durationHours * 60 * 60 * 1000);
 }
 
+/** True when another owed interval has already opened after `currentNodeId`. */
+function isLaterCalendarObligationStarted(
+  currentNodeId: string,
+  intervals: NodeShieldInterval[],
+  now: number,
+  endOfDayMs: number,
+): boolean {
+  return intervals.some((interval) => {
+    if (interval.nodeId === currentNodeId) return false;
+    if (now < interval.startsAtMs) return false;
+    if (interval.scheduleType === "duration") {
+      return now < endOfDayMs;
+    }
+    return now < interval.nominalEndsAtMs;
+  });
+}
+
+/**
+ * Keep the live snapshot only through its own calendar window.
+ * Penalty lock and incomplete gym quota keep the *shield* on, not the live node.
+ */
+function shouldKeepLiveSession(
+  session: ActiveSessionSnapshot,
+  current: FocusNode,
+  intervals: NodeShieldInterval[],
+  now: number,
+  referenceDate: Date,
+  endOfDayMs: number,
+): boolean {
+  if (session.scheduleType === "duration" && session.requiredOnSiteMs != null) {
+    if (isDurationSessionExpired(session.shieldStartsAt, referenceDate)) {
+      return false;
+    }
+    if (session.onSiteAccumulatedMs >= session.requiredOnSiteMs) {
+      return false;
+    }
+    if (!isLaterCalendarObligationStarted(current.id, intervals, now, endOfDayMs)) {
+      return true;
+    }
+    const interval = intervals.find((item) => item.nodeId === current.id);
+    return interval != null && now < interval.nominalEndsAtMs;
+  }
+
+  if (session.scheduleType === "class") {
+    return now < new Date(session.endsAt).getTime();
+  }
+
+  return true;
+}
+
 /**
  * Which scheduled node should drive the live session right now.
- * Prefers an in-progress active session, then the earliest owed interval.
+ * Prefers an in-progress active session through its own window, then the earliest owed interval.
+ * Remaining penalty time is shield-only and must not pin a finished node.
  */
 export function selectPrimaryObligationNode(
   nodes: FocusNode[],
@@ -170,36 +221,40 @@ export function selectPrimaryObligationNode(
   now = Date.now(),
   referenceDate = new Date(),
 ): FocusNode | null {
+  const endOfDayMs = getEndOfDayMs(referenceDate);
+  const intervals = getTodayShieldIntervals(nodes, settings, referenceDate);
+
   if (activeSession) {
     const current = nodes.find((node) => node.id === activeSession.nodeId);
     if (current && isOccurrenceOpenToday(current, referenceDate)) {
-      if (activeSession.scheduleType === "duration" && activeSession.requiredOnSiteMs != null) {
-        if (isDurationSessionExpired(activeSession.shieldStartsAt, referenceDate)) {
-          // Expired at midnight — obligation cleared elsewhere.
-        } else if (activeSession.onSiteAccumulatedMs < activeSession.requiredOnSiteMs) {
-          return current;
-        }
-      } else if (activeSession.scheduleType === "class") {
-        const endMs = Math.max(
-          new Date(activeSession.endsAt).getTime(),
-          activeSession.penaltyShieldEndsAt
-            ? new Date(activeSession.penaltyShieldEndsAt).getTime()
-            : 0,
-        );
-        if (now < endMs) return current;
-      } else {
+      if (
+        shouldKeepLiveSession(
+          activeSession,
+          current,
+          intervals,
+          now,
+          referenceDate,
+          endOfDayMs,
+        )
+      ) {
         return current;
       }
     }
   }
 
-  const endOfDayMs = getEndOfDayMs(referenceDate);
-  const intervals = getTodayShieldIntervals(nodes, settings, referenceDate);
   for (const interval of intervals) {
     if (now < interval.startsAtMs) continue;
 
     if (interval.scheduleType === "duration") {
       if (now >= endOfDayMs) continue;
+      // Incomplete gym/library keeps the shield until midnight, but must not
+      // block a later Focus Node whose window has already opened.
+      if (
+        now >= interval.nominalEndsAtMs &&
+        isLaterCalendarObligationStarted(interval.nodeId, intervals, now, endOfDayMs)
+      ) {
+        continue;
+      }
     } else if (now >= interval.nominalEndsAtMs) {
       continue;
     }

@@ -7,13 +7,18 @@ import android.content.Intent
 import android.os.Build
 import android.os.SystemClock
 
-/** Schedules widget refresh alarms from offline schedule transitions. */
+/** Shared tick alarm for every placed home-screen widget. */
 object HeroWidgetAlarmScheduler {
   private const val ALARM_REQUEST_CODE = 42001
-  private const val ACTIVE_TICK_MS = 60_000L
+  private const val CLOCK_TICK_MS = 60_000L
   private const val MIN_ALARM_DELAY_MS = 5_000L
 
   fun reschedule(context: Context) {
+    if (!WidgetSessionStore.hasPlacedWidgets(context)) {
+      cancel(context)
+      return
+    }
+
     val bundle = WidgetSessionStore.loadScheduleBundle(context) ?: run {
       cancel(context)
       return
@@ -24,8 +29,8 @@ object HeroWidgetAlarmScheduler {
     val transitions = HeroWidgetStateEngine.collectTransitionTimes(bundle, nowMs).toMutableList()
     viewModel.nextTransitionAtMs?.let { transitions.add(it) }
 
-    if (viewModel.state == "active") {
-      transitions.add(nowMs + ACTIVE_TICK_MS)
+    if (HeroWidgetStateEngine.needsClockTick(viewModel, nowMs)) {
+      transitions.add(nowMs + CLOCK_TICK_MS)
     }
 
     val nextAt = transitions.filter { it > nowMs }.minOrNull()

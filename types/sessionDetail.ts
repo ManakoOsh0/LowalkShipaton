@@ -16,6 +16,8 @@ export type SessionDetailData = {
   kind: ScheduleItemKind;
   timeLabel: string;
   locationLabel: string;
+  startMinutes: number;
+  endMinutes: number;
   dateIso: string;
   dateLabel: string;
   isToday: boolean;

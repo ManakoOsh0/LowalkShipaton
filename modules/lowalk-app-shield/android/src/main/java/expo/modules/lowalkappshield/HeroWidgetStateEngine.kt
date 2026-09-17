@@ -204,15 +204,16 @@ object HeroWidgetStateEngine {
   }
 
   fun compute(bundle: ScheduleBundle, nowMs: Long = System.currentTimeMillis()): ViewModel {
+    val effectiveBundle = resolveEffectiveBundle(bundle, nowMs)
     val transitions = mutableListOf<Long>()
     val blockedAppsLabel =
-      if (bundle.blockedAppsCount > 0) {
-        if (bundle.blockedAppsCount == 1) "1 app blocked" else "${bundle.blockedAppsCount} apps blocked"
+      if (effectiveBundle.blockedAppsCount > 0) {
+        if (effectiveBundle.blockedAppsCount == 1) "1 app blocked" else "${effectiveBundle.blockedAppsCount} apps blocked"
       } else {
-        bundle.display.blockedAppsLabel
+        effectiveBundle.display.blockedAppsLabel
       }
 
-    bundle.activeSession?.let { session ->
+    effectiveBundle.activeSession?.let { session ->
       transitions.add(session.endsAtMs)
       transitions.add(session.shieldStartsAtMs)
       session.penaltyShieldEndsAtMs?.let { transitions.add(it) }
@@ -222,9 +223,9 @@ object HeroWidgetStateEngine {
           val remaining = max(0L, penaltyEnd - nowMs)
           val minutes = session.penaltyMinutes ?: 30
           return baseViewModel(
-            bundle = bundle,
+            bundle = effectiveBundle,
             state = "on_the_way",
-            metaLeft = kindLabelForNode(bundle, session.nodeId),
+            metaLeft = kindLabelForNode(effectiveBundle, session.nodeId),
             metaRight = "LOCKED",
             sessionTitle = "Apps locked",
             headline = formatDurationClock(remaining),
@@ -234,7 +235,7 @@ object HeroWidgetStateEngine {
             sessionStartsAtMs = null,
             sessionEndsAtMs = penaltyEnd,
             locationLabel = session.zoneLabel,
-            focusNode = bundle.nodes.firstOrNull { it.id == session.nodeId },
+            focusNode = effectiveBundle.nodes.firstOrNull { it.id == session.nodeId },
             blockedAppsLabel = blockedAppsLabel,
             transitions = transitions,
             nowMs = nowMs,
@@ -244,19 +245,19 @@ object HeroWidgetStateEngine {
 
       if (session.awaySinceMs != null) {
         return baseViewModel(
-          bundle = bundle,
+          bundle = effectiveBundle,
           state = "on_the_way",
-          metaLeft = kindLabelForNode(bundle, session.nodeId),
+          metaLeft = kindLabelForNode(effectiveBundle, session.nodeId),
           metaRight = "AWAY",
           sessionTitle = session.nodeTitle,
-          headline = bundle.display.headline.ifBlank { session.nodeTitle },
-          countdownLabel = bundle.display.countdownLabel,
-          subline = bundle.display.subline ?: "Return to ${session.zoneLabel}",
-          progressRatio = bundle.display.progressRatio,
+          headline = effectiveBundle.display.headline.ifBlank { session.nodeTitle },
+          countdownLabel = effectiveBundle.display.countdownLabel,
+          subline = effectiveBundle.display.subline ?: "Return to ${session.zoneLabel}",
+          progressRatio = effectiveBundle.display.progressRatio,
           sessionStartsAtMs = session.shieldStartsAtMs,
           sessionEndsAtMs = session.endsAtMs,
           locationLabel = session.zoneLabel,
-          focusNode = bundle.nodes.firstOrNull { it.id == session.nodeId },
+          focusNode = effectiveBundle.nodes.firstOrNull { it.id == session.nodeId },
           blockedAppsLabel = blockedAppsLabel,
           transitions = transitions,
           nowMs = nowMs,
@@ -265,19 +266,19 @@ object HeroWidgetStateEngine {
 
       if (!session.presenceVerified) {
         return baseViewModel(
-          bundle = bundle,
-          state = bundle.display.state.ifBlank { "on_the_way" },
-          metaLeft = bundle.display.metaLeft.ifBlank { kindLabelForNode(bundle, session.nodeId) },
-          metaRight = bundle.display.metaRight.ifBlank { "VERIFYING" },
-          sessionTitle = bundle.display.sessionTitle.ifBlank { session.nodeTitle },
-          headline = bundle.display.headline.ifBlank { session.nodeTitle },
-          countdownLabel = bundle.display.countdownLabel,
-          subline = bundle.display.subline ?: session.zoneLabel,
-          progressRatio = bundle.display.progressRatio,
+          bundle = effectiveBundle,
+          state = effectiveBundle.display.state.ifBlank { "on_the_way" },
+          metaLeft = effectiveBundle.display.metaLeft.ifBlank { kindLabelForNode(effectiveBundle, session.nodeId) },
+          metaRight = effectiveBundle.display.metaRight.ifBlank { "VERIFYING" },
+          sessionTitle = effectiveBundle.display.sessionTitle.ifBlank { session.nodeTitle },
+          headline = effectiveBundle.display.headline.ifBlank { session.nodeTitle },
+          countdownLabel = effectiveBundle.display.countdownLabel,
+          subline = effectiveBundle.display.subline ?: session.zoneLabel,
+          progressRatio = effectiveBundle.display.progressRatio,
           sessionStartsAtMs = session.shieldStartsAtMs,
-          sessionEndsAtMs = bundle.display.sessionEndsAtMs ?: session.endsAtMs,
-          locationLabel = bundle.display.locationLabel ?: session.zoneLabel,
-          focusNode = bundle.nodes.firstOrNull { it.id == session.nodeId },
+          sessionEndsAtMs = effectiveBundle.display.sessionEndsAtMs ?: session.endsAtMs,
+          locationLabel = effectiveBundle.display.locationLabel ?: session.zoneLabel,
+          focusNode = effectiveBundle.nodes.firstOrNull { it.id == session.nodeId },
           blockedAppsLabel = blockedAppsLabel,
           transitions = transitions,
           nowMs = nowMs,
@@ -287,9 +288,9 @@ object HeroWidgetStateEngine {
       val activeMetrics = activeSessionMetrics(session, nowMs)
       transitions.add(nowMs + 60_000L)
       return baseViewModel(
-        bundle = bundle,
+        bundle = effectiveBundle,
         state = "active",
-        metaLeft = kindLabelForNode(bundle, session.nodeId),
+        metaLeft = kindLabelForNode(effectiveBundle, session.nodeId),
         metaRight = "LIVE",
         sessionTitle = session.nodeTitle,
         headline = activeMetrics.countdownLabel,
@@ -299,7 +300,7 @@ object HeroWidgetStateEngine {
         sessionStartsAtMs = session.shieldStartsAtMs,
         sessionEndsAtMs = session.endsAtMs,
         locationLabel = session.zoneLabel,
-        focusNode = bundle.nodes.firstOrNull { it.id == session.nodeId },
+        focusNode = effectiveBundle.nodes.firstOrNull { it.id == session.nodeId },
         blockedAppsLabel = blockedAppsLabel,
         timerRemainingMs = activeMetrics.remainingMs,
         transitions = transitions,
@@ -307,35 +308,30 @@ object HeroWidgetStateEngine {
       )
     }
 
-    val nextNode = selectNextNode(bundle, nowMs)
+    val nextNode = selectNextNode(effectiveBundle, nowMs)
     nextNode?.let { node ->
-      val startMs = minutesToTodayMs(node.startMinutes, bundle.timezoneId, nowMs)
-      val endMs = minutesToTodayMs(node.endMinutes, bundle.timezoneId, nowMs)
+      val startMs = minutesToTodayMs(node.startMinutes, effectiveBundle.timezoneId, nowMs)
+      val endMs = minutesToTodayMs(node.endMinutes, effectiveBundle.timezoneId, nowMs)
       transitions.add(startMs)
       transitions.add(endMs)
 
       val minutesUntil = max(0, ceilMinutes(startMs - nowMs))
       val inWindow = nowMs >= startMs && nowMs < endMs
-      val displayMatchesNode = bundle.display.sessionTitle == node.title
 
-      if (inWindow || displayMatchesNode) {
+      if (inWindow) {
         return baseViewModel(
-          bundle = bundle,
-          state = bundle.display.state.ifBlank { "up_next" },
-          metaLeft = bundle.display.metaLeft.ifBlank { kindLabel(node.kind) },
-          metaRight = bundle.display.metaRight.ifBlank { "UP NEXT" },
-          sessionTitle = bundle.display.sessionTitle.ifBlank { node.title },
-          headline = if (bundle.display.state == "up_next" && bundle.display.headline.isNotBlank()) {
-            bundle.display.headline
-          } else {
-            formatStartsInLabel(minutesUntil)
-          },
-          countdownLabel = bundle.display.countdownLabel,
-          subline = bundle.display.subline ?: node.locationLabel,
-          progressRatio = bundle.display.progressRatio,
+          bundle = effectiveBundle,
+          state = "on_the_way",
+          metaLeft = kindLabel(node.kind),
+          metaRight = "CHECK IN",
+          sessionTitle = node.title,
+          headline = "Window open",
+          countdownLabel = null,
+          subline = node.locationLabel,
+          progressRatio = null,
           sessionStartsAtMs = startMs,
           sessionEndsAtMs = endMs,
-          locationLabel = bundle.display.locationLabel ?: node.locationLabel,
+          locationLabel = node.locationLabel,
           focusNode = node,
           blockedAppsLabel = blockedAppsLabel,
           transitions = transitions,
@@ -344,7 +340,7 @@ object HeroWidgetStateEngine {
       }
 
       return baseViewModel(
-        bundle = bundle,
+        bundle = effectiveBundle,
         state = "up_next",
         metaLeft = kindLabel(node.kind),
         metaRight = "UP NEXT",
@@ -364,26 +360,27 @@ object HeroWidgetStateEngine {
     }
 
     val allDone =
-      bundle.nodes.any { it.weekday == bundle.todayWeekday } &&
-        bundle.nodes.filter { it.weekday == bundle.todayWeekday }.all { it.completedToday || it.skippedToday }
+      effectiveBundle.nodes.any { it.weekday == effectiveBundle.todayWeekday } &&
+        effectiveBundle.nodes.filter { it.weekday == effectiveBundle.todayWeekday }
+          .all { it.completedToday || it.skippedToday }
 
     return baseViewModel(
-      bundle = bundle,
-      state = if (allDone) "on_the_way" else bundle.display.state.ifBlank { "on_the_way" },
-      metaLeft = bundle.display.metaLeft.ifBlank { "FOCUS" },
-      metaRight = bundle.display.metaRight.ifBlank { if (allDone) "DONE" else "TODAY" },
-      sessionTitle = bundle.display.sessionTitle.ifBlank { if (allDone) "Day complete" else "Lowalk" },
-      headline = bundle.display.headline.ifBlank { if (allDone) "Day complete." else "Open Lowalk" },
-      countdownLabel = bundle.display.countdownLabel,
-      subline = bundle.display.subline ?: if (allDone) "Every Focus Node completed." else null,
-      progressRatio = if (bundle.dailyGoalTarget > 0) {
-        bundle.dailyGoalCompleted.toFloat() / bundle.dailyGoalTarget.toFloat()
+      bundle = effectiveBundle,
+      state = if (allDone) "on_the_way" else effectiveBundle.display.state.ifBlank { "on_the_way" },
+      metaLeft = effectiveBundle.display.metaLeft.ifBlank { "FOCUS" },
+      metaRight = effectiveBundle.display.metaRight.ifBlank { if (allDone) "DONE" else "TODAY" },
+      sessionTitle = effectiveBundle.display.sessionTitle.ifBlank { if (allDone) "Day complete" else "Lowalk" },
+      headline = effectiveBundle.display.headline.ifBlank { if (allDone) "Day complete." else "Open Lowalk" },
+      countdownLabel = effectiveBundle.display.countdownLabel,
+      subline = effectiveBundle.display.subline ?: if (allDone) "Every Focus Node completed." else null,
+      progressRatio = if (effectiveBundle.dailyGoalTarget > 0) {
+        effectiveBundle.dailyGoalCompleted.toFloat() / effectiveBundle.dailyGoalTarget.toFloat()
       } else {
-        bundle.display.progressRatio
+        effectiveBundle.display.progressRatio
       },
       sessionStartsAtMs = null,
       sessionEndsAtMs = null,
-      locationLabel = bundle.display.locationLabel,
+      locationLabel = effectiveBundle.display.locationLabel,
       focusNode = null,
       blockedAppsLabel = blockedAppsLabel,
       transitions = transitions,
@@ -391,23 +388,88 @@ object HeroWidgetStateEngine {
     )
   }
 
+  /** True when the visible copy should advance on a ~1-minute wall-clock tick. */
+  fun needsClockTick(viewModel: ViewModel, @Suppress("UNUSED_PARAMETER") nowMs: Long): Boolean {
+    return when (viewModel.state) {
+      "active", "up_next" -> true
+      "on_the_way" ->
+        viewModel.countdownLabel != null ||
+          viewModel.metaRight == "LOCKED" ||
+          viewModel.headline == "Window open" ||
+          viewModel.headline == "Starting now" ||
+          viewModel.headline.startsWith("Starts in")
+      else -> false
+    }
+  }
+
+  private fun resolveEffectiveBundle(bundle: ScheduleBundle, nowMs: Long): ScheduleBundle {
+    val tz = TimeZone.getTimeZone(bundle.timezoneId)
+    val calendar = Calendar.getInstance(tz).apply { timeInMillis = nowMs }
+    val todayWeekday = calendar.get(Calendar.DAY_OF_WEEK) - Calendar.SUNDAY
+    val todayIso =
+      String.format(
+        Locale.US,
+        "%04d-%02d-%02d",
+        calendar.get(Calendar.YEAR),
+        calendar.get(Calendar.MONTH) + 1,
+        calendar.get(Calendar.DAY_OF_MONTH),
+      )
+
+    if (bundle.todayIso == todayIso && bundle.todayWeekday == todayWeekday) {
+      return bundle
+    }
+
+    // Yesterday's completion flags must not carry over when the device calendar rolls.
+    val nodes =
+      bundle.nodes.map { node ->
+        node.copy(completedToday = false, skippedToday = false)
+      }
+
+    return bundle.copy(
+      todayIso = todayIso,
+      todayWeekday = todayWeekday,
+      nodes = nodes,
+    )
+  }
+
+  private fun midnightMs(timezoneId: String, nowMs: Long): Long {
+    val tz = TimeZone.getTimeZone(timezoneId)
+    val calendar =
+      Calendar.getInstance(tz).apply {
+        timeInMillis = nowMs
+        add(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+      }
+    return calendar.timeInMillis
+  }
+
   fun collectTransitionTimes(bundle: ScheduleBundle, nowMs: Long): List<Long> {
+    val effectiveBundle = resolveEffectiveBundle(bundle, nowMs)
     val transitions = mutableListOf<Long>()
-    bundle.activeSession?.let { session ->
+    transitions.add(midnightMs(effectiveBundle.timezoneId, nowMs))
+
+    effectiveBundle.activeSession?.let { session ->
       transitions.add(session.endsAtMs)
       transitions.add(session.shieldStartsAtMs)
       session.penaltyShieldEndsAtMs?.let { transitions.add(it) }
-      if (session.presenceVerified) {
-        transitions.add(nowMs + 60_000L)
-      }
+      transitions.add(nowMs + 60_000L)
     }
 
-    for (node in bundle.nodes) {
-      if (!node.isOpenToday(bundle.todayWeekday)) continue
-      val startMs = minutesToTodayMs(node.startMinutes, bundle.timezoneId, nowMs)
-      val endMs = minutesToTodayMs(node.endMinutes, bundle.timezoneId, nowMs)
-      if (startMs > nowMs) transitions.add(startMs)
+    for (node in effectiveBundle.nodes) {
+      if (!node.isOpenToday(effectiveBundle.todayWeekday)) continue
+      val startMs = minutesToTodayMs(node.startMinutes, effectiveBundle.timezoneId, nowMs)
+      val endMs = minutesToTodayMs(node.endMinutes, effectiveBundle.timezoneId, nowMs)
+      if (startMs > nowMs) {
+        transitions.add(startMs)
+        transitions.add(nowMs + 60_000L)
+      }
       if (endMs > nowMs) transitions.add(endMs)
+      if (nowMs >= startMs && nowMs < endMs && effectiveBundle.activeSession == null) {
+        transitions.add(nowMs + 60_000L)
+      }
     }
 
     return transitions.filter { it > nowMs }.sorted()
@@ -445,7 +507,7 @@ object HeroWidgetStateEngine {
     val resolvedTravel = bundle.display.travelLabel
     val resolvedFooter =
       bundle.display.upNextFooter
-        ?: buildUpNextFooter(bundle, sessionTitle.takeIf { state != "weekly_report" })
+        ?: buildUpNextFooter(bundle, sessionTitle)
     val progressLabels = resolveProgressLabels(
       state = state,
       sessionStartsAtMs = sessionStartsAtMs,

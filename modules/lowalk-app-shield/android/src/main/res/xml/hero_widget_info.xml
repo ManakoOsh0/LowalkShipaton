@@ -2,6 +2,7 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
   android:description="@string/hero_widget_description"
   android:initialLayout="@layout/widget_focus_tile"
+  android:previewLayout="@layout/widget_focus_tile"
   android:minWidth="250dp"
   android:minHeight="110dp"
   android:minResizeWidth="180dp"

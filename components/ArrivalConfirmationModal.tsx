@@ -1,7 +1,7 @@
 /**
  * ArrivalConfirmationModal — bottom sheet when the user enters a session geofence.
  */
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 
@@ -27,19 +27,19 @@ function ArrivalSheetContent({
   const reduceMotion = useReduceMotion();
 
   return (
-    <View style={{ paddingHorizontal: 4, paddingBottom: 52, alignItems: "center", gap: 10 }}>
-      <View style={{ height: 100, alignItems: "center", justifyContent: "center" }}>
+    <View style={{ paddingHorizontal: 4, paddingBottom: 52, alignItems: "center", gap: 14 }}>
+      <View style={{ height: 116, alignItems: "center", justifyContent: "center" }}>
         <Animated.View entering={arrivalMascotEntering(reduceMotion)}>
-          <ArrivalMascotBadge size={96} color={colors.success} />
+          <ArrivalMascotBadge size={112} color={colors.success} />
         </Animated.View>
       </View>
 
-      <View style={{ alignItems: "center", gap: 3 }}>
+      <View style={{ alignItems: "center", gap: 5 }}>
         <Text
           style={{
             fontFamily: "Poppins-SemiBold",
-            fontSize: 12,
-            lineHeight: 16,
+            fontSize: 14,
+            lineHeight: 18,
             letterSpacing: 0.3,
             textTransform: "uppercase",
             color: colors.success,
@@ -50,8 +50,8 @@ function ArrivalSheetContent({
         <Text
           style={{
             fontFamily: "Poppins-Bold",
-            fontSize: 20,
-            lineHeight: 26,
+            fontSize: 24,
+            lineHeight: 30,
             color: colors.foreground,
             textAlign: "center",
           }}
@@ -61,8 +61,8 @@ function ArrivalSheetContent({
         <Text
           style={{
             fontFamily: "Poppins-Regular",
-            fontSize: 14,
-            lineHeight: 20,
+            fontSize: 16,
+            lineHeight: 22,
             color: colors.muted,
             textAlign: "center",
           }}
@@ -74,8 +74,8 @@ function ArrivalSheetContent({
       <Text
         style={{
           fontFamily: "Poppins-Medium",
-          fontSize: 13,
-          lineHeight: 18,
+          fontSize: 15,
+          lineHeight: 20,
           color: colors.foregroundSubtle,
           textAlign: "center",
         }}
@@ -86,6 +86,9 @@ function ArrivalSheetContent({
   );
 }
 
+/** Let GPS catch up after geofence recalibration before auto-dismissing outside the fence. */
+const ARRIVAL_GEOFENCE_DISMISS_GRACE_MS = 8_000;
+
 export function ArrivalCelebrationHost() {
   const presence = useSessionPresence();
   const activeSession = useScheduleStore((state) => state.activeSession);
@@ -95,6 +98,13 @@ export function ArrivalCelebrationHost() {
   const anchorName = useArrivalCelebrationStore((state) => state.anchorName);
   const preview = useArrivalCelebrationStore((state) => state.preview);
   const hide = useArrivalCelebrationStore((state) => state.hide);
+  const shownAtRef = useRef(0);
+
+  useEffect(() => {
+    if (visible) {
+      shownAtRef.current = Date.now();
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (activeSession?.presenceVerified) {
@@ -104,6 +114,9 @@ export function ArrivalCelebrationHost() {
 
   useEffect(() => {
     if (visible && !preview && !presence.isInsideGeofence) {
+      if (Date.now() - shownAtRef.current < ARRIVAL_GEOFENCE_DISMISS_GRACE_MS) {
+        return;
+      }
       hide();
     }
   }, [hide, preview, presence.isInsideGeofence, visible]);

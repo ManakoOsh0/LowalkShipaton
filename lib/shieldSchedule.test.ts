@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   getNodeShieldInterval,
   getSessionNominalStartMs,
+  selectPrimaryObligationNode,
   type ShieldScheduleSettings,
 } from "./shieldSchedule";
 import type { FocusNode } from "@/types/focusNode";
@@ -118,5 +119,181 @@ describe("getSessionNominalStartMs", () => {
       getSessionNominalStartMs(session, SETTINGS),
       new Date("2026-07-27T09:00:00").getTime(),
     );
+  });
+});
+
+function makeClassNode(
+  id: string,
+  title: string,
+  startTime: string,
+  endTime: string,
+): FocusNode {
+  return makeNode({
+    id,
+    title,
+    icon: "class",
+    kind: "class",
+    locationLabel: title,
+    anchorId: `anchor-${id}`,
+    schedule: {
+      type: "class",
+      weekday: 1,
+      startTime,
+      endTime,
+    },
+  });
+}
+
+function makeClassSession(
+  nodeId: string,
+  startTimeIso: string,
+  endTimeIso: string,
+  overrides: Partial<ActiveSessionSnapshot> = {},
+): ActiveSessionSnapshot {
+  return {
+    nodeId,
+    zoneLabel: "Room",
+    headline: "Head to Room for class",
+    nodeTitle: "Class",
+    scheduleType: "class",
+    shieldStartsAt: startTimeIso,
+    endsAt: endTimeIso,
+    onSiteAccumulatedMs: 0,
+    onSiteLastTickAt: null,
+    requiredOnSiteMs: null,
+    awaySince: null,
+    penaltyShieldEndsAt: null,
+    penaltyMinutes: null,
+    presenceVerified: true,
+    ...overrides,
+  };
+}
+
+describe("selectPrimaryObligationNode", () => {
+  const classA = makeClassNode("class-a", "Calculus", "09:00", "10:00");
+  const classB = makeClassNode("class-b", "Physics", "10:10", "11:00");
+  const gym = makeNode({
+    id: "gym-1",
+    title: "Morning Workout",
+    kind: "gym",
+    schedule: {
+      type: "duration",
+      weekday: 1,
+      startTime: "09:00",
+      durationHours: 1,
+    },
+  });
+
+  it("keeps a class live through its own end even with a penalty running", () => {
+    const now = new Date("2026-07-27T09:50:00");
+    const session = makeClassSession(
+      "class-a",
+      "2026-07-27T08:30:00",
+      "2026-07-27T10:00:00",
+      {
+        penaltyShieldEndsAt: new Date("2026-07-27T10:20:00").toISOString(),
+        penaltyMinutes: 30,
+      },
+    );
+
+    const obligation = selectPrimaryObligationNode(
+      [classA, classB],
+      session,
+      SETTINGS,
+      now.getTime(),
+      now,
+    );
+    assert.equal(obligation?.id, "class-a");
+  });
+
+  it("yields a finished class to the next session even if penalty time remains", () => {
+    const now = new Date("2026-07-27T10:12:00");
+    const session = makeClassSession(
+      "class-a",
+      "2026-07-27T08:30:00",
+      "2026-07-27T10:00:00",
+      {
+        penaltyShieldEndsAt: new Date("2026-07-27T10:20:00").toISOString(),
+        penaltyMinutes: 30,
+        penaltyOriginNodeId: "class-a",
+      },
+    );
+
+    const obligation = selectPrimaryObligationNode(
+      [classA, classB],
+      session,
+      SETTINGS,
+      now.getTime(),
+      now,
+    );
+    assert.equal(obligation?.id, "class-b");
+  });
+
+  it("keeps an incomplete gym through its own window while the next class is only in pre-buffer", () => {
+    const now = new Date("2026-07-27T09:40:00");
+    const session = makeDurationSession({
+      nodeId: "gym-1",
+      onSiteAccumulatedMs: 10 * 60_000,
+      presenceVerified: true,
+    });
+
+    const obligation = selectPrimaryObligationNode(
+      [gym, classB],
+      session,
+      SETTINGS,
+      now.getTime(),
+      now,
+    );
+    assert.equal(obligation?.id, "gym-1");
+  });
+
+  it("yields an incomplete gym after its nominal end once the next class has started", () => {
+    const now = new Date("2026-07-27T10:12:00");
+    const session = makeDurationSession({
+      nodeId: "gym-1",
+      onSiteAccumulatedMs: 10 * 60_000,
+      presenceVerified: true,
+      penaltyShieldEndsAt: new Date("2026-07-27T10:30:00").toISOString(),
+      penaltyMinutes: 30,
+    });
+
+    const obligation = selectPrimaryObligationNode(
+      [gym, classB],
+      session,
+      SETTINGS,
+      now.getTime(),
+      now,
+    );
+    assert.equal(obligation?.id, "class-b");
+  });
+
+  it("picks the later class even when an earlier incomplete gym has no live snapshot", () => {
+    const now = new Date("2026-07-27T10:12:00");
+    const obligation = selectPrimaryObligationNode(
+      [gym, classB],
+      null,
+      SETTINGS,
+      now.getTime(),
+      now,
+    );
+    assert.equal(obligation?.id, "class-b");
+  });
+
+  it("keeps an incomplete gym for the rest of the day when nothing else is owed", () => {
+    const now = new Date("2026-07-27T14:00:00");
+    const session = makeDurationSession({
+      nodeId: "gym-1",
+      onSiteAccumulatedMs: 10 * 60_000,
+      presenceVerified: true,
+    });
+
+    const obligation = selectPrimaryObligationNode(
+      [gym],
+      session,
+      SETTINGS,
+      now.getTime(),
+      now,
+    );
+    assert.equal(obligation?.id, "gym-1");
   });
 });

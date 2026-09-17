@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 
 import { FormSectionCard } from "@/components/form/FormSectionCard";
+import { FocusCoinsInfoSheet } from "@/components/settings/FocusCoinsInfoSheet";
 import { LowalkRulePickerSheet } from "@/components/settings/LowalkRulePickerSheet";
 import { SettingsListRow } from "@/components/settings/SettingsListRow";
 import { useThemeColors } from "@/hooks/useThemeColors";
@@ -22,6 +23,7 @@ export function FocusRewardsCard() {
   const classPreBufferMinutes = useUserStore((state) => state.classPreBufferMinutes);
   const setClassPreBufferMinutes = useUserStore((state) => state.setClassPreBufferMinutes);
   const [activePicker, setActivePicker] = useState<ActivePicker>(null);
+  const [coinsInfoVisible, setCoinsInfoVisible] = useState(false);
 
   const penaltyLabel =
     PENALTY_TIER_OPTIONS.find((option) => option.minutes === penaltyTierMinutes)?.label ??
@@ -32,27 +34,14 @@ export function FocusRewardsCard() {
 
   return (
     <View style={{ marginBottom: 24 }}>
-      <FormSectionCard
-        footer={
-          <Text
-            style={{
-              paddingHorizontal: 4,
-              fontFamily: "Poppins-Regular",
-              fontSize: 13,
-              lineHeight: 18,
-              color: colors.muted,
-            }}
-          >
-            Complete every session on today&apos;s schedule to earn +1 Focus Coin.
-          </Text>
-        }
-      >
+      <FormSectionCard>
         <SettingsListRow
           icon="sparkles-outline"
           label="Focus Coins"
           value={String(coins)}
+          onPress={() => setCoinsInfoVisible(true)}
           showDivider
-          accessibilityLabel={`${coins} Focus Coins saved`}
+          accessibilityLabel={`${coins} Focus Coins saved. Learn how Focus Coins work.`}
         />
 
         <Text
@@ -72,7 +61,7 @@ export function FocusRewardsCard() {
 
         <SettingsListRow
           icon="lock-closed-outline"
-          label="Away penalty"
+          label="Class penalty"
           value={penaltyLabel}
           onPress={() => setActivePicker("penalty")}
           showDivider
@@ -85,10 +74,16 @@ export function FocusRewardsCard() {
         />
       </FormSectionCard>
 
+      <FocusCoinsInfoSheet
+        visible={coinsInfoVisible}
+        coins={coins}
+        onClose={() => setCoinsInfoVisible(false)}
+      />
+
       <LowalkRulePickerSheet
         visible={activePicker === "penalty"}
-        title="Away penalty"
-        description="Leave your venue for more than 5 minutes during a session, or miss a class, and apps stay locked for this long."
+        title="Class penalty"
+        description="Leave a class for more than 5 minutes, or miss it, and apps stay locked for this long. Gym and library stay locked until you finish on site, or midnight."
         options={PENALTY_TIER_OPTIONS.map((option) => ({
           value: option.minutes,
           label: option.label,

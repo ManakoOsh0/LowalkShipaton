@@ -7,6 +7,9 @@ import { getYesterdayIso, toIsoDateString } from "@/lib/time";
 /** One Focus Coin earned when the user hits their full daily session target. */
 export const COINS_PER_DAILY_GOAL = 1;
 
+/** Cost to skip today's occurrence from the schedule action sheet. */
+export const FOCUS_COIN_SKIP_COST = 1;
+
 /** @deprecated Coins are earned per daily goal, not per session. */
 export const COINS_PER_COMPLETED_SESSION = COINS_PER_DAILY_GOAL;
 
@@ -27,7 +30,7 @@ type UserState = {
   lastDailyGoalAwardDateIso: string | null;
   /** Last calendar day (ISO) the user hit their daily session target (drives streak). */
   lastStreakDateIso: string | null;
-  /** Default app-lock duration when away from the venue past the grace window. */
+  /** Extra app-lock duration for class away / miss penalties. */
   penaltyTierMinutes: PenaltyTierMinutes;
   /** How long before class start app shielding begins. */
   classPreBufferMinutes: ClassPreBufferMinutes;
@@ -38,6 +41,8 @@ type UserState = {
   /** True after every required OS permission has been granted at least once. */
   hasCompletedOnboarding: boolean;
   setCoins: (coins: number) => void;
+  /** Deduct coins when spending — returns false if the balance is too low. */
+  trySpendFocusCoins: (amount?: number) => boolean;
   setStreak: (streak: number) => void;
   setPenaltyTierMinutes: (minutes: PenaltyTierMinutes) => void;
   setClassPreBufferMinutes: (minutes: ClassPreBufferMinutes) => void;
@@ -67,6 +72,12 @@ export const useUserStore = create<UserState>()(
       sessionGapMergeMinutes: 30,
       notificationsEnabled: true,
       setCoins: (coins) => set({ coins }),
+      trySpendFocusCoins: (amount = FOCUS_COIN_SKIP_COST) => {
+        const state = get();
+        if (amount <= 0 || state.coins < amount) return false;
+        set({ coins: state.coins - amount });
+        return true;
+      },
       setStreak: (streak) => set({ streak }),
       setPenaltyTierMinutes: (penaltyTierMinutes) => set({ penaltyTierMinutes }),
       setClassPreBufferMinutes: (classPreBufferMinutes) => set({ classPreBufferMinutes }),

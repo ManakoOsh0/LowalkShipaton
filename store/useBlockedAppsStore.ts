@@ -89,10 +89,15 @@ export const useBlockedAppsStore = create<BlockedAppsState>()(
     {
       name: "lowalk-blocked-apps",
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({ apps: state.apps }),
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Pick<BlockedAppsState, "apps">),
+      }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         // Migrate legacy free-text entries that lacked packageName.
-        state.apps = state.apps.map((app) => ({
+        state.apps = (state.apps ?? []).map((app) => ({
           ...app,
           packageName: app.packageName ?? null,
         }));

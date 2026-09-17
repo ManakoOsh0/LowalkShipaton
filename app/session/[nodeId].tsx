@@ -1,17 +1,19 @@
 /**
  * Session detail screen — habit-style stats and history for one Focus Node.
- * Edit opens the recurring template; Skip applies to today only.
+ * Edit opens the recurring template; skip/delete live in the shared action sheet.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { ScheduleItemActionSheet } from "@/components/ScheduleItemActionSheet";
 import { SessionDetailHero } from "@/components/session/SessionDetailHero";
 import { SessionHistoryHeatmap } from "@/components/session/SessionHistoryHeatmap";
 import { SessionStatTile } from "@/components/session/SessionStatTile";
 import { SessionDetailSkeleton } from "@/components/skeleton/SessionDetailSkeleton";
 import { StreakFlame } from "@/components/StreakFlame";
+import { useScheduleItemActions } from "@/hooks/useScheduleItemActions";
 import { useSessionDetail } from "@/hooks/useSessionDetail";
 import { useCoreStoresHydrated } from "@/hooks/usePersistedStoreHydration";
 import { getKindAccentColor } from "@/lib/focusNodeKindColors";
@@ -19,6 +21,7 @@ import {
   computeCompletionRateLast30Days,
   computeFocusNodeContributionWeeks,
 } from "@/lib/focusNodeStats";
+import { scheduleItemFromSessionDetail } from "@/lib/scheduleItem";
 import { ROUTES } from "@/lib/routes";
 import { useAnchoringSheetStore } from "@/store/useAnchoringSheetStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
@@ -66,7 +69,7 @@ export default function SessionDetailScreen() {
 
   const detail = useSessionDetail(resolvedNodeId, dateIso);
   const storesReady = useCoreStoresHydrated();
-  const markNodeSkipped = useScheduleStore((state) => state.markNodeSkipped);
+  const { showScheduleItemActions, actionSheetProps } = useScheduleItemActions();
   const focusNodes = useScheduleStore((state) => state.focusNodes);
   const anchors = useScheduleStore((state) => state.anchors);
   const showAnchoringSheet = useAnchoringSheetStore((state) => state.show);
@@ -126,28 +129,13 @@ export default function SessionDetailScreen() {
   if (!detail || !focusNode) return null;
 
   const accentColor = getKindAccentColor(detail.kind);
-  const canSkip = detail.status === "upcoming" && detail.isToday;
   const canCalibrate =
     Boolean(linkedAnchor) &&
     detail.isToday &&
     (detail.status === "upcoming" || detail.status === "active");
 
-  const handleSkip = () => {
-    Alert.alert(
-      "Skip this session?",
-      "You won't earn a Focus Coin and this won't count toward your daily goal. The recurring schedule stays the same.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Skip",
-          style: "destructive",
-          onPress: () => {
-            markNodeSkipped(detail.nodeId, detail.dateIso);
-            router.back();
-          },
-        },
-      ],
-    );
+  const handleOpenActions = () => {
+    showScheduleItemActions(scheduleItemFromSessionDetail(detail));
   };
 
   return (
@@ -167,11 +155,18 @@ export default function SessionDetailScreen() {
           label="Go back"
           onPress={() => router.back()}
         />
-        <NavIconButton
-          icon="pencil"
-          label="Edit schedule"
-          onPress={() => router.push(ROUTES.focusNodeEdit(detail.nodeId))}
-        />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <NavIconButton
+            icon="pencil"
+            label="Edit schedule"
+            onPress={() => router.push(ROUTES.focusNodeEdit(detail.nodeId))}
+          />
+          <NavIconButton
+            icon="ellipsis-horizontal"
+            label="Session options"
+            onPress={handleOpenActions}
+          />
+        </View>
       </View>
 
       <ScrollView
@@ -257,23 +252,10 @@ export default function SessionDetailScreen() {
               </Text>
             </Pressable>
           ) : null}
-
-          {canSkip ? (
-            <Pressable accessibilityRole="button" onPress={handleSkip} hitSlop={8}>
-              <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 14,
-                  lineHeight: 20,
-                  color: colors.muted,
-                }}
-              >
-                Skip today
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
       </ScrollView>
+
+      <ScheduleItemActionSheet {...actionSheetProps} />
     </SafeAreaView>
   );
 }

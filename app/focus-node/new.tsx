@@ -23,7 +23,7 @@ function resolveWeekday(value: string | string[] | undefined): Weekday | undefin
   return undefined;
 }
 
-/** Create route — FAB templates land here with preset schedule defaults. */
+/** Create route — FAB and schedule shortcuts land here with optional template defaults. */
 export default function NewFocusNodeScreen() {
   const { template, weekday, returnToWeek } = useLocalSearchParams<{
     template?: string;

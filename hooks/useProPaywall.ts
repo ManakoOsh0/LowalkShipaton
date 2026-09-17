@@ -1,12 +1,37 @@
 import { useCallback } from "react";
 import { Alert } from "react-native";
-import { PAYWALL_RESULT, configureRevenueCat, presentPaywall, restorePurchases } from "@/services/revenueCat";
+import type { CustomerInfo } from "react-native-purchases";
+import { syncAndroidWidgetPremiumGate, markNativeWidgetPremiumUnlocked } from "@/lib/widgetPremiumSync";
+import {
+  PAYWALL_RESULT,
+  configureRevenueCat,
+  fetchCustomerInfoCached,
+  fetchCustomerInfoFresh,
+  logCustomerInfoSnapshot,
+  presentPaywall,
+  restorePurchases,
+} from "@/services/revenueCat";
 import { useSubscriptionStore } from "@/store/useSubscriptionStore";
 
 type ProPaywallResult = {
   isPremium: boolean;
   result: PAYWALL_RESULT | null;
 };
+
+async function refreshPremiumFromRevenueCat(
+  setFromCustomerInfo: (customerInfo: CustomerInfo) => void,
+  useFreshCache: boolean,
+): Promise<boolean> {
+  const customerInfo = useFreshCache
+    ? await fetchCustomerInfoFresh()
+    : await fetchCustomerInfoCached();
+  if (customerInfo) {
+    logCustomerInfoSnapshot(customerInfo);
+    setFromCustomerInfo(customerInfo);
+    return useSubscriptionStore.getState().isPremium;
+  }
+  return useSubscriptionStore.getState().isPremium;
+}
 
 /**
  * Shared Lowalk Pro paywall entry — invalidates RevenueCat cache after dismiss
@@ -25,9 +50,32 @@ export function useProPaywall() {
     try {
       configureRevenueCat();
       const result = await presentPaywall();
-      await refreshSubscriptionStatus({ fresh: true });
 
-      const nowPremium = useSubscriptionStore.getState().isPremium;
+      const purchasedViaPaywall =
+        result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED;
+      if (purchasedViaPaywall) {
+        await markNativeWidgetPremiumUnlocked();
+      }
+
+      let nowPremium = await refreshPremiumFromRevenueCat(setFromCustomerInfo, false);
+      if (!nowPremium) {
+        nowPremium = await refreshPremiumFromRevenueCat(setFromCustomerInfo, true);
+      }
+      if (
+        !nowPremium &&
+        purchasedViaPaywall
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        nowPremium = await refreshPremiumFromRevenueCat(setFromCustomerInfo, true);
+      }
+
+      if (!nowPremium) {
+        await refreshSubscriptionStatus({ fresh: true });
+        nowPremium = useSubscriptionStore.getState().isPremium;
+      }
+
+      await syncAndroidWidgetPremiumGate(nowPremium || purchasedViaPaywall);
+
       const purchased =
         result === PAYWALL_RESULT.PURCHASED ||
         result === PAYWALL_RESULT.RESTORED ||
@@ -45,7 +93,7 @@ export function useProPaywall() {
       );
       return { isPremium: useSubscriptionStore.getState().isPremium, result: null };
     }
-  }, [refreshSubscriptionStatus]);
+  }, [refreshSubscriptionStatus, setFromCustomerInfo]);
 
   const restoreProPurchases = useCallback(async (): Promise<ProPaywallResult> => {
     try {
@@ -58,6 +106,7 @@ export function useProPaywall() {
       }
 
       const nowPremium = useSubscriptionStore.getState().isPremium;
+      await syncAndroidWidgetPremiumGate(nowPremium);
       Alert.alert(
         "Restore complete",
         nowPremium

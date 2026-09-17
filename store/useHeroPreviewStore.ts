@@ -23,50 +23,65 @@ export const HERO_PREVIEW_KINDS: HeroPreviewKind[] = [
 
 /**
  * Every distinct hero display moment — maps 1:1 to HeroDisplay phases / idle moods.
- * (Not the same as HeroCardState, which only has four storage buckets.)
+ * (Not the same as HeroCardState, which only has three storage buckets.)
  */
 export type HeroPreviewScenario =
   | "up_next"
   | "pre_buffer"
   | "traveling"
+  | "traveling_location_denied"
+  | "traveling_gps_wait"
+  | "traveling_background_location"
   | "verifying"
   | "arrived"
   | "active_session"
+  | "active_pre_start"
   | "stepped_out"
   | "apps_locked"
+  | "add_place"
+  | "deferred_anchor"
   | "day_complete"
   | "no_sessions"
-  | "nothing_left"
-  | "weekly_ledger";
+  | "nothing_left";
 
 export const HERO_PREVIEW_SCENARIOS: HeroPreviewScenario[] = [
   "up_next",
   "pre_buffer",
   "traveling",
+  "traveling_location_denied",
+  "traveling_gps_wait",
+  "traveling_background_location",
   "verifying",
   "arrived",
   "active_session",
+  "active_pre_start",
   "stepped_out",
   "apps_locked",
+  "add_place",
+  "deferred_anchor",
   "day_complete",
   "no_sessions",
   "nothing_left",
-  "weekly_ledger",
 ];
 
 export const HERO_PREVIEW_SCENARIO_LABELS: Record<HeroPreviewScenario, string> = {
   up_next: "Up next",
   pre_buffer: "Pre-buffer",
   traveling: "Traveling",
+  traveling_location_denied: "Traveling · location off",
+  traveling_gps_wait: "Traveling · GPS wait",
+  traveling_background_location: "Traveling · background location",
   verifying: "Verifying",
   arrived: "Arrived",
   active_session: "Active session",
+  active_pre_start: "Active · pre-start countdown",
   stepped_out: "Stepped out",
   apps_locked: "Apps locked",
+  add_place: "Add a place",
+  deferred_anchor: "Deferred anchor",
   day_complete: "Day complete",
   no_sessions: "No sessions today",
   nothing_left: "Nothing left",
-  weekly_ledger: "Weekly ledger",
 };
 
 type HeroPreviewState = {

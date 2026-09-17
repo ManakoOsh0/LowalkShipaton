@@ -14,7 +14,7 @@ object ShieldAlarmScheduler {
 
   fun reschedule(context: Context) {
     val bundle = WidgetSessionStore.loadScheduleBundle(context)
-    val packages = bundle?.blockedPackageNames?.filter { it.isNotBlank() } ?: emptyList()
+    val packages = WidgetSessionStore.resolveBlockedPackageNames(context, bundle)
     if (bundle == null || packages.isEmpty()) {
       cancel(context)
       return

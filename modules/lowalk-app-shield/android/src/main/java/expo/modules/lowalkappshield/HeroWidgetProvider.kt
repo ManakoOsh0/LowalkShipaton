@@ -1,7 +1,6 @@
 package expo.modules.lowalkappshield
 
 import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.util.Log
@@ -28,22 +27,12 @@ class HeroWidgetProvider : android.appwidget.AppWidgetProvider() {
   override fun onReceive(context: Context, intent: Intent) {
     super.onReceive(context, intent)
     if (intent.action == ACTION_WIDGET_TICK) {
-      val manager = AppWidgetManager.getInstance(context)
-      val component = ComponentName(context, HeroWidgetProvider::class.java)
-      val ids = manager.getAppWidgetIds(component)
-      for (id in ids) {
-        updateWidget(context, manager, id)
-      }
-      try {
-        HeroWidgetAlarmScheduler.reschedule(context)
-      } catch (error: Exception) {
-        Log.e(TAG, "reschedule failed after tick", error)
-      }
+      WidgetSessionStore.requestWidgetRefresh(context)
     }
   }
 
   override fun onDisabled(context: Context) {
-    HeroWidgetAlarmScheduler.cancel(context)
+    WidgetSessionStore.cancelAlarmsIfNoWidgets(context)
     super.onDisabled(context)
   }
 

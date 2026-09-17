@@ -7,6 +7,7 @@ import { isRunningInExpoGo } from "@/lib/appShieldStatus";
 import { resolveClassCompletionOutcome } from "@/lib/classCompletion";
 import {
   getPresenceTrackingContext,
+  getDisplayInsideGeofence,
   getVerificationSecondsRemaining,
   resetPresenceTimers,
   runPresenceTick,
@@ -24,16 +25,14 @@ import type { PresenceContext } from "@/store/selectors";
 import { useArrivalCelebrationStore } from "@/store/useArrivalCelebrationStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useUserStore } from "@/store/useUserStore";
-import type { ScheduleItemKind } from "@/types/dashboard";
-import type { FocusNodeKind } from "@/types/focusNode";
-
-function toScheduleKind(kind: FocusNodeKind | "study"): ScheduleItemKind {
-  if (kind === "study") return "library";
-  return kind;
-}
+import {
+  buildArrivalCelebrationPayload,
+  buildPresenceGeofenceKey,
+  shouldShowArrivalCelebration,
+} from "@/lib/arrivalCelebration";
 
 /**
- * App-wide presence engine — calendar sessions, on-site time, away penalties.
+ * App-wide presence engine — calendar sessions, on-site time, class away penalties.
  * Mounted once from SessionPresenceProvider.
  */
 export function useSessionPresenceEngine(): PresenceContext {
@@ -51,10 +50,18 @@ export function useSessionPresenceEngine(): PresenceContext {
     return getPresenceTrackingContext();
   }, [activeSession, focusNodes, anchors, timerTick]);
 
-  const { needsLocation, presenceAnchor, obligationNode, anchoringRequest } = trackingContext;
-  const wasInsideGeofenceRef = useRef(false);
+  const { needsLocation, presenceAnchor, obligationNode, anchoringRequest } =
+    trackingContext;
+  const needsPresenceEngine =
+    needsLocation || obligationNode != null || activeSession != null;
+  const prevGeofenceKeyRef = useRef<string | null>(null);
   const prevAwaySinceRef = useRef<string | null>(null);
   const prevPenaltyEndsAtRef = useRef<string | null>(null);
+
+  const presenceGeofenceKey = useMemo(
+    () => buildPresenceGeofenceKey(presenceAnchor),
+    [presenceAnchor],
+  );
 
   const { position, accurateEnough, permission, error } = useForegroundLocation(
     needsLocation,
@@ -70,13 +77,19 @@ export function useSessionPresenceEngine(): PresenceContext {
 
   const verificationSecondsRemaining = useMemo(() => {
     void timerTick;
-    if (!insideGeofence || activeSession?.presenceVerified) return null;
+    if (activeSession?.presenceVerified) return null;
     return getVerificationSecondsRemaining(Date.now());
   }, [activeSession?.presenceVerified, insideGeofence, timerTick]);
+
+  const displayInsideGeofence = useMemo(() => {
+    void timerTick;
+    return getDisplayInsideGeofence();
+  }, [insideGeofence, timerTick]);
 
   const presence: PresenceContext = {
     userPosition: position,
     isInsideGeofence: insideGeofence,
+    isInsideGeofenceForDisplay: displayInsideGeofence,
     verificationSecondsRemaining,
     locationUnavailable: permission === "denied" || Boolean(error),
     backgroundLocationDenied: backgroundPermission === "denied",
@@ -131,10 +144,10 @@ export function useSessionPresenceEngine(): PresenceContext {
   }, [completeActiveSession, setActiveSession]);
 
   useEffect(() => {
-    const tickMs = activeSession || needsLocation ? 1000 : 5000;
+    const tickMs = needsPresenceEngine ? 1000 : 5000;
     const interval = setInterval(() => setTimerTick((tick) => tick + 1), tickMs);
     return () => clearInterval(interval);
-  }, [activeSession, needsLocation]);
+  }, [needsPresenceEngine]);
 
   useEffect(() => {
     if (!needsLocation) return;
@@ -188,39 +201,60 @@ export function useSessionPresenceEngine(): PresenceContext {
     activeSession?.presenceVerified,
   ]);
 
-  // Arrival card when entering the venue during a calendar travel phase.
+  // Arrival card on every focus-zone check-in — including back-to-back sessions.
   useEffect(() => {
-    if (!activeSession || activeSession.presenceVerified) {
-      wasInsideGeofenceRef.current = insideGeofence;
+    const geofenceChanged = presenceGeofenceKey !== prevGeofenceKeyRef.current;
+    if (geofenceChanged) {
+      prevGeofenceKeyRef.current = presenceGeofenceKey;
+      resetPresenceTimers();
+
+      if (
+        activeSession &&
+        !activeSession.presenceVerified &&
+        useArrivalCelebrationStore.getState().lastCelebratedSessionNodeId ===
+          activeSession.nodeId
+      ) {
+        useArrivalCelebrationStore.getState().clearCelebrationMemory();
+      }
+    }
+
+    if (!displayInsideGeofence) {
+      useArrivalCelebrationStore.getState().clearCelebrationMemory();
       return;
     }
 
-    if (!insideGeofence) {
-      wasInsideGeofenceRef.current = false;
+    const lastCelebratedSessionNodeId =
+      useArrivalCelebrationStore.getState().lastCelebratedSessionNodeId;
+
+    if (
+      !shouldShowArrivalCelebration({
+        activeSession,
+        obligationNodeId: obligationNode?.id ?? null,
+        anchoringRequest: Boolean(anchoringRequest),
+        insideGeofence: displayInsideGeofence,
+        lastCelebratedSessionNodeId,
+      })
+    ) {
       return;
     }
 
-    const justEntered = !wasInsideGeofenceRef.current;
-    wasInsideGeofenceRef.current = true;
-
-    if (!justEntered || anchoringRequest || !obligationNode) {
-      return;
-    }
+    if (!obligationNode) return;
 
     const anchorName = presenceAnchor?.name ?? "your location";
-    useArrivalCelebrationStore.getState().show({
-      nodeId: obligationNode.id,
-      nodeTitle: obligationNode.title,
-      anchorName,
-      kind: toScheduleKind(obligationNode.kind),
-    });
+    useArrivalCelebrationStore.getState().show(
+      buildArrivalCelebrationPayload({
+        node: obligationNode,
+        anchorName,
+      }),
+    );
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   }, [
     activeSession,
     anchoringRequest,
-    insideGeofence,
+    displayInsideGeofence,
     obligationNode,
     presenceAnchor?.name,
+    presenceGeofenceKey,
   ]);
 
   return presence;

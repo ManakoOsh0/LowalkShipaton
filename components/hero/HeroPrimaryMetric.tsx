@@ -4,6 +4,7 @@
 import { View } from "react-native";
 
 import { HeroFlipClock } from "@/components/hero/HeroFlipClock";
+import { parseClockPair } from "@/lib/heroFlipClock";
 import { HeroVerifyingPulse } from "@/components/hero/HeroVerifyingPulse";
 import { TrmnlDescription } from "@/components/trmnl/TrmnlDescription";
 import { TrmnlValue } from "@/components/trmnl/TrmnlValue";
@@ -27,7 +28,7 @@ export function HeroPrimaryMetric({
 }: HeroPrimaryMetricProps) {
   const valueSize = resolveHeroValueSize(phase);
   const showFlipClock =
-    useCountdownTypography && /^\d+:\d{2}$/.test(metric.trim());
+    useCountdownTypography && parseClockPair(metric) != null;
 
   return (
     <View style={{ width: "100%", alignItems: "center", gap: TRMNL_GAP.xsmall }}>

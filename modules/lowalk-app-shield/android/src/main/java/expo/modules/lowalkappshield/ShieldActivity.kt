@@ -8,8 +8,8 @@ import android.os.Bundle
 import android.view.View
 
 /**
- * Full-screen opaque shield fallback when overlay permission is unavailable.
- * Separate task in recents — used only when SYSTEM_ALERT_WINDOW is not granted.
+ * Full-screen opaque shield shown when a blocked app opens.
+ * Runs in its own task so the blocked app is backgrounded (stops playback).
  */
 class ShieldActivity : Activity() {
   override fun onCreate(savedInstanceState: Bundle?) {

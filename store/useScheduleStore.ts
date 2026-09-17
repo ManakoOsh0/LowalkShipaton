@@ -3,7 +3,12 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { FocusNodeTemplateId } from "@/data/quickActions";
-import { computeSessionEndsAt, getScheduleWindow, nodeOverlapsExisting, toIsoDateString } from "@/lib/time";
+import { computeSessionEndsAt, findOverlappingNode, getScheduleWindow, isDurationSessionExpired, toIsoDateString } from "@/lib/time";
+import {
+  buildScheduleConflictDetails,
+  formatScheduleConflictMessage,
+  type ScheduleConflictDetails,
+} from "@/lib/scheduleConflict";
 import { isWithinClassNominalWindow } from "@/lib/classCompletion";
 import {
   computeRequiredOnSiteMs,
@@ -11,8 +16,13 @@ import {
   getSessionNominalStartMs,
   type ShieldScheduleSettings,
 } from "@/lib/shieldSchedule";
-import { isFocusNodeRemovalLocked, isShieldActiveForNodes } from "@/lib/sessionPenalty";
-import { clampGeofenceRadiusMeters } from "@/lib/geo";
+import {
+  getCarriedPenaltyFields,
+  isFocusNodeRemovalLocked,
+  isShieldActiveForNodes,
+} from "@/lib/sessionPenalty";
+import { clampGeofenceRadiusMeters, validateCalibrationSave } from "@/lib/geo";
+import { resetPresenceTimers } from "@/lib/presenceEngine";
 import {
   cancelAllPresenceNotifications,
   clearSessionAwayNotifications,
@@ -39,28 +49,38 @@ import {
   type PresenceContext,
 } from "@/store/selectors";
 import { useSessionPenaltyStore, type SessionPenaltyReason } from "@/store/useSessionPenaltyStore";
+import { useArrivalCelebrationStore } from "@/store/useArrivalCelebrationStore";
 import { createNodeFromTemplate } from "@/store/seed";
 import { useSessionCompleteStore } from "@/store/useSessionCompleteStore";
 import { useUserStore } from "@/store/useUserStore";
 
 export type AddFocusNodeResult =
   | { success: true; nodeId: string }
-  | { success: false; error: string };
+  | { success: false; error: string; conflict: ScheduleConflictDetails };
 
 export type UpdateFocusNodeResult =
   | { success: true }
-  | { success: false; error: string };
+  | { success: false; error: string; conflict?: ScheduleConflictDetails };
 
 export type CalibrateAnchorInput = {
   latitude: number;
   longitude: number;
   radiusMeters: number;
+  /** GPS from hold-to-confirm — used to enforce on-site calibration. */
+  capturedLatitude: number;
+  capturedLongitude: number;
+};
+
+/** On-site progress parked when an incomplete duration session yields to a later node. */
+export type DurationSessionHold = {
+  onSiteAccumulatedMs: number;
 };
 
 type ScheduleState = {
   focusNodes: FocusNode[];
   anchors: Anchor[];
   activeSession: ActiveSessionSnapshot | null;
+  durationSessionHold: Record<string, DurationSessionHold>;
   addFocusNode: (input: FocusNodeInput) => AddFocusNodeResult;
   addFocusNodeFromTemplate: (templateId: FocusNodeTemplateId) => AddFocusNodeResult;
   updateFocusNode: (nodeId: string, input: FocusNodeInput) => UpdateFocusNodeResult;
@@ -76,7 +96,7 @@ type ScheduleState = {
   markSessionAway: () => void;
   clearSessionAway: () => void;
   applyPresencePenalty: () => void;
-  applyClassMissPenalty: () => void;
+  applyClassMissPenalty: (nodeId?: string) => void;
   markSessionPresenceVerified: () => void;
   completeActiveSession: () => void;
   expireActiveSessionAsMissed: () => void;
@@ -137,6 +157,7 @@ function applyPenaltyLockToSession(
   set: ScheduleStoreSetter,
   session: ActiveSessionSnapshot,
   reason: SessionPenaltyReason,
+  originNodeId = session.nodeId,
 ): void {
   const tierMinutes = useUserStore.getState().penaltyTierMinutes;
   const penaltyShieldEndsAt = new Date(
@@ -148,12 +169,17 @@ function applyPenaltyLockToSession(
       ...session,
       penaltyShieldEndsAt,
       penaltyMinutes: tierMinutes,
+      penaltyOriginNodeId: originNodeId,
     },
   });
 
+  const originNode = useScheduleStore.getState().focusNodes.find((item) => item.id === originNodeId);
+  const originTitle = originNode?.title ?? session.nodeTitle;
+  const originZone = originNode?.locationLabel ?? session.zoneLabel;
+
   useSessionPenaltyStore.getState().show({
-    nodeTitle: session.nodeTitle,
-    anchorName: session.zoneLabel,
+    nodeTitle: originTitle,
+    anchorName: originZone,
     penaltyMinutes: tierMinutes,
     reason,
   });
@@ -161,7 +187,7 @@ function applyPenaltyLockToSession(
   if (reason === "away") {
     void notifyPresencePenalty(session.zoneLabel, session.nodeId, tierMinutes);
   } else {
-    void notifyMissedClassPenalty(session.zoneLabel, session.nodeId, tierMinutes);
+    void notifyMissedClassPenalty(originZone, originNodeId, tierMinutes);
   }
 }
 
@@ -242,7 +268,60 @@ function createCalendarSessionFields(
     awaySince: null,
     penaltyShieldEndsAt: null,
     penaltyMinutes: null,
+    penaltyOriginNodeId: null,
     presenceVerified: false,
+  };
+}
+
+function withoutDurationHold(
+  holds: Record<string, DurationSessionHold>,
+  nodeId: string,
+): Record<string, DurationSessionHold> {
+  if (!(nodeId in holds)) return holds;
+  const next = { ...holds };
+  delete next[nodeId];
+  return next;
+}
+
+function stashDurationHoldIfNeeded(
+  session: ActiveSessionSnapshot | null,
+  nextNodeId: string,
+  holds: Record<string, DurationSessionHold>,
+): Record<string, DurationSessionHold> {
+  if (
+    !session ||
+    session.nodeId === nextNodeId ||
+    session.scheduleType !== "duration" ||
+    session.requiredOnSiteMs == null ||
+    session.onSiteAccumulatedMs <= 0 ||
+    session.onSiteAccumulatedMs >= session.requiredOnSiteMs ||
+    isDurationSessionExpired(session.shieldStartsAt, new Date())
+  ) {
+    return holds;
+  }
+  return {
+    ...holds,
+    [session.nodeId]: { onSiteAccumulatedMs: session.onSiteAccumulatedMs },
+  };
+}
+
+function applyCarriedPenalty(
+  snapshot: ActiveSessionSnapshot,
+  previous: ActiveSessionSnapshot | null,
+): ActiveSessionSnapshot {
+  const carried = getCarriedPenaltyFields(previous);
+  if (!carried) return snapshot;
+  return { ...snapshot, ...carried };
+}
+
+function restoreDurationHold(
+  snapshot: ActiveSessionSnapshot,
+  hold: DurationSessionHold | undefined,
+): ActiveSessionSnapshot {
+  if (!hold) return snapshot;
+  return {
+    ...snapshot,
+    onSiteAccumulatedMs: hold.onSiteAccumulatedMs,
   };
 }
 
@@ -257,14 +336,18 @@ export const useScheduleStore = create<ScheduleState>()(
       anchors: [],
       // Real sessions start from the Hero Card — no seed active session.
       activeSession: null,
+      durationSessionHold: {},
 
       addFocusNode: (input) => {
         const { focusNodes } = get();
 
-        if (nodeOverlapsExisting(input.schedule, focusNodes)) {
+        const conflictNode = findOverlappingNode(input.schedule, focusNodes);
+        if (conflictNode) {
+          const conflict = buildScheduleConflictDetails(conflictNode);
           return {
             success: false,
-            error: "This session overlaps with an existing Focus Node on the same day.",
+            error: formatScheduleConflictMessage(conflict),
+            conflict,
           };
         }
 
@@ -293,10 +376,13 @@ export const useScheduleStore = create<ScheduleState>()(
           return { success: false, error: "Focus Node not found." };
         }
 
-        if (nodeOverlapsExisting(input.schedule, focusNodes, nodeId)) {
+        const conflictNode = findOverlappingNode(input.schedule, focusNodes, nodeId);
+        if (conflictNode) {
+          const conflict = buildScheduleConflictDetails(conflictNode);
           return {
             success: false,
-            error: "This session overlaps with an existing Focus Node on the same day.",
+            error: formatScheduleConflictMessage(conflict),
+            conflict,
           };
         }
 
@@ -326,6 +412,7 @@ export const useScheduleStore = create<ScheduleState>()(
                   awaySince: activeSession.awaySince,
                   penaltyShieldEndsAt: activeSession.penaltyShieldEndsAt,
                   penaltyMinutes: activeSession.penaltyMinutes,
+                  penaltyOriginNodeId: activeSession.penaltyOriginNodeId ?? null,
                   presenceVerified: activeSession.presenceVerified,
                   headline: activeSession.presenceVerified
                     ? buildActiveSessionSnapshot(updated, anchors, activeSession.endsAt).headline
@@ -349,6 +436,7 @@ export const useScheduleStore = create<ScheduleState>()(
         set({
           focusNodes: focusNodes.filter((node) => node.id !== nodeId),
           activeSession: activeSession?.nodeId === nodeId ? null : activeSession,
+          durationSessionHold: withoutDurationHold(get().durationSessionHold, nodeId),
         });
       },
 
@@ -416,8 +504,20 @@ export const useScheduleStore = create<ScheduleState>()(
 
       calibrateAnchor: (anchorId, input) => {
         const { anchors } = get();
-        const exists = anchors.some((anchor) => anchor.id === anchorId);
-        if (!exists) return false;
+        const anchor = anchors.find((item) => item.id === anchorId);
+        if (!anchor) return false;
+
+        const captured = {
+          latitude: input.capturedLatitude,
+          longitude: input.capturedLongitude,
+        };
+        const proposed = {
+          latitude: input.latitude,
+          longitude: input.longitude,
+        };
+        if (validateCalibrationSave(anchor, captured, proposed) != null) {
+          return false;
+        }
 
         set({
           anchors: anchors.map((anchor) => {
@@ -477,29 +577,60 @@ export const useScheduleStore = create<ScheduleState>()(
         }
 
         const sessionEndsAt = endsAt ?? computeSessionEndsAt(node.schedule);
-        set({
-          activeSession: createCalendarSessionFields(
-            node,
-            get().anchors,
-            sessionEndsAt,
-            getShieldSettings(),
+        const holds = stashDurationHoldIfNeeded(
+          previous,
+          nodeId,
+          get().durationSessionHold,
+        );
+        const snapshot = applyCarriedPenalty(
+          restoreDurationHold(
+            createCalendarSessionFields(
+              node,
+              get().anchors,
+              sessionEndsAt,
+              getShieldSettings(),
+            ),
+            holds[nodeId],
           ),
+          previous,
+        );
+        set({
+          activeSession: snapshot,
+          durationSessionHold: withoutDurationHold(holds, nodeId),
         });
       },
 
       beginCalendarSession: (nodeId) => {
+        const previous = get().activeSession;
+        if (previous?.nodeId === nodeId) return true;
+
         const node = get().focusNodes.find((focusNode) => focusNode.id === nodeId);
         if (!node) return false;
 
         const endsAt = computeSessionEndsAt(node.schedule);
-        set({
-          activeSession: createCalendarSessionFields(
-            node,
-            get().anchors,
-            endsAt,
-            getShieldSettings(),
+        const holds = stashDurationHoldIfNeeded(
+          previous,
+          nodeId,
+          get().durationSessionHold,
+        );
+        const snapshot = applyCarriedPenalty(
+          restoreDurationHold(
+            createCalendarSessionFields(
+              node,
+              get().anchors,
+              endsAt,
+              getShieldSettings(),
+            ),
+            holds[nodeId],
           ),
+          previous,
+        );
+        set({
+          activeSession: snapshot,
+          durationSessionHold: withoutDurationHold(holds, nodeId),
         });
+        resetPresenceTimers();
+        useArrivalCelebrationStore.getState().clearCelebrationMemory();
         return true;
       },
 
@@ -507,9 +638,21 @@ export const useScheduleStore = create<ScheduleState>()(
         const node = get().focusNodes.find((focusNode) => focusNode.id === nodeId);
         if (!node) return false;
 
+        const previous = get().activeSession;
         const endsAt = computeSessionEndsAt(node.schedule);
         const settings = getShieldSettings();
-        const snapshot = createCalendarSessionFields(node, get().anchors, endsAt, settings);
+        const holds = stashDurationHoldIfNeeded(
+          previous,
+          nodeId,
+          get().durationSessionHold,
+        );
+        const snapshot = applyCarriedPenalty(
+          restoreDurationHold(
+            createCalendarSessionFields(node, get().anchors, endsAt, settings),
+            holds[nodeId],
+          ),
+          previous,
+        );
         set({
           activeSession: {
             ...snapshot,
@@ -517,6 +660,7 @@ export const useScheduleStore = create<ScheduleState>()(
             presenceVerified: true,
             onSiteLastTickAt: new Date().toISOString(),
           },
+          durationSessionHold: withoutDurationHold(holds, nodeId),
         });
         return true;
       },
@@ -577,7 +721,11 @@ export const useScheduleStore = create<ScheduleState>()(
           },
         });
 
-        void notifySessionAway(session.zoneLabel, session.nodeId);
+        void notifySessionAway(
+          session.zoneLabel,
+          session.nodeId,
+          session.scheduleType,
+        );
       },
 
       clearSessionAway: () => {
@@ -597,24 +745,31 @@ export const useScheduleStore = create<ScheduleState>()(
       applyPresencePenalty: () => {
         const session = get().activeSession;
         if (!session?.awaySince || session.penaltyShieldEndsAt) return;
+        // Gym/library already stay locked until on-site quota or midnight.
+        if (session.scheduleType !== "class") return;
+        const todayIso = toIsoDateString(new Date());
+        markNodeMissPenalized(get, set, session.nodeId, todayIso);
         applyPenaltyLockToSession(set, session, "away");
       },
 
-      applyClassMissPenalty: () => {
+      applyClassMissPenalty: (nodeId) => {
         const session = get().activeSession;
-        if (!session || session.scheduleType !== "class" || session.penaltyShieldEndsAt) {
-          return;
-        }
+        const targetId = nodeId ?? session?.nodeId;
+        if (!targetId) return;
 
         const todayIso = toIsoDateString(new Date());
-        const node = get().focusNodes.find((item) => item.id === session.nodeId);
+        const node = get().focusNodes.find((item) => item.id === targetId);
         if (!node || node.schedule.type !== "class") return;
         if (node.completedDates.includes(todayIso)) return;
         if ((node.skippedDates ?? []).includes(todayIso)) return;
         if ((node.missPenaltyDates ?? []).includes(todayIso)) return;
 
-        markNodeMissPenalized(get, set, session.nodeId, todayIso);
-        applyPenaltyLockToSession(set, session, "missed");
+        markNodeMissPenalized(get, set, targetId, todayIso);
+
+        const live = get().activeSession;
+        if (!live) return;
+        if (live.penaltyShieldEndsAt) return;
+        applyPenaltyLockToSession(set, live, "missed", targetId);
       },
 
       markSessionPresenceVerified: () => {
@@ -653,11 +808,12 @@ export const useScheduleStore = create<ScheduleState>()(
         get().markNodeCompleted(session.nodeId, todayIso);
 
         const settings = getShieldSettings();
+        const holds = withoutDurationHold(get().durationSessionHold, session.nodeId);
         if (isShieldActiveForNodes(get().focusNodes, session, settings)) {
-          set({ activeSession: session });
+          set({ activeSession: session, durationSessionHold: holds });
         } else {
           void cancelAllPresenceNotifications(session.nodeId);
-          set({ activeSession: null });
+          set({ activeSession: null, durationSessionHold: holds });
         }
 
         if (!alreadyCompleted) {
@@ -713,7 +869,10 @@ export const useScheduleStore = create<ScheduleState>()(
         const session = get().activeSession;
         if (!session || session.scheduleType !== "duration") return;
         void cancelAllPresenceNotifications(session.nodeId);
-        set({ activeSession: null });
+        set({
+          activeSession: null,
+          durationSessionHold: withoutDurationHold(get().durationSessionHold, session.nodeId),
+        });
       },
 
       markNodeCompleted: (nodeId, dateIso) => {
@@ -748,6 +907,7 @@ export const useScheduleStore = create<ScheduleState>()(
             activeSession?.nodeId === nodeId && dateIso === toIsoDateString(new Date())
               ? null
               : activeSession,
+          durationSessionHold: withoutDurationHold(get().durationSessionHold, nodeId),
         });
       },
 
@@ -823,9 +983,15 @@ export const useScheduleStore = create<ScheduleState>()(
             awaySince: state.activeSession.awaySince ?? legacyPausedAt,
             penaltyShieldEndsAt: state.activeSession.penaltyShieldEndsAt ?? null,
             penaltyMinutes: state.activeSession.penaltyMinutes ?? null,
+            penaltyOriginNodeId:
+              state.activeSession.penaltyOriginNodeId ??
+              (state.activeSession.penaltyShieldEndsAt
+                ? state.activeSession.nodeId
+                : null),
             presenceVerified: state.activeSession.presenceVerified ?? false,
           };
         }
+        state.durationSessionHold = state.durationSessionHold ?? {};
       },
     },
   ),

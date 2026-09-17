@@ -202,6 +202,7 @@ export type HeroThemeColors = {
   recessed: string;
   raised: string;
   shellStroke: string;
+  flipHours: string;
   flipMinutes: string;
   flipSeconds: string;
   flipSeam: string;
@@ -270,7 +271,7 @@ function contrastInk(background: string): {
   muted: string;
 } {
   if (isLightSurface(background)) {
-    return { primary: "#000000", inverse: "#FFFFFF", muted: "#1A1A1A" };
+    return { primary: "#000000", inverse: "#FFFFFF", muted: "#000000" };
   }
   return { primary: "#FFFFFF", inverse: "#000000", muted: "#D4D4D4" };
 }
@@ -357,6 +358,7 @@ export function resolveHeroTheme(caseId: string, wellId: string): HeroThemeColor
     recessed: caseSwatch.recessed,
     raised: caseSwatch.recessed,
     shellStroke: hexToRgba(caseIsLight ? "#000000" : "#FFFFFF", caseIsLight ? 0.06 : 0.1),
+    flipHours: mixHex(wellMid, wellInk.inverse, 0.16),
     flipMinutes: mixHex(wellMid, wellInk.inverse, 0.12),
     flipSeconds: mixHex(wellMid, wellInk.primary, 0.06),
     flipSeam: hexToRgba(wellInk.primary, wellIsLight ? 0.14 : 0.22),

@@ -1,53 +1,41 @@
 /**
- * Week schedule placeholder — day headers plus session rows, matching the live list.
+ * Week schedule placeholder — scrollable day columns.
  */
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 
-import { ScheduleRowSkeleton } from "@/components/skeleton/ScheduleRowSkeleton";
 import { SkeletonBone, SkeletonScope } from "@/components/skeleton/SkeletonBone";
-import { SCREEN_PADDING, SECTION_GAP } from "@/lib/layout";
+import { SCREEN_PADDING } from "@/lib/layout";
+import {
+  resolveWeekColumnWidth,
+  WEEK_COLUMN_GAP,
+  WEEK_VISIBLE_COLUMN_COUNT,
+} from "@/lib/weekTimetable";
 
-const DAYS = [
-  { label: 92, date: 48, rows: 2 },
-  { label: 78, date: 52, rows: 1 },
-  { label: 86, date: 44, rows: 2 },
-  { label: 74, date: 50, rows: 1 },
-] as const;
+const COLUMN_HEIGHT = 220;
 
 export function ScheduleScreenSkeleton() {
+  const { width: screenWidth } = useWindowDimensions();
+  const columnWidth = resolveWeekColumnWidth(screenWidth);
+
   return (
     <SkeletonScope
       label="Loading schedule"
       style={{
+        flex: 1,
         paddingHorizontal: SCREEN_PADDING,
         paddingBottom: 40,
-        gap: SECTION_GAP,
+        gap: 12,
       }}
     >
-      {DAYS.map((day, index) => (
-        <View key={index} style={{ gap: 10 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-            }}
-          >
-            <SkeletonBone width={day.label} height={16} borderRadius={8} />
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <SkeletonBone width={day.date} height={14} borderRadius={7} />
-              <SkeletonBone width={28} height={28} borderRadius={8} />
-            </View>
+      <SkeletonBone width={88} height={14} borderRadius={7} />
+      <View style={{ flexDirection: "row", gap: WEEK_COLUMN_GAP }}>
+        {Array.from({ length: WEEK_VISIBLE_COLUMN_COUNT }, (_, index) => (
+          <View key={index} style={{ width: columnWidth, gap: 10 }}>
+            <SkeletonBone width={48} height={24} borderRadius={12} style={{ alignSelf: "center" }} />
+            <SkeletonBone width="100%" height={COLUMN_HEIGHT} borderRadius={12} />
           </View>
-          {Array.from({ length: day.rows }, (_, rowIndex) => (
-            <ScheduleRowSkeleton
-              key={rowIndex}
-              titleWidth={rowIndex === 0 ? 148 : 124}
-            />
-          ))}
-        </View>
-      ))}
+        ))}
+      </View>
     </SkeletonScope>
   );
 }

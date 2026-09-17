@@ -1,5 +1,5 @@
 /**
- * FocusCoinIcon — pixelated golden coin artwork for Focus Coin balance displays.
+ * FocusCoinIcon — pixel block coin artwork for Focus Coin balance displays.
  */
 import { SvgXml } from "react-native-svg";
 

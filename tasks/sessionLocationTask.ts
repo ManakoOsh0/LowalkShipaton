@@ -8,6 +8,7 @@ import * as TaskManager from "expo-task-manager";
 import { recordBackgroundLocationError, recordBackgroundLocationFix } from "@/lib/backgroundPresenceDebug";
 import { MAX_PRESENCE_ACCURACY_METERS } from "@/lib/geo";
 import { runPresenceTick } from "@/lib/presenceEngine";
+import { pushWidgetBundleFromStores } from "@/lib/pushWidgetBundleFromStores";
 import { LOWALK_SESSION_LOCATION_TASK } from "@/services/location";
 
 type LocationTaskData = {
@@ -38,4 +39,13 @@ TaskManager.defineTask(LOWALK_SESSION_LOCATION_TASK, async ({ data, error }) => 
     Date.now(),
     accurateEnough,
   );
+
+  try {
+    await pushWidgetBundleFromStores({
+      latitude: latest.coords.latitude,
+      longitude: latest.coords.longitude,
+    });
+  } catch {
+    // Widget refresh is best-effort in the headless task.
+  }
 });

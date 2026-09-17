@@ -15,6 +15,7 @@ type TodayScheduleItemCardProps = {
   isFocus?: boolean;
   onPress?: () => void;
   onLongPress?: () => void;
+  onMenuPress?: () => void;
 };
 
 export function TodayScheduleItemCard({
@@ -22,11 +23,11 @@ export function TodayScheduleItemCard({
   isFocus = false,
   onPress,
   onLongPress,
+  onMenuPress,
 }: TodayScheduleItemCardProps) {
   const colors = useThemeColors();
   const isActive = item.status === "active";
   const isDimmed = item.status === "completed" || item.status === "skipped";
-  const isElevated = isFocus || isActive;
 
   const cardBackground = isActive
     ? colors.primarySoft
@@ -37,12 +38,13 @@ export function TodayScheduleItemCard({
   const card = (
     <NeuCard
       borderRadius={CARD_RADIUS_LG}
-      shadowVariant={isElevated ? "md" : "sm"}
+      // Flat list rows — tint only; drop shadow reads as a rectangular halo on RN.
+      shadowVariant="none"
       backgroundColor={cardBackground}
       style={isDimmed ? { opacity: 0.78 } : undefined}
       contentStyle={{ padding: 0 }}
     >
-      <ScheduleRow {...item} variant="today" />
+      <ScheduleRow {...item} variant="today" onMenuPress={onMenuPress} />
     </NeuCard>
   );
 
@@ -55,7 +57,7 @@ export function TodayScheduleItemCard({
       accessibilityRole="button"
       accessibilityLabel={item.title}
       accessibilityHint={
-        onLongPress ? "Long press for edit or delete options" : undefined
+        onLongPress ? "Long press or tap the menu for edit, skip, or delete options" : undefined
       }
       onPress={onPress}
       onLongPress={onLongPress}

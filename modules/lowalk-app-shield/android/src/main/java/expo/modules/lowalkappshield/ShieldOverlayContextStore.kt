@@ -41,7 +41,9 @@ object ShieldOverlayContextStore {
       "To stop blocking, check in at your focus zone and complete your focus session"
     }
     val detail = stored.getString(PREF_DETAIL, "").orEmpty().ifBlank { null }
-    val ctaLabel = stored.getString(PREF_CTA_LABEL, "").orEmpty().ifBlank { "Close" }
+    val ctaLabel = stored.getString(PREF_CTA_LABEL, "").orEmpty()
+      .ifBlank { "Close" }
+      .let { label -> if (label == "Open Lowalk") "Close" else label }
     return ShieldOverlayUi.Copy(
       nodeKind = nodeKind,
       headline = headline,

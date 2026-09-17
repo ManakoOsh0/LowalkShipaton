@@ -3,6 +3,7 @@ import Purchases, {
   LOG_LEVEL,
   type CustomerInfo,
   type CustomerInfoUpdateListener,
+  type PurchasesOffering,
 } from "react-native-purchases";
 import RevenueCatUI, { PAYWALL_RESULT } from "react-native-purchases-ui";
 
@@ -10,6 +11,10 @@ import {
   getRevenueCatApiKey,
   REVENUECAT_ENTITLEMENT_ID,
 } from "@/lib/revenueCatConfig";
+import {
+  logPaywallOfferingDiagnostics,
+  pickPaywallOffering,
+} from "@/lib/revenueCatOffering";
 
 let isConfigured = false;
 
@@ -45,7 +50,45 @@ export function configureRevenueCat(): boolean {
 }
 
 export function isPremiumFromCustomerInfo(customerInfo: CustomerInfo): boolean {
-  return customerInfo.entitlements.active[REVENUECAT_ENTITLEMENT_ID] != null;
+  const active = customerInfo.entitlements.active;
+  if (active[REVENUECAT_ENTITLEMENT_ID] != null) {
+    return true;
+  }
+
+  const activeEntitlementIds = Object.keys(active);
+  if (activeEntitlementIds.length > 0) {
+    if (__DEV__) {
+      console.log(
+        "[RevenueCat] Unlocking Pro via active entitlements:",
+        activeEntitlementIds.join(", "),
+      );
+    }
+    return true;
+  }
+
+  if (customerInfo.activeSubscriptions.length > 0) {
+    if (__DEV__) {
+      console.log(
+        "[RevenueCat] Unlocking Pro via active subscriptions:",
+        customerInfo.activeSubscriptions.join(", "),
+      );
+    }
+    return true;
+  }
+
+  return false;
+}
+
+/** Dev-only entitlement snapshot after purchase / refresh. */
+export function logCustomerInfoSnapshot(customerInfo: CustomerInfo): void {
+  if (!__DEV__) return;
+  const activeEntitlementIds = Object.keys(customerInfo.entitlements.active);
+  console.log(
+    "[RevenueCat] CustomerInfo:",
+    `entitlements=${activeEntitlementIds.join(", ") || "none"}`,
+    `subscriptions=${customerInfo.activeSubscriptions.join(", ") || "none"}`,
+    `premium=${isPremiumFromCustomerInfo(customerInfo)}`,
+  );
 }
 
 export async function fetchCustomerInfo(): Promise<CustomerInfo | null> {
@@ -59,6 +102,11 @@ export async function fetchCustomerInfo(): Promise<CustomerInfo | null> {
     console.warn("[RevenueCat] getCustomerInfo failed:", error);
     return null;
   }
+}
+
+/** Reads SDK cache without invalidating — use right after paywall purchase completes. */
+export async function fetchCustomerInfoCached(): Promise<CustomerInfo | null> {
+  return fetchCustomerInfo();
 }
 
 /** Bypasses SDK cache — use after paywall dismiss so entitlements reflect immediately. */
@@ -91,6 +139,34 @@ export async function restorePurchases(): Promise<CustomerInfo | null> {
   }
 }
 
+/** Resolves the offering that owns the hosted paywall (not always RevenueCat "current"). */
+async function resolvePaywallOffering(): Promise<PurchasesOffering | null> {
+  try {
+    const offerings = await Purchases.syncAttributesAndOfferingsIfNeeded();
+    const offering = pickPaywallOffering(offerings);
+    if (offering) {
+      if (__DEV__) {
+        console.log(
+          "[RevenueCat] Presenting paywall for offering:",
+          offering.identifier,
+          `(current=${offerings.current?.identifier ?? "none"})`,
+        );
+        logPaywallOfferingDiagnostics(offering);
+      }
+    }
+    return offering;
+  } catch (error) {
+    console.warn("[RevenueCat] syncAttributesAndOfferingsIfNeeded failed:", error);
+    try {
+      const offerings = await Purchases.getOfferings();
+      return pickPaywallOffering(offerings);
+    } catch (fallbackError) {
+      console.warn("[RevenueCat] getOfferings failed:", fallbackError);
+      return null;
+    }
+  }
+}
+
 /** Presents the RevenueCat-hosted paywall configured in the dashboard. */
 export async function presentPaywall(): Promise<PAYWALL_RESULT | null> {
   if (!isConfigured) {
@@ -98,7 +174,11 @@ export async function presentPaywall(): Promise<PAYWALL_RESULT | null> {
   }
 
   try {
-    return await RevenueCatUI.presentPaywall();
+    const offering = await resolvePaywallOffering();
+    if (!offering) {
+      return await RevenueCatUI.presentPaywall();
+    }
+    return await RevenueCatUI.presentPaywall({ offering });
   } catch (error) {
     console.warn("[RevenueCat] presentPaywall failed:", error);
     throw error;

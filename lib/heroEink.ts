@@ -26,8 +26,8 @@ export const TRMNL_THEME = {
   plaqueBorder: "rgba(0, 0, 0, 0.06)",
   /** Subtle hairline when a border is still required. */
   wellBorder: "rgba(0, 0, 0, 0.1)",
-  /** Muted labels on the gray well — high-contrast secondary copy. */
-  mutedOnWell: "#1A1A1A",
+  /** Muted labels on the LCD well — same ink as primary for legibility. */
+  mutedOnWell: "#000000",
   /** Recessed pill controls carved into the light case rail. */
   recessed: "#E0E0E0",
   /** @deprecated Use recessed — kept for legacy imports. */
@@ -35,6 +35,7 @@ export const TRMNL_THEME = {
   /** Outer shell stroke on the dark dashboard. */
   shellStroke: "rgba(0, 0, 0, 0.06)",
   /** Split-flap panels — sage tints on the LCD well. */
+  flipHours: "#D2D6CE",
   flipMinutes: "#C8CCC4",
   flipSeconds: "#BEC2BA",
   flipSeam: "rgba(0, 0, 0, 0.14)",
@@ -237,6 +238,22 @@ export const HERO_COUNTER_SEGMENT_GAP = 2;
 export const HERO_SESSION_HEADING_SIZE = 28;
 
 export const HERO_SESSION_HEADING_LINE_HEIGHT = 32;
+
+/** Idle hero copy — dominant read without clock-scale metrics. */
+export const HERO_IDLE_HEADLINE_SIZE = 40;
+
+export const HERO_IDLE_HEADLINE_LINE_HEIGHT = 44;
+
+/** Session-complete celebration beat — trophy + secured copy inside the hero well. */
+export const HERO_CELEBRATION_ICON_SIZE = 64;
+
+export const HERO_CELEBRATION_HEADLINE_SIZE = 32;
+
+export const HERO_CELEBRATION_HEADLINE_LINE_HEIGHT = 36;
+
+export const HERO_CELEBRATION_BODY_SIZE = 20;
+
+export const HERO_CELEBRATION_BODY_LINE_HEIGHT = 24;
 
 /** Hero countdown — BlockKie display size (waiting, idle, arrived, travel). */
 export const HERO_DIGITAL_CLOCK_SIZE = 50;

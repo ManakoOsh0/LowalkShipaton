@@ -1,10 +1,14 @@
 import { AppState, Platform } from "react-native";
 
-import { PRESENCE_PENALTY_GRACE_MS } from "@/lib/sessionPenalty";
+import {
+  formatDurationAwayNotificationBody,
+  PRESENCE_PENALTY_GRACE_MS,
+} from "@/lib/sessionPenalty";
 import {
   areSessionRemindersSupported,
   ensureNotificationPermission,
 } from "@/services/sessionReminders";
+import type { SessionScheduleType } from "@/types/session";
 
 const PRESENCE_PREFIX = "lowalk-presence-";
 
@@ -54,8 +58,12 @@ async function cancelPresenceNotifications(nodeId: string): Promise<void> {
   ]);
 }
 
-/** Immediate away alert + grace warning scheduled 1 min before penalty. */
-export async function notifySessionAway(zoneLabel: string, nodeId: string): Promise<void> {
+/** Immediate away alert. Classes also schedule a grace warning 1 min before penalty. */
+export async function notifySessionAway(
+  zoneLabel: string,
+  nodeId: string,
+  scheduleType: SessionScheduleType,
+): Promise<void> {
   if (!areSessionRemindersSupported()) return;
 
   const granted = await ensureNotificationPermission();
@@ -70,7 +78,10 @@ export async function notifySessionAway(zoneLabel: string, nodeId: string): Prom
       identifier: awayId(nodeId),
       content: {
         title: "You left your focus zone",
-        body: `Return to ${zone} within 5 minutes to avoid a penalty lock.`,
+        body:
+          scheduleType === "duration"
+            ? formatDurationAwayNotificationBody(zone)
+            : `Return to ${zone} within 5 minutes to avoid a penalty lock.`,
         sound: true,
         data: { nodeId, type: "session-away" },
         ...(Platform.OS === "android" ? { channelId: "presence-alerts" } : {}),
@@ -78,6 +89,8 @@ export async function notifySessionAway(zoneLabel: string, nodeId: string): Prom
       trigger: null,
     });
   }
+
+  if (scheduleType !== "class") return;
 
   const graceTrigger = new Date(Date.now() + GRACE_WARNING_MS);
   await Notifications.scheduleNotificationAsync({

@@ -5,23 +5,14 @@ import { buildHeroPreviewData } from "@/lib/heroCard";
 import { buildHeroWidgetSnapshot } from "@/lib/heroWidget";
 import { buildActiveSessionTimer, type ActiveSessionTimer } from "@/lib/widgetSessionTimer";
 import { resolveSimpleWidgetCopy } from "@/lib/widgetTileCopy";
-import type { HeroPreviewKind, HeroPreviewScenario } from "@/store/useHeroPreviewStore";
+import {
+  HERO_PREVIEW_SCENARIOS,
+  type HeroPreviewKind,
+  type HeroPreviewScenario,
+} from "@/store/useHeroPreviewStore";
 import type { ActiveSessionSnapshot } from "@/types/session";
 
-export const WIDGET_PREVIEW_SCENARIOS: HeroPreviewScenario[] = [
-  "up_next",
-  "pre_buffer",
-  "traveling",
-  "verifying",
-  "arrived",
-  "active_session",
-  "stepped_out",
-  "apps_locked",
-  "day_complete",
-  "no_sessions",
-  "nothing_left",
-  "weekly_ledger",
-];
+export const WIDGET_PREVIEW_SCENARIOS: HeroPreviewScenario[] = HERO_PREVIEW_SCENARIOS;
 
 export type WidgetPreviewContent = {
   title: string;
@@ -58,7 +49,10 @@ export function buildWidgetPreviewContent(
 ): WidgetPreviewContent {
   const hero = buildHeroPreviewData(scenario, kind);
   const dailyGoal = { completed: 1, target: 3 };
-  const activeSession = scenario === "active_session" ? mockActiveSession(new Date(nowMs)) : null;
+  const activeSession =
+    scenario === "active_session" || scenario === "active_pre_start"
+      ? mockActiveSession(new Date(nowMs))
+      : null;
   const snapshot = buildHeroWidgetSnapshot(hero, dailyGoal, activeSession, new Date(nowMs));
   return resolveSimpleWidgetCopy(snapshot, nowMs);
 }

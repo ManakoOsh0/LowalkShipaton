@@ -9,12 +9,15 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 type WidgetPaywallOverlayProps = {
   locked: boolean;
   onUnlockPress: () => void;
+  /** Match widget tile corner radius (see WIDGET_*_SPEC.cornerRadiusDp). */
+  cornerRadius?: number;
   children: ReactNode;
 };
 
 export function WidgetPaywallOverlay({
   locked,
   onUnlockPress,
+  cornerRadius = 16,
   children,
 }: WidgetPaywallOverlayProps) {
   const colors = useThemeColors();
@@ -28,11 +31,13 @@ export function WidgetPaywallOverlay({
       accessibilityRole="button"
       accessibilityLabel="Unlock home screen widgets with Lowalk Pro"
       onPress={onUnlockPress}
-      style={{ position: "relative" }}
+      style={{
+        position: "relative",
+        borderRadius: cornerRadius,
+        overflow: "hidden",
+      }}
     >
-      <View style={{ opacity: 0.45 }} pointerEvents="none">
-        {children}
-      </View>
+      {children}
 
       <View
         pointerEvents="none"
@@ -42,8 +47,19 @@ export function WidgetPaywallOverlay({
           right: 0,
           bottom: 0,
           left: 0,
-          backgroundColor: "rgba(20, 18, 16, 0.4)",
-          borderRadius: 16,
+          backgroundColor: "rgba(242, 242, 247, 0.72)",
+        }}
+      />
+
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          backgroundColor: "rgba(20, 18, 16, 0.22)",
         }}
       />
 

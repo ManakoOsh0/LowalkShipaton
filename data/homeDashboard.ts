@@ -27,6 +27,10 @@ export const homeDashboardMock = {
       kind: "class",
       accent: "blue",
       status: "upcoming",
+      startMinutes: 10 * 60,
+      endMinutes: 11 * 60 + 30,
+      dateIso: "2026-01-01",
+      isToday: true,
     },
     {
       id: "2",
@@ -36,6 +40,10 @@ export const homeDashboardMock = {
       kind: "library",
       accent: "green",
       status: "upcoming",
+      startMinutes: 14 * 60,
+      endMinutes: 16 * 60,
+      dateIso: "2026-01-01",
+      isToday: true,
     },
   ] satisfies ScheduleItem[],
 };

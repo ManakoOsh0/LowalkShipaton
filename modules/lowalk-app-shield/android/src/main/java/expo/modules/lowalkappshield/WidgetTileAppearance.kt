@@ -9,6 +9,9 @@ import org.json.JSONObject
 
 /** Fixed neutral palette for home-screen widgets. */
 object WidgetTileAppearance {
+  /** Matches launcher widget outline — keep lock scrim corners in sync via [applyLockOverlayShape]. */
+  const val TILE_OUTLINE_RADIUS_DIP = 48f
+
   data class Palette(
     val tileBg: Int,
     val textPrimary: Int,
@@ -21,7 +24,7 @@ object WidgetTileAppearance {
       tileBg = Color.parseColor("#DEDEDE"),
       textPrimary = Color.parseColor("#1C1C1E"),
       textMuted = Color.parseColor("#636366"),
-      dateAccent = Color.parseColor("#6B8FB8"),
+      dateAccent = Color.parseColor("#FF8A3D"),
     )
   }
 
@@ -48,13 +51,7 @@ object WidgetTileAppearance {
     views.setTextColor(R.id.tile_timer_start, palette.textPrimary)
     views.setTextColor(R.id.tile_timer_remaining, palette.textPrimary)
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      views.setViewOutlinePreferredRadius(
-        R.id.widget_root,
-        48f,
-        TypedValue.COMPLEX_UNIT_DIP,
-      )
-    }
+    applyTileOutline(views, R.id.widget_root)
   }
 
   fun applyHoursTile(views: RemoteViews, palette: Palette) {
@@ -63,10 +60,18 @@ object WidgetTileAppearance {
     views.setTextColor(R.id.focus_hours_label, palette.textMuted)
     views.setInt(R.id.focus_hours_hourglass, "setColorFilter", palette.textMuted)
 
+    applyTileOutline(views, R.id.focus_hours_root)
+  }
+
+  fun applyLockOverlayShape(views: RemoteViews, overlayId: Int) {
+    applyTileOutline(views, overlayId)
+  }
+
+  private fun applyTileOutline(views: RemoteViews, viewId: Int) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       views.setViewOutlinePreferredRadius(
-        R.id.focus_hours_root,
-        48f,
+        viewId,
+        TILE_OUTLINE_RADIUS_DIP,
         TypedValue.COMPLEX_UNIT_DIP,
       )
     }

@@ -17,6 +17,7 @@ type TodayScheduleSectionProps = {
   items: ScheduleItem[];
   onItemPress?: (item: ScheduleItem) => void;
   onItemLongPress?: (item: ScheduleItem) => void;
+  onItemMenuPress?: (item: ScheduleItem) => void;
   onEmptyPress?: () => void;
 };
 
@@ -50,6 +51,7 @@ export function TodayScheduleSection({
   items,
   onItemPress,
   onItemLongPress,
+  onItemMenuPress,
   onEmptyPress,
 }: TodayScheduleSectionProps) {
   const router = useRouter();
@@ -185,6 +187,7 @@ export function TodayScheduleSection({
               isFocus={item.id === focusItemId}
               onPress={onItemPress ? () => onItemPress(item) : undefined}
               onLongPress={onItemLongPress ? () => onItemLongPress(item) : undefined}
+              onMenuPress={onItemMenuPress ? () => onItemMenuPress(item) : undefined}
             />
           </View>
         ))}

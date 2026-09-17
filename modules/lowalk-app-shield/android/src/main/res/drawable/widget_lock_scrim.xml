@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-  android:shape="rectangle">
-  <solid android:color="#66141210" />
-  <corners android:radius="16dp" />
-</shape>
+<!-- Frosted lock scrim — full bleed; widget root clips to launcher outline radius. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+  <item>
+    <shape android:shape="rectangle">
+      <solid android:color="#B3F2F2F7" />
+    </shape>
+  </item>
+  <item>
+    <shape android:shape="rectangle">
+      <solid android:color="#4D141210" />
+    </shape>
+  </item>
+</layer-list>

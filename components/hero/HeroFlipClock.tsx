@@ -1,5 +1,5 @@
 /**
- * HeroFlipClock — split-flap countdown for active sessions (MM:SS).
+ * HeroFlipClock — split-flap countdown for active sessions (MM:SS or H:MM:SS).
  * Top flap flips on each tick; tuned for the sage e-ink well.
  */
 import { useEffect, useRef, useState } from "react";
@@ -16,20 +16,8 @@ import { TrmnlText } from "@/components/trmnl/TrmnlText";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useHeroTheme } from "@/hooks/useHeroTheme";
 import { HERO_FLIP_CLOCK, HERO_TIMER_PLAQUE_RADIUS } from "@/lib/heroEink";
+import { parseClockPair } from "@/lib/heroFlipClock";
 import { HERO_MOTION } from "@/lib/heroMotion";
-
-/** Parses MM:SS or M:SS countdown labels from the session engine. */
-export function parseMmSsCountdown(
-  label: string,
-): { minutes: string; seconds: string } | null {
-  const match = label.trim().match(/^(\d+):(\d{2})$/);
-  if (!match) return null;
-
-  return {
-    minutes: match[1]!.padStart(2, "0"),
-    seconds: match[2]!,
-  };
-}
 
 type FlipFlapPanelProps = {
   value: string;
@@ -39,6 +27,8 @@ type FlipFlapPanelProps = {
   digitSize: number;
   digitLineHeight: number;
   radius: number;
+  /** Scheduled start times stay still — only live countdowns flip. */
+  static?: boolean;
 };
 
 function FlipDigit({
@@ -85,6 +75,7 @@ function FlipFlapPanel({
   digitSize,
   digitLineHeight,
   radius,
+  static: isStatic = false,
 }: FlipFlapPanelProps) {
   const theme = useHeroTheme();
   const reduceMotion = useReduceMotion();
@@ -93,7 +84,7 @@ function FlipFlapPanel({
   const [outgoingValue, setOutgoingValue] = useState(value);
 
   useEffect(() => {
-    if (value === prevValueRef.current) return;
+    if (isStatic || value === prevValueRef.current) return;
 
     if (reduceMotion) {
       prevValueRef.current = value;
@@ -116,7 +107,7 @@ function FlipFlapPanel({
         runOnJS(setOutgoingValue)(value);
       },
     );
-  }, [flipProgress, reduceMotion, value]);
+  }, [flipProgress, isStatic, reduceMotion, value]);
 
   const topFlapStyle = useAnimatedStyle(() => {
     const phase = Math.min(flipProgress.value * 2, 1);
@@ -284,16 +275,20 @@ function FlipFlapPanel({
 type HeroFlipClockProps = {
   countdownLabel: string;
   compact?: boolean;
+  /** Static session start (HH:mm) — same panels, no flip animation. */
+  static?: boolean;
 };
 
-/** Split-flap MM:SS read only — title, mascot, and footnote live in HeroDisplay zones. */
+/** Split-flap clock read — MM:SS countdown or HH:mm scheduled start. */
 export function HeroFlipClock({
   countdownLabel,
   compact = false,
+  static: isStatic = false,
 }: HeroFlipClockProps) {
   const theme = useHeroTheme();
-  const parsed = parseMmSsCountdown(countdownLabel);
-  const scale = compact ? 0.86 : 1;
+  const parsed = parseClockPair(countdownLabel);
+  const hasHours = parsed?.hours != null;
+  const scale = (compact ? 0.86 : 1) * (hasHours ? 0.9 : 1);
 
   const cardHeight = HERO_FLIP_CLOCK.cardHeight * scale;
   const cardMinWidth = HERO_FLIP_CLOCK.cardMinWidth * scale;
@@ -324,23 +319,37 @@ export function HeroFlipClock({
           zIndex: 1,
         }}
       >
+        {parsed.hours != null ? (
+          <FlipFlapPanel
+            value={parsed.hours}
+            cardColor={theme.flipHours}
+            height={cardHeight}
+            minWidth={cardMinWidth}
+            digitSize={digitSize}
+            digitLineHeight={digitLineHeight}
+            radius={cardRadius}
+            static={isStatic}
+          />
+        ) : null}
         <FlipFlapPanel
-          value={parsed.minutes}
+          value={parsed.left}
           cardColor={theme.flipMinutes}
           height={cardHeight}
           minWidth={cardMinWidth}
           digitSize={digitSize}
           digitLineHeight={digitLineHeight}
           radius={cardRadius}
+          static={isStatic}
         />
         <FlipFlapPanel
-          value={parsed.seconds}
+          value={parsed.right}
           cardColor={theme.flipSeconds}
           height={cardHeight}
           minWidth={cardMinWidth}
           digitSize={digitSize}
           digitLineHeight={digitLineHeight}
           radius={cardRadius}
+          static={isStatic}
         />
       </View>
     </View>
@@ -351,7 +360,13 @@ export function HeroFlipClock({
   );
 
   return (
-    <View style={{ width: "100%", alignItems: "center" }}>
+    <View
+      style={{
+        width: "100%",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       {clockFace}
     </View>
   );

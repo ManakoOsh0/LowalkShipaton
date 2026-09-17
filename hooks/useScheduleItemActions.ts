@@ -7,13 +7,17 @@ import { useFocusNodeRemovalLockReason } from "@/hooks/usePenaltyShieldActive";
 import { isFocusNodeRemovalLocked } from "@/lib/sessionPenalty";
 import { ROUTES } from "@/lib/routes";
 import { useScheduleStore } from "@/store/useScheduleStore";
+import { FOCUS_COIN_SKIP_COST, useUserStore } from "@/store/useUserStore";
 import type { ScheduleItem } from "@/types/dashboard";
 
-/** Long-press actions for schedule rows — edit or delete the underlying Focus Node. */
+/** Long-press actions for schedule rows — edit, skip today, or delete the Focus Node. */
 export function useScheduleItemActions() {
   const router = useRouter();
   const removeFocusNode = useScheduleStore((state) => state.removeFocusNode);
+  const markNodeSkipped = useScheduleStore((state) => state.markNodeSkipped);
   const activeSession = useScheduleStore((state) => state.activeSession);
+  const coins = useUserStore((state) => state.coins);
+  const trySpendFocusCoins = useUserStore((state) => state.trySpendFocusCoins);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
   const deleteLockReason = useFocusNodeRemovalLockReason(selectedItem?.id);
 
@@ -41,12 +45,23 @@ export function useScheduleItemActions() {
     [activeSession, removeFocusNode],
   );
 
+  const handleSkip = useCallback(
+    (item: ScheduleItem) => {
+      if (!trySpendFocusCoins(FOCUS_COIN_SKIP_COST)) return;
+      markNodeSkipped(item.id, item.dateIso);
+    },
+    [markNodeSkipped, trySpendFocusCoins],
+  );
+
   const actionSheetProps: ScheduleItemActionSheetProps = {
     item: selectedItem,
+    coins,
+    skipCost: FOCUS_COIN_SKIP_COST,
     deleteLockReason,
     onClose: dismissScheduleItemActions,
     onEdit: handleEdit,
     onDelete: handleDelete,
+    onSkip: handleSkip,
   };
 
   return { showScheduleItemActions, actionSheetProps };

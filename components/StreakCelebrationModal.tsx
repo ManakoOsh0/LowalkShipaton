@@ -243,7 +243,7 @@ function StreakCelebrationContent({
         >
           <Animated.View entering={arrivalMascotEntering(reduceMotion)}>
             <StreakFlame
-              height={112}
+              height={128}
               color={colors.streak}
               stroke="#FFFFFF"
               strokeWidth={5}
@@ -261,10 +261,10 @@ function StreakCelebrationContent({
                     .stiffness(HERO_MOTION.markerSpring.stiffness)
             }
             style={{
-              marginTop: 8,
+              marginTop: 10,
               fontFamily: "Poppins-Bold",
-              fontSize: 72,
-              lineHeight: 80,
+              fontSize: 84,
+              lineHeight: 92,
               color: colors.streak,
               fontVariant: ["tabular-nums"],
             }}
@@ -276,8 +276,8 @@ function StreakCelebrationContent({
             entering={reduceMotion ? undefined : FadeIn.delay(170).duration(220)}
             style={{
               fontFamily: "Poppins-Medium",
-              fontSize: 18,
-              lineHeight: 24,
+              fontSize: 20,
+              lineHeight: 26,
               color: colors.streak,
             }}
           >
@@ -298,16 +298,16 @@ function StreakCelebrationContent({
               marginTop: 28,
               width: "100%",
               ...getCardSurfaceStyle(colors, { borderRadius: CARD_RADIUS_LG, shadow: "md" }),
-              paddingHorizontal: 18,
-              paddingVertical: 18,
-              gap: 16,
+              paddingHorizontal: 20,
+              paddingVertical: 20,
+              gap: 18,
             }}
           >
             <Text
               style={{
                 fontFamily: "Poppins-Medium",
-                fontSize: 16,
-                lineHeight: 24,
+                fontSize: 18,
+                lineHeight: 26,
                 color: colors.foreground,
                 textAlign: "center",
               }}
@@ -327,12 +327,12 @@ function StreakCelebrationContent({
                   gap: 6,
                 }}
               >
-                <FocusCoinIcon size={16} />
+                <FocusCoinIcon size={18} />
                 <Text
                   style={{
                     fontFamily: "Poppins-Medium",
-                    fontSize: 14,
-                    lineHeight: 20,
+                    fontSize: 16,
+                    lineHeight: 22,
                     color: colors.muted,
                   }}
                 >

@@ -24,9 +24,15 @@ import { FocusNodeFormSkeleton } from "@/components/skeleton/FocusNodeFormSkelet
 import type { FocusNodeTemplateId } from "@/data/quickActions";
 import { useFocusNodeRemovalLockReason } from "@/hooks/usePenaltyShieldActive";
 import { formatTimeLabel, parseTimeToMinutes } from "@/lib/time";
+import {
+  formatScheduleConflictDeletionBlocked,
+  formatScheduleConflictMessage,
+  type ScheduleConflictDetails,
+} from "@/lib/scheduleConflict";
+import { getFocusNodeRemovalLockReason } from "@/lib/sessionPenalty";
 import { ROUTES } from "@/lib/routes";
 import { createNodeFromTemplate } from "@/store/seed";
-import { useScheduleStore } from "@/store/useScheduleStore";
+import { useScheduleStore, type AddFocusNodeResult, type UpdateFocusNodeResult } from "@/store/useScheduleStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { useHasHydrated } from "@/hooks/usePersistedStoreHydration";
 import type { Anchor } from "@/types/anchor";
@@ -364,6 +370,46 @@ function FocusNodeFormFields({
     );
   };
 
+  const showScheduleConflictAlert = (
+    conflict: ScheduleConflictDetails,
+    onDeleteAndRetry: () => void,
+  ) => {
+    const activeSession = useScheduleStore.getState().activeSession;
+    const lockReason = getFocusNodeRemovalLockReason(conflict.nodeId, activeSession);
+    let message = formatScheduleConflictMessage(conflict);
+
+    if (lockReason) {
+      message = `${message}\n\n${formatScheduleConflictDeletionBlocked(lockReason)}`;
+    }
+
+    Alert.alert("Schedule conflict", message, [
+      ...(lockReason
+        ? []
+        : [
+            {
+              text: "Delete conflicting session",
+              style: "destructive" as const,
+              onPress: () => {
+                removeFocusNode(conflict.nodeId);
+                onDeleteAndRetry();
+              },
+            },
+          ]),
+      { text: "Keep editing", style: "cancel" as const },
+    ]);
+  };
+
+  const handleFailedSave = (
+    result: Extract<AddFocusNodeResult | UpdateFocusNodeResult, { success: false }>,
+    retry: () => void,
+  ) => {
+    if (result.conflict) {
+      showScheduleConflictAlert(result.conflict, retry);
+      return;
+    }
+    Alert.alert("Could not save", result.error);
+  };
+
   const handleSave = () => {
     const daysToSave = allowMultipleWeekdays ? weekdays : [weekdays[0]];
     if (!daysToSave.length) return;
@@ -372,25 +418,36 @@ function FocusNodeFormFields({
       const input = buildInput(daysToSave[0]);
       if (!input) return;
 
-      const result = updateFocusNode(nodeId, input);
-      if (!result.success) {
-        Alert.alert("Schedule conflict", result.error);
-        return;
-      }
-    } else {
-      for (const weekday of daysToSave) {
+      const attemptSave = () => {
+        const result = updateFocusNode(nodeId, input);
+        if (!result.success) {
+          handleFailedSave(result, attemptSave);
+          return;
+        }
+        finishAfterSave(daysToSave);
+      };
+
+      attemptSave();
+      return;
+    }
+
+    const saveFromIndex = (startIndex: number) => {
+      for (let index = startIndex; index < daysToSave.length; index += 1) {
+        const weekday = daysToSave[index];
         const input = buildInput(weekday);
         if (!input) return;
 
         const result = addFocusNode(input);
         if (!result.success) {
-          Alert.alert("Schedule conflict", result.error);
+          handleFailedSave(result, () => saveFromIndex(index));
           return;
         }
       }
-    }
 
-    finishAfterSave(daysToSave);
+      finishAfterSave(daysToSave);
+    };
+
+    saveFromIndex(0);
   };
 
   const handleContinue = () => {

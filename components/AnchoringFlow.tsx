@@ -18,17 +18,28 @@ import { SheetActionButton } from "@/components/SheetActionButton";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import {
+  clampCoordinatesWithinMeters,
   findNearbyAnchor,
   getOpenStreetMapPreviewUrl,
   haversineDistanceMeters,
+  MAX_CALIBRATION_MAP_NUDGE_METERS,
+  MAX_PRESENCE_ACCURACY_METERS,
   presetIdForKind,
+  validateCalibrationCapture,
+  validateCalibrationSave,
   type Coordinates,
 } from "@/lib/geo";
 import { sheetStepEntering, sheetStepExiting } from "@/lib/heroMotion";
 import { CARD_RADIUS_SM } from "@/lib/cardStyle";
+import { resetPresenceTimers } from "@/lib/presenceEngine";
+import {
+  buildArrivalCelebrationPayload,
+} from "@/lib/arrivalCelebration";
 import { getCurrentPosition } from "@/services/location";
+import { useArrivalCelebrationStore } from "@/store/useArrivalCelebrationStore";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import type { AnchoringSheetMode } from "@/store/useAnchoringSheetStore";
+import type { FocusNodeKind } from "@/types/focusNode";
 
 type AnchoringStep = "hold" | "nearby" | "map";
 
@@ -55,6 +66,27 @@ function stepActiveIndex(step: AnchoringStep): number {
   return step === "hold" ? 0 : 1;
 }
 
+function celebrateCalibrationArrival(
+  nodeId: string,
+  nodeTitle: string,
+  anchorName: string,
+  kind: FocusNodeKind | "study",
+): void {
+  const session = useScheduleStore.getState().activeSession;
+  if (!session || session.nodeId !== nodeId || session.presenceVerified) return;
+
+  useArrivalCelebrationStore.getState().show(
+    buildArrivalCelebrationPayload({
+      node: {
+        id: nodeId,
+        title: nodeTitle,
+        kind: kind === "study" ? "library" : kind,
+      },
+      anchorName,
+    }),
+  );
+}
+
 export function AnchoringFlow({
   visible,
   nodeId,
@@ -77,7 +109,9 @@ export function AnchoringFlow({
   const [captureError, setCaptureError] = useState<string | null>(null);
   const [nearbyAnchorId, setNearbyAnchorId] = useState<string | null>(null);
   const [mapCenter, setMapCenter] = useState<Coordinates | null>(null);
+  const [capturedPosition, setCapturedPosition] = useState<Coordinates | null>(null);
   const [radiusMeters, setRadiusMeters] = useState(DEFAULT_RADIUS_METERS);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const focusNode = useMemo(
     () => focusNodes.find((node) => node.id === nodeId) ?? null,
@@ -137,7 +171,9 @@ export function AnchoringFlow({
     setCaptureError(null);
     setNearbyAnchorId(null);
     setMapCenter(null);
+    setCapturedPosition(null);
     setRadiusMeters(DEFAULT_RADIUS_METERS);
+    setSaveError(null);
   };
 
   const handleDismiss = () => {
@@ -157,9 +193,19 @@ export function AnchoringFlow({
   }, [visible]);
 
   const advanceAfterCapture = (position: Coordinates) => {
-    setMapCenter(position);
-
     const currentAnchor = anchors.find((anchor) => anchor.id === anchorId);
+    if (currentAnchor) {
+      const onSiteError = validateCalibrationCapture(currentAnchor, position);
+      if (onSiteError) {
+        setCaptureError(onSiteError);
+        return;
+      }
+    }
+
+    setCapturedPosition(position);
+    setMapCenter(position);
+    setSaveError(null);
+
     const nearby = findNearbyAnchor(anchors, position, undefined, {
       preferPlaceId: currentAnchor?.placeId,
       excludeAnchorId: anchorId,
@@ -186,23 +232,74 @@ export function AnchoringFlow({
       return;
     }
 
+    if (
+      result.accuracyMeters != null &&
+      result.accuracyMeters > MAX_PRESENCE_ACCURACY_METERS
+    ) {
+      setCaptureError(
+        "GPS is too inaccurate right now. Try again near a window or step outside briefly.",
+      );
+      return;
+    }
+
     advanceAfterCapture(result.position);
   };
 
+  const handleMapCenterChange = (coords: Coordinates) => {
+    if (!capturedPosition) {
+      setMapCenter(coords);
+      return;
+    }
+    setMapCenter(
+      clampCoordinatesWithinMeters(
+        capturedPosition,
+        coords,
+        MAX_CALIBRATION_MAP_NUDGE_METERS,
+      ),
+    );
+    setSaveError(null);
+  };
+
   const finishCalibration = () => {
-    if (!mapCenter || isSaving) return;
+    if (!mapCenter || !capturedPosition || isSaving) return;
+
+    const currentAnchor = anchors.find((anchor) => anchor.id === anchorId);
+    if (currentAnchor) {
+      const validationError = validateCalibrationSave(
+        currentAnchor,
+        capturedPosition,
+        mapCenter,
+      );
+      if (validationError) {
+        setSaveError(validationError);
+        return;
+      }
+    }
 
     setIsSaving(true);
+    setSaveError(null);
     const calibrated = calibrateAnchor(anchorId, {
       latitude: mapCenter.latitude,
       longitude: mapCenter.longitude,
       radiusMeters,
+      capturedLatitude: capturedPosition.latitude,
+      capturedLongitude: capturedPosition.longitude,
     });
     setIsSaving(false);
 
-    if (calibrated) {
-      finishAndClose();
+    if (!calibrated) {
+      setSaveError("Could not save this spot. Move to your venue and try again.");
+      return;
     }
+
+    resetPresenceTimers();
+    celebrateCalibrationArrival(
+      nodeId,
+      nodeTitle,
+      anchorName,
+      focusNode?.kind ?? "custom",
+    );
+    finishAndClose();
   };
 
   const handleUseNearbyAnchor = () => {
@@ -213,6 +310,13 @@ export function AnchoringFlow({
     setIsSaving(false);
 
     if (linked) {
+      resetPresenceTimers();
+      celebrateCalibrationArrival(
+        nodeId,
+        nodeTitle,
+        nearbyAnchor?.name ?? anchorName,
+        focusNode?.kind ?? "custom",
+      );
       finishAndClose();
     }
   };
@@ -335,9 +439,23 @@ export function AnchoringFlow({
                 radiusMeters={radiusMeters}
                 anchorName={anchorName}
                 suggestedPresetId={suggestedPresetId}
-                onCenterChange={setMapCenter}
+                onCenterChange={handleMapCenterChange}
                 onRadiusChange={setRadiusMeters}
               />
+
+              {saveError ? (
+                <Text
+                  style={{
+                    fontFamily: "Poppins-Regular",
+                    fontSize: 14,
+                    lineHeight: 20,
+                    color: colors.error,
+                    textAlign: "center",
+                  }}
+                >
+                  {saveError}
+                </Text>
+              ) : null}
 
               <SheetActionButton
                 label="Save anchor"

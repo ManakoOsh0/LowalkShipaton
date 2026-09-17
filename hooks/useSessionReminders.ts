@@ -5,6 +5,7 @@ import {
   ensureAndroidReminderChannel,
   syncSessionReminders,
 } from "@/services/sessionReminders";
+import { ensureAndroidSessionStatusChannels } from "@/services/androidSessionStatus";
 import { ensureAndroidPresenceChannel } from "@/services/presenceReminders";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useUserStore } from "@/store/useUserStore";
@@ -23,6 +24,7 @@ export function useSessionReminders(): void {
     if (!areSessionRemindersSupported()) return;
 
     void (async () => {
+      await ensureAndroidSessionStatusChannels();
       await ensureAndroidReminderChannel();
       await ensureAndroidPresenceChannel();
       await syncSessionReminders(focusNodes, anchors, classPreBufferMinutes, new Date(), {

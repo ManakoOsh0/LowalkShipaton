@@ -1,8 +1,8 @@
 /* Dawn Path — dark-only palette */
 
 @theme {
-  --color-primary: #6b8fb8;
-  --color-primary-deep: #6b8fb8;
+  --color-primary: #ff8f33;
+  --color-primary-deep: #ff7700;
   --color-blue: #9bb8d9;
   --color-sky: #9bb8d9;
   --color-sky-deep: #6b8fb8;
@@ -21,7 +21,7 @@
   --color-card: #2f2b25;
   --color-card-stroke: rgba(255, 255, 255, 0.15);
   --color-icon-tile: rgba(143, 175, 212, 0.22);
-  --color-primary-soft: rgba(107, 143, 184, 0.14);
+  --color-primary-soft: rgba(255, 143, 51, 0.14);
   --color-ring: rgba(255, 255, 255, 0.3);
   --color-card-shadow: #000000;
   --color-surface: #141210;
@@ -29,8 +29,8 @@
 }
 
 :root {
-  --color-primary: #6b8fb8;
-  --color-primary-deep: #6b8fb8;
+  --color-primary: #ff8f33;
+  --color-primary-deep: #ff7700;
   --color-blue: #9bb8d9;
   --color-sky: #9bb8d9;
   --color-sky-deep: #6b8fb8;
@@ -49,7 +49,7 @@
   --color-card: #2f2b25;
   --color-card-stroke: rgba(255, 255, 255, 0.15);
   --color-icon-tile: rgba(143, 175, 212, 0.22);
-  --color-primary-soft: rgba(107, 143, 184, 0.14);
+  --color-primary-soft: rgba(255, 143, 51, 0.14);
   --color-ring: rgba(255, 255, 255, 0.3);
   --color-card-shadow: #000000;
   --color-surface: #141210;

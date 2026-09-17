@@ -26,7 +26,7 @@ import {
     resolveHeroDisplayPhase,
     resolveHeroStatusLabel,
 } from "@/lib/heroDisplay";
-import { getAwayGraceRemainingMs } from "@/lib/sessionPenalty";
+import { getAwayGraceRemainingMs, isDurationQuotaSession } from "@/lib/sessionPenalty";
 import {
     formatDurationClock,
     formatOnSiteRemainingLabel,
@@ -315,7 +315,7 @@ function buildPresenceIntel(
   anchor: Anchor | null,
   metersAway: number | null,
 ): HeroIntelCell | null {
-  if (presence?.isInsideGeofence && anchor) {
+  if ((presence?.isInsideGeofenceForDisplay ?? presence?.isInsideGeofence) && anchor) {
     return {
       label: "Presence",
       value: `Inside · ${anchor.radiusMeters}m`,
@@ -520,23 +520,29 @@ function buildIntelCells(
       }
     } else if (params.activeSession?.awaySince) {
       const nowMs = params.referenceDate.getTime();
-      const earlyCompleteRemaining = getClassEarlyCompleteRemainingMs(
-        params.activeSession,
-        params.shieldSettings,
-        nowMs,
-      );
-      if (earlyCompleteRemaining != null && earlyCompleteRemaining > 0) {
-        cells.push({
-          label: "Return",
-          value: formatDurationClock(earlyCompleteRemaining),
-        });
+      if (isDurationQuotaSession(params.activeSession)) {
+        const onSite = buildOnSiteIntel(params.activeSession);
+        if (onSite) cells.push(onSite);
+        cells.push({ label: "Lock", value: "Until midnight" });
       } else {
-        const grace = getAwayGraceRemainingMs(params.activeSession, nowMs);
-        if (grace != null && grace > 0) {
+        const earlyCompleteRemaining = getClassEarlyCompleteRemainingMs(
+          params.activeSession,
+          params.shieldSettings,
+          nowMs,
+        );
+        if (earlyCompleteRemaining != null && earlyCompleteRemaining > 0) {
           cells.push({
-            label: "Grace",
-            value: formatDurationClock(grace),
+            label: "Return",
+            value: formatDurationClock(earlyCompleteRemaining),
           });
+        } else {
+          const grace = getAwayGraceRemainingMs(params.activeSession, nowMs);
+          if (grace != null && grace > 0) {
+            cells.push({
+              label: "Grace",
+              value: formatDurationClock(grace),
+            });
+          }
         }
       }
     }
@@ -672,7 +678,7 @@ export function mergeBlockedAppsIntoHero(
   };
 
   let intelCells = [...hero.context.intelCells];
-  if (hero.state !== "active" && hero.state !== "weekly_report") {
+  if (hero.state !== "active") {
     if (intelCells.length >= 2) {
       intelCells = [intelCells[0], shieldCell];
     } else {
@@ -691,14 +697,14 @@ export function mergeBlockedAppsIntoHero(
   };
 }
 
-/** Merge saved Focus Coins into hero intel — skipped during active sessions and weekly ledger. */
+/** Merge saved Focus Coins into hero intel — skipped during active sessions. */
 export function mergeFocusCoinsIntoHero(
   hero: HeroCardData,
   coins: number,
   dailyGoal: DailyGoal,
 ): HeroCardData {
   if (!hero.context) return hero;
-  if (hero.state === "active" || hero.state === "weekly_report") return hero;
+  if (hero.state === "active") return hero;
 
   const coinCell = buildCoinIntelCell(coins, dailyGoal);
   let intelCells = [...hero.context.intelCells];
@@ -748,6 +754,10 @@ export function buildPreviewHeroContext(
       kind: "class",
       accent: "blue",
       status: "completed",
+      startMinutes: 9 * 60,
+      endMinutes: 10 * 60 + 30,
+      dateIso: "2026-01-01",
+      isToday: true,
     },
     {
       id: "preview-node",
@@ -757,6 +767,10 @@ export function buildPreviewHeroContext(
       kind: scheduleKind,
       accent: scheduleAccent,
       status: state === "active" || state === "on_the_way" ? "active" : "upcoming",
+      startMinutes: 14 * 60,
+      endMinutes: 16 * 60,
+      dateIso: "2026-01-01",
+      isToday: true,
     },
     {
       id: "preview-3",
@@ -766,22 +780,14 @@ export function buildPreviewHeroContext(
       kind: "gym",
       accent: "green",
       status: "upcoming",
+      startMinutes: 17 * 60,
+      endMinutes: 18 * 60,
+      dateIso: "2026-01-01",
+      isToday: true,
     },
   ];
 
-  const focusId = state === "weekly_report" ? null : "preview-node";
-
-  if (state === "weekly_report") {
-    return {
-      metaLeft: { label: "WEEKLY" },
-      metaRight: { label: "COMPLETE" },
-      sessionTitle: "Focus Ledger",
-      dayArc: { positionLabel: "Week done", markers: [] },
-      center: { headline: "Week complete", subline: "Every session finished" },
-      intelCells: [],
-      upcomingToday: [],
-    };
-  }
+  const focusId = "preview-node";
 
   if (state === "active") {
     return {

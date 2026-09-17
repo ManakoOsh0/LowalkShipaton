@@ -6,7 +6,6 @@ import type { ActiveSessionSnapshot } from "@/types/session";
 import { computeFocusNodeInsights } from "@/lib/focusNodeStats";
 
 import { getClassEarlyCompleteRemainingMs, getClassSessionCountdown } from "@/lib/classCompletion";
-import { buildPreBufferBody, buildPreBufferTitle } from "@/lib/preBufferCopy";
 import type { Coordinates } from "@/lib/geo";
 import {
     distanceOutsideGeofenceMeters,
@@ -20,7 +19,15 @@ import {
     formatStartsInLabel,
 } from "@/lib/heroCard";
 import { buildEndTimeLabel, enrichHeroCardData } from "@/lib/heroIntel";
-import { formatSessionDetailLabel, getAwayGraceRemainingMs } from "@/lib/sessionPenalty";
+import {
+    formatAwaitingCheckInDetailLine,
+    formatSessionDetailLabel,
+    getAwayGraceRemainingMs,
+    getDurationOnSiteRemainingMs,
+    isPenaltyTakeoverForLiveSession,
+    isStaleUnverifiedClassSession,
+    DURATION_AWAY_HERO_SUBTITLE,
+} from "@/lib/sessionPenalty";
 import {
     DEFAULT_CLASS_PRE_BUFFER_MINUTES,
     DEFAULT_SESSION_GAP_MERGE_MINUTES,
@@ -199,7 +206,10 @@ export function selectNextUpcomingNode(
 
 export type PresenceContext = {
   userPosition: Coordinates | null;
+  /** Raw GPS + accuracy gate — used by the presence engine. */
   isInsideGeofence: boolean;
+  /** Debounced inside for Hero and arrival UI — avoids phase flapping. */
+  isInsideGeofenceForDisplay?: boolean;
   verificationSecondsRemaining: number | null;
   locationUnavailable: boolean;
   /** True when Always/background location was denied — sessions won't survive lock screen. */
@@ -243,6 +253,115 @@ function minutesUntilScheduleStart(
   const { startMinutes } = getScheduleWindow(schedule);
   const startAt = minutesToTodayDate(startMinutes, referenceDate);
   return Math.ceil((startAt.getTime() - referenceDate.getTime()) / 60_000);
+}
+
+function isInsideGeofenceForHero(presence: PresenceContext | null): boolean {
+  if (!presence) return false;
+  return presence.isInsideGeofenceForDisplay ?? presence.isInsideGeofence;
+}
+
+function formatPreStartTravelDetailLine(
+  schedule: FocusNode["schedule"],
+  referenceDate: Date,
+): string | undefined {
+  const minutes = minutesUntilScheduleStart(schedule, referenceDate);
+  if (minutes <= 0) return undefined;
+  return minutes === 1
+    ? "Session starts in 1 minute."
+    : `Session starts in ${minutes} minutes.`;
+}
+
+function buildVerifyingHeroData(
+  nodeId: string,
+  presence: PresenceContext | null,
+  coords: { latitude: number | null; longitude: number | null },
+): HeroCardData {
+  const secondsLeft = presence?.verificationSecondsRemaining;
+  if (secondsLeft != null && secondsLeft > 0) {
+    const ratio = 1 - secondsLeft / Math.max(PRESENCE_VERIFICATION_SECONDS, 1);
+    const isEarlyBeat = secondsLeft > PRESENCE_VERIFICATION_SECONDS / 2;
+    return {
+      state: "on_the_way",
+      title: isEarlyBeat ? "You're here." : "Locking in...",
+      subtitle: isEarlyBeat
+        ? "Stay inside while we verify your location."
+        : "Stay inside the area to begin your session.",
+      icon: isEarlyBeat ? "arrived" : null,
+      action: null,
+      nodeId,
+      countdownLabel: formatCountdownMmSs(secondsLeft),
+      progressRatio: Math.min(Math.max(ratio, 0), 1),
+      ...coords,
+    };
+  }
+
+  return {
+    state: "on_the_way",
+    title: "You're here.",
+    subtitle: "Stay inside while we verify your location.",
+    icon: "arrived",
+    action: null,
+    nodeId,
+    ...coords,
+  };
+}
+
+/**
+ * Outside the geofence while a session is owed — distance + walk time when GPS allows.
+ * Never reuse up_next here; that state is only for sessions that have not opened yet.
+ */
+function buildTravelingHeroData(
+  node: FocusNode,
+  anchors: Anchor[],
+  presence: PresenceContext | null,
+  options?: {
+    detailLine?: string;
+    nodeId?: string;
+  },
+): HeroCardData {
+  const anchor = resolveAnchorForNode(node.anchorId, anchors);
+  const coords =
+    anchor && hasUsableCoordinates(anchor)
+      ? { latitude: anchor.latitude, longitude: anchor.longitude }
+      : { latitude: null, longitude: null };
+
+  const metersAway =
+    presence?.userPosition != null && anchor && hasUsableCoordinates(anchor)
+      ? distanceOutsideGeofenceMeters(presence.userPosition, anchor)
+      : null;
+
+  let travelStats = null;
+  let subtitle: string;
+  if (presence?.locationUnavailable) {
+    subtitle = "Enable location so we can verify you're here.";
+  } else if (presence?.backgroundLocationDenied) {
+    subtitle = "Allow Always location so focus continues when the phone is locked.";
+  } else if (metersAway != null) {
+    subtitle = "Head to your focus zone to check in.";
+    travelStats = buildTravelStats(metersAway);
+  } else {
+    subtitle = "Waiting for GPS signal.";
+  }
+
+  if (options?.detailLine) {
+    subtitle = `${subtitle}\n${options.detailLine}`;
+  }
+
+  return {
+    state: "on_the_way",
+    title: "On your way.",
+    subtitle,
+    icon: "traveller",
+    action: null,
+    nodeId: options?.nodeId ?? node.id,
+    travelStats,
+    locationLabel: resolveScheduleLocationLabel(
+      node.locationLabel,
+      node.anchorId,
+      anchors,
+    ),
+    ...coords,
+  };
 }
 
 function buildUpNextHeroData(
@@ -383,44 +502,6 @@ function activeSessionCountdown(
   };
 }
 
-function buildPreBufferHeroData(
-  node: FocusNode,
-  anchors: Anchor[],
-  referenceDate: Date,
-  presence: PresenceContext | null,
-): HeroCardData {
-  const minutesUntilStart = minutesUntilScheduleStart(node.schedule, referenceDate);
-  const anchor = resolveAnchorForNode(node.anchorId, anchors);
-  const coords =
-    anchor && hasUsableCoordinates(anchor)
-      ? { latitude: anchor.latitude, longitude: anchor.longitude }
-      : { latitude: null, longitude: null };
-
-  const metersAway =
-    presence?.userPosition != null && anchor && hasUsableCoordinates(anchor)
-      ? distanceOutsideGeofenceMeters(presence.userPosition, anchor)
-      : null;
-
-  let travelStats = null;
-  if (metersAway != null) {
-    travelStats = buildTravelStats(metersAway);
-  }
-
-  return {
-    ...buildUpNextHeroData(node, anchors, referenceDate, {
-      travelStats,
-      startsInLabel: `Starts in ${formatStartsInLabel(Math.max(minutesUntilStart, 0))}`,
-    }),
-    state: "on_the_way",
-    title: buildPreBufferTitle(node, minutesUntilStart),
-    subtitle: buildPreBufferBody(node, anchors),
-    icon: "walk",
-    action: null,
-    nodeId: node.id,
-    ...coords,
-  };
-}
-
 function computeHeroCardData(
   nodes: FocusNode[],
   anchors: Anchor[],
@@ -433,6 +514,14 @@ function computeHeroCardData(
   },
   focusNodeId: string | null = null,
 ): HeroCardData {
+  /*
+   * Hero lifecycle (single ordered tree):
+   * 1) Active session — penalty / away
+   * 2) Unverified + inside (display geofence) → verifying
+   * 3) Unverified + outside → traveling (includes entire pre-buffer while shield is open)
+   * 4) Verified → active countdown (incl. pre-start wait)
+   * 5) No session — up next, or shield-open travel/verify for the owed node
+   */
   const todayWeekday = referenceDate.getDay();
   const todayIso = toIsoDateString(referenceDate);
   const todayNodes = nodes.filter((node) => node.schedule.weekday === todayWeekday);
@@ -449,6 +538,21 @@ function computeHeroCardData(
     );
 
   if (activeSession) {
+    const nowMs = referenceDate.getTime();
+
+    // Stale missed-class snapshots should not masquerade as "up next" on the Hero.
+    if (isStaleUnverifiedClassSession(activeSession, nowMs)) {
+      return computeHeroCardData(
+        nodes,
+        anchors,
+        null,
+        presence,
+        referenceDate,
+        shieldSettings,
+        focusNodeId,
+      );
+    }
+
     const anchor = resolveAnchorForNode(
       nodes.find((node) => node.id === activeSession.nodeId)?.anchorId ?? null,
       anchors,
@@ -457,27 +561,23 @@ function computeHeroCardData(
       ? { latitude: anchor.latitude, longitude: anchor.longitude }
       : { latitude: null, longitude: null };
 
-    if (activeSession.penaltyShieldEndsAt) {
-      const nowMs = referenceDate.getTime();
-      const penaltyEndMs = new Date(activeSession.penaltyShieldEndsAt).getTime();
-      if (nowMs < penaltyEndMs) {
-        const lockRemainingMs = Math.max(penaltyEndMs - nowMs, 0);
-        const penaltyMinutes = activeSession.penaltyMinutes ?? 30;
-        return {
-          state: "on_the_way",
-          title: "Apps locked.",
-          subtitle: `+${penaltyMinutes}m penalty · return to ${activeSession.zoneLabel}`,
-          icon: "traveller",
-          action: null,
-          nodeId: activeSession.nodeId,
-          countdownLabel: formatDurationClock(lockRemainingMs),
-          ...coords,
-        };
-      }
+    if (isPenaltyTakeoverForLiveSession(activeSession, nowMs)) {
+      const penaltyEndMs = new Date(activeSession.penaltyShieldEndsAt!).getTime();
+      const lockRemainingMs = Math.max(penaltyEndMs - nowMs, 0);
+      const penaltyMinutes = activeSession.penaltyMinutes ?? 30;
+      return {
+        state: "on_the_way",
+        title: "Apps locked.",
+        subtitle: `+${penaltyMinutes}m penalty · return to ${activeSession.zoneLabel}`,
+        icon: "traveller",
+        action: null,
+        nodeId: activeSession.nodeId,
+        countdownLabel: formatDurationClock(lockRemainingMs),
+        ...coords,
+      };
     }
 
     if (activeSession.awaySince) {
-      const nowMs = referenceDate.getTime();
       const earlyCompleteRemaining = getClassEarlyCompleteRemainingMs(
         activeSession,
         shieldSettings,
@@ -492,6 +592,27 @@ function computeHeroCardData(
           action: null,
           nodeId: activeSession.nodeId,
           countdownLabel: formatDurationClock(earlyCompleteRemaining),
+          ...coords,
+        };
+      }
+
+      const onSiteRemainingMs = getDurationOnSiteRemainingMs(activeSession);
+      if (onSiteRemainingMs != null) {
+        return {
+          state: "on_the_way",
+          title: "Stepped out.",
+          subtitle: DURATION_AWAY_HERO_SUBTITLE,
+          icon: "traveller",
+          action: null,
+          nodeId: activeSession.nodeId,
+          countdownLabel: formatDurationClock(onSiteRemainingMs),
+          progressRatio:
+            activeSession.requiredOnSiteMs && activeSession.requiredOnSiteMs > 0
+              ? Math.min(
+                  activeSession.onSiteAccumulatedMs / activeSession.requiredOnSiteMs,
+                  1,
+                )
+              : null,
           ...coords,
         };
       }
@@ -523,70 +644,46 @@ function computeHeroCardData(
     }
 
     if (!activeSession.presenceVerified) {
-      if (presence?.isInsideGeofence) {
-        const secondsLeft = presence.verificationSecondsRemaining;
-        if (secondsLeft != null && secondsLeft > 0) {
-          const ratio =
-            1 - secondsLeft / Math.max(PRESENCE_VERIFICATION_SECONDS, 1);
-          const isEarlyBeat = secondsLeft > PRESENCE_VERIFICATION_SECONDS / 2;
-          return {
-              state: "on_the_way",
-              title: isEarlyBeat ? "You're here." : "Locking in...",
-              subtitle: isEarlyBeat
-                ? "Stay inside while we verify your location."
-                : "Stay inside the area to begin your session.",
-              icon: isEarlyBeat ? "arrived" : null,
-              action: null,
-              nodeId: activeSession.nodeId,
-              countdownLabel: formatCountdownMmSs(secondsLeft),
-              progressRatio: Math.min(Math.max(ratio, 0), 1),
-              ...coords,
-            };
-        }
-
-        return {
-            state: "on_the_way",
-            title: "You're here.",
-            subtitle: "Stay inside while we verify your location.",
-            icon: "arrived",
-            action: null,
-            nodeId: activeSession.nodeId,
-            ...coords,
-          };
+      if (isInsideGeofenceForHero(presence)) {
+        return buildVerifyingHeroData(activeSession.nodeId, presence, coords);
       }
 
-      const metersAway =
-        presence?.userPosition != null && anchor && hasUsableCoordinates(anchor)
-          ? distanceOutsideGeofenceMeters(presence.userPosition, anchor)
-          : null;
+      const sessionNode = nodes.find((node) => node.id === activeSession.nodeId);
 
-      const travellingNode = nodes.find((node) => node.id === activeSession.nodeId);
-      if (travellingNode) {
-        const travelLine =
-          metersAway != null
-            ? "On your way to the venue."
-            : presence?.locationUnavailable
-              ? "Enable location so we can guide you there."
-              : formatSessionDetailLabel(activeSession, referenceDate, shieldSettings);
-
-        return buildUpNextHeroData(travellingNode, anchors, referenceDate, {
-          travelStats: metersAway != null ? buildTravelStats(metersAway) : null,
-          startsInLabel: travelLine,
+      if (sessionNode) {
+        const preStartLine = formatPreStartTravelDetailLine(
+          sessionNode.schedule,
+          referenceDate,
+        );
+        return buildTravelingHeroData(sessionNode, anchors, presence, {
+          detailLine:
+            preStartLine ??
+            formatAwaitingCheckInDetailLine(
+              activeSession,
+              referenceDate,
+              shieldSettings,
+            ),
+          nodeId: activeSession.nodeId,
         });
       }
 
+      const awaitingDetailLine = formatAwaitingCheckInDetailLine(
+        activeSession,
+        referenceDate,
+        shieldSettings,
+      );
+
       return {
-          state: "on_the_way",
-          title: "On your way.",
-          subtitle: presence?.locationUnavailable
-            ? "Enable location so we can guide you there."
-            : formatSessionDetailLabel(activeSession, referenceDate, shieldSettings),
-          icon: "traveller",
-          action: null,
-          travelStats: metersAway != null ? buildTravelStats(metersAway) : null,
-          nodeId: activeSession.nodeId,
-          ...coords,
-        };
+        state: "on_the_way",
+        title: "On your way.",
+        subtitle: presence?.locationUnavailable
+          ? "Enable location so we can guide you there."
+          : awaitingDetailLine ?? "Head to your focus zone to check in.",
+        icon: "traveller",
+        action: null,
+        nodeId: activeSession.nodeId,
+        ...coords,
+      };
     }
 
     const timer = activeSessionCountdown(activeSession, referenceDate, shieldSettings);
@@ -620,18 +717,14 @@ function computeHeroCardData(
   if (nextNode) {
     const anchor = resolveAnchorForNode(nextNode.anchorId, anchors);
     const inWindow = isWithinScheduleWindow(nextNode.schedule, referenceDate);
-    const inPreBuffer =
-      !activeSession && isInNodePreBufferPeriod(nextNode, shieldSettings, referenceDate);
+    const inPreBuffer = isInNodePreBufferPeriod(nextNode, shieldSettings, referenceDate);
+    const shieldOpen = inPreBuffer || inWindow;
     const coords =
       anchor && hasUsableCoordinates(anchor)
         ? { latitude: anchor.latitude, longitude: anchor.longitude }
         : { latitude: null, longitude: null };
 
-    if (inPreBuffer) {
-      return buildPreBufferHeroData(nextNode, anchors, referenceDate, presence);
-    }
-
-    if (!inWindow) {
+    if (!shieldOpen) {
       return buildUpNextHeroData(nextNode, anchors, referenceDate);
     }
 
@@ -652,58 +745,14 @@ function computeHeroCardData(
       });
     }
 
-    if (presence?.isInsideGeofence) {
-      const secondsLeft = presence.verificationSecondsRemaining;
-      if (secondsLeft != null && secondsLeft > 0) {
-        const ratio = 1 - secondsLeft / Math.max(PRESENCE_VERIFICATION_SECONDS, 1);
-        const isEarlyBeat = secondsLeft > PRESENCE_VERIFICATION_SECONDS / 2;
-        return {
-            state: "on_the_way",
-            title: isEarlyBeat ? "You're here." : "Locking in...",
-            subtitle: isEarlyBeat
-              ? "Stay inside while we verify your location."
-              : "Stay inside the area to begin your session.",
-            icon: isEarlyBeat ? "arrived" : null,
-            action: null,
-            nodeId: nextNode.id,
-            countdownLabel: formatCountdownMmSs(secondsLeft),
-            progressRatio: Math.min(Math.max(ratio, 0), 1),
-            ...coords,
-          };
-      }
-
-      return {
-          state: "on_the_way",
-          title: "You're here.",
-          subtitle: "Stay inside while we verify your location.",
-          icon: "arrived",
-          action: null,
-          nodeId: nextNode.id,
-          ...coords,
-        };
+    if (isInsideGeofenceForHero(presence)) {
+      return buildVerifyingHeroData(nextNode.id, presence, coords);
     }
 
-    const metersAway =
-      presence?.userPosition != null
-        ? distanceOutsideGeofenceMeters(presence.userPosition, anchor)
-        : null;
-
-    let travelStats = null;
-    let startsInLabel: string;
-    if (presence?.locationUnavailable) {
-      startsInLabel = "Enable location to verify your presence.";
-    } else if (presence?.backgroundLocationDenied) {
-      startsInLabel = "Allow Always location so focus continues when the phone is locked.";
-    } else if (metersAway != null) {
-      startsInLabel = "On your way to the venue.";
-      travelStats = buildTravelStats(metersAway);
-    } else {
-      startsInLabel = "Waiting for GPS signal.";
-    }
-
-    return buildUpNextHeroData(nextNode, anchors, referenceDate, {
-      travelStats,
-      startsInLabel,
+    return buildTravelingHeroData(nextNode, anchors, presence, {
+      detailLine: inPreBuffer
+        ? formatPreStartTravelDetailLine(nextNode.schedule, referenceDate)
+        : undefined,
     });
   }
 
@@ -779,6 +828,8 @@ export function selectTodaySchedule(
     .map((node) => {
       const nodeKind = normalizeNodeKind(node.kind);
 
+      const window = getScheduleWindow(node.schedule);
+
       return {
         node,
         item: {
@@ -799,6 +850,10 @@ export function selectTodaySchedule(
             todayIso,
             referenceDate,
           ),
+          startMinutes: window.startMinutes,
+          endMinutes: window.endMinutes,
+          dateIso: todayIso,
+          isToday: true,
         } satisfies ScheduleItem,
       };
     })
@@ -845,6 +900,8 @@ function mapNodesToScheduleItems(
     .map((node) => {
       const nodeKind = normalizeNodeKind(node.kind);
 
+      const window = getScheduleWindow(node.schedule);
+
       return {
         node,
         item: {
@@ -865,6 +922,10 @@ function mapNodesToScheduleItems(
             todayIso,
             referenceDate,
           ),
+          startMinutes: window.startMinutes,
+          endMinutes: window.endMinutes,
+          dateIso,
+          isToday: dateIso === todayIso,
         } satisfies ScheduleItem,
       };
     })
@@ -932,6 +993,7 @@ export function selectSessionDetail(
     todayIso,
     referenceDate,
   );
+  const window = getScheduleWindow(node.schedule);
 
   return {
     nodeId: node.id,
@@ -943,6 +1005,8 @@ export function selectSessionDetail(
       node.anchorId,
       anchors,
     ),
+    startMinutes: window.startMinutes,
+    endMinutes: window.endMinutes,
     dateIso: occurrenceDate,
     dateLabel: formatSessionDateLabel(occurrenceDate),
     isToday: occurrenceDate === todayIso,

@@ -9,6 +9,7 @@ import { DevToolsEntryRow } from "@/components/dev/DevToolsEntryRow";
 import { FocusRewardsCard } from "@/components/FocusRewardsCard";
 import { HeroLookSettingsCard } from "@/components/HeroLookSettingsCard";
 import { SettingsControlsCard } from "@/components/settings/SettingsControlsCard";
+import { SettingsFocusCard } from "@/components/settings/SettingsFocusCard";
 import { SettingsPermissionsCard } from "@/components/settings/SettingsPermissionsCard";
 import { SettingsSupportCard } from "@/components/settings/SettingsSupportCard";
 import { SettingsScreenSkeleton } from "@/components/skeleton/SettingsScreenSkeleton";
@@ -18,14 +19,106 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 import { isDevToolsHubEnabled } from "@/lib/devToolsAccess";
 import { useSubscriptionStore } from "@/store/useSubscriptionStore";
 
+function ProBadge() {
+  const colors = useThemeColors();
+
+  return (
+    <View
+      style={{
+        backgroundColor: colors.primaryDeep,
+        borderRadius: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+      }}
+    >
+      <Text
+        style={{
+          fontFamily: "Poppins-Bold",
+          fontSize: 11,
+          lineHeight: 14,
+          letterSpacing: 1.1,
+          color: colors.background,
+        }}
+      >
+        PRO
+      </Text>
+    </View>
+  );
+}
+
 function LowalkProCard() {
   const colors = useThemeColors();
   const isPremium = useSubscriptionStore((state) => state.isPremium);
+  const isLoaded = useSubscriptionStore((state) => state.isLoaded);
   const { openProPaywall, restoreProPurchases } = useProPaywall();
   const [busy, setBusy] = useState(false);
 
-  if (isPremium) {
+  if (!isLoaded) {
     return null;
+  }
+
+  if (isPremium) {
+    return (
+      <View style={{ marginBottom: 24 }}>
+        <Text
+          style={{
+            marginBottom: 10,
+            fontFamily: "Poppins-SemiBold",
+            fontSize: 11,
+            lineHeight: 14,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            color: colors.muted,
+          }}
+        >
+          Lowalk Pro
+        </Text>
+
+        <View
+          style={{
+            borderRadius: 20,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            gap: 10,
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 15,
+                lineHeight: 20,
+                color: colors.foreground,
+              }}
+            >
+              Active
+            </Text>
+            <ProBadge />
+          </View>
+
+          <Text
+            style={{
+              fontFamily: "Poppins-Regular",
+              fontSize: 13,
+              lineHeight: 18,
+              color: colors.muted,
+            }}
+          >
+            Home screen widgets are unlocked on this device.
+          </Text>
+        </View>
+      </View>
+    );
   }
 
   const onUpgrade = async () => {
@@ -74,16 +167,37 @@ function LowalkProCard() {
         }}
       >
         <View>
-          <Text
+          <View
             style={{
-              fontFamily: "Poppins-SemiBold",
-              fontSize: 15,
-              lineHeight: 20,
-              color: colors.foreground,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
             }}
           >
-            Home screen widget
-          </Text>
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 15,
+                lineHeight: 20,
+                color: colors.foreground,
+              }}
+            >
+              Home screen widget
+            </Text>
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 12,
+                lineHeight: 16,
+                letterSpacing: 0.4,
+                textTransform: "uppercase",
+                color: colors.muted,
+              }}
+            >
+              Free
+            </Text>
+          </View>
           <Text
             style={{
               marginTop: 4,
@@ -103,7 +217,7 @@ function LowalkProCard() {
           onPress={() => void onUpgrade()}
           style={{
             borderRadius: 14,
-            backgroundColor: colors.primaryDeep,
+            backgroundColor: colors.skyDeep,
             paddingVertical: 12,
             alignItems: "center",
             opacity: busy ? 0.7 : 1,
@@ -130,7 +244,7 @@ function LowalkProCard() {
             style={{
               fontFamily: "Poppins-SemiBold",
               fontSize: 13,
-              color: colors.primary,
+              color: colors.skyDeep,
               opacity: busy ? 0.7 : 1,
             }}
           >
@@ -176,6 +290,7 @@ export default function SettingsScreen() {
           <FocusRewardsCard />
           <HeroLookSettingsCard />
           <SettingsPermissionsCard />
+          <SettingsFocusCard />
           <SettingsControlsCard />
           <SettingsSupportCard />
           {showDevTools ? <DevToolsEntryRow /> : null}

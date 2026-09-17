@@ -24,6 +24,12 @@ export type ActiveSessionSnapshot = {
   penaltyShieldEndsAt: string | null;
   /** Locked minutes applied from Settings when the grace window was missed. */
   penaltyMinutes: number | null;
+  /**
+   * Focus Node that incurred the lock. Stays on the snapshot when the penalty
+   * is carried onto a later live session so Hero can show that session instead
+   * of "return to the previous venue."
+   */
+  penaltyOriginNodeId?: string | null;
   /** True once the user has been verified inside the geofence for this session. */
   presenceVerified: boolean;
   /** @deprecated Migrated to awaySince — timer no longer pauses on exit. */

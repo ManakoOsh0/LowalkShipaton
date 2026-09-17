@@ -133,6 +133,11 @@ class LowalkAppShieldModule : Module() {
       }
     }
 
+    AsyncFunction("syncBlockedPackageNames") { packages: List<String> ->
+      WidgetSessionStore.saveUserBlockedPackageNames(context, packages)
+      ShieldOrchestrator.sync(context)
+    }
+
     AsyncFunction("updateHeroWidgetSnapshot") { snapshot: Map<String, Any?> ->
       val legacyBundle = mapOf(
         "syncedAtMs" to System.currentTimeMillis(),

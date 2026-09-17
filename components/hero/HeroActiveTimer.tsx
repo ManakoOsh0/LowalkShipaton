@@ -1,5 +1,6 @@
 /**
- * HeroActiveTimer — bold mono countdown with venue context for in-session hero.
+ * HeroActiveTimer — bold mono time readout with venue context.
+ * Active sessions pass a live countdown; up next passes a static start clock.
  */
 import { Platform, Text, View } from "react-native";
 
@@ -15,14 +16,15 @@ import {
 import { FONT_FAMILY } from "@/theme/fonts";
 
 type HeroActiveTimerProps = {
-  countdownLabel: string;
+  /** Primary clock read — MM:SS countdown or HH:mm session start. */
+  timeLabel: string;
   locationLabel?: string | null;
   subtitle?: string;
   progressRatio?: number | null;
 };
 
 export function HeroActiveTimer({
-  countdownLabel,
+  timeLabel,
   locationLabel,
   subtitle,
   progressRatio,
@@ -57,7 +59,7 @@ export function HeroActiveTimer({
             ...(Platform.OS === "android" ? { includeFontPadding: false } : {}),
           }}
         >
-          {countdownLabel}
+          {timeLabel}
         </Text>
 
         {locationLabel ? (

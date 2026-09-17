@@ -5,14 +5,8 @@ export type DailyGoal = {
   target: number;
 };
 
-/**
- * Hero Card lifecycle — up next, journey, active session, and weekly ledger.
- */
-export type HeroCardState =
-  | "up_next"
-  | "on_the_way"
-  | "active"
-  | "weekly_report";
+/** Hero Card lifecycle — up next, journey, and active session. */
+export type HeroCardState = "up_next" | "on_the_way" | "active";
 
 /** Structured next-session details for the up_next hero state. */
 export type HeroUpNextSnapshot = {
@@ -142,33 +136,6 @@ export type HeroTravelStats = {
   duration: string;
 };
 
-export type HeroFocusLedgerHeatmapDay = {
-  dateIso: string;
-  level: 0 | 1 | 2 | 3 | 4;
-  isToday: boolean;
-};
-
-export type HeroFocusLedgerHeatmapWeek = {
-  weekStartIso: string;
-  isCurrentWeek: boolean;
-  days: HeroFocusLedgerHeatmapDay[];
-};
-
-/** Weekly Focus Ledger rendered inside the weekly_report hero state. */
-export type HeroFocusLedgerSnapshot = {
-  /** Headline value for protected focus time this week (e.g. "45" + "min"). */
-  focusTime: string;
-  focusTimeUnit: string;
-  currentStreak: number;
-  focusCoins: number;
-  sessionsCompleted: number;
-  sessionsScheduled: number;
-  /** Calendar days this week (Mon→today) with at least one completed session. */
-  activeDaysThisWeek: number;
-  /** GitHub-style columns — each week is Mon→Sun, rightmost is current. */
-  heatmapWeeks: HeroFocusLedgerHeatmapWeek[];
-};
-
 /** One visual shell — content swaps while the component stays the same. */
 export type HeroCardData = {
   state: HeroCardState;
@@ -187,8 +154,6 @@ export type HeroCardData = {
   progressRatio?: number | null;
   /** Compact distance + walk-time pills for travelling states. */
   travelStats?: HeroTravelStats | null;
-  /** Weekly Focus Ledger for weekly_report. */
-  focusLedger?: HeroFocusLedgerSnapshot | null;
   /** Next session row for up_next. */
   upNext?: HeroUpNextSnapshot | null;
   /** Venue label for active session timer card. */
@@ -217,6 +182,12 @@ export type ScheduleItem = {
   kind: ScheduleItemKind;
   accent: "blue" | "green";
   status: ScheduleItemStatus;
+  /** Minutes since midnight — drives week timetable block placement. */
+  startMinutes: number;
+  endMinutes: number;
+  /** Calendar day for this occurrence — used when skipping today only. */
+  dateIso: string;
+  isToday: boolean;
 };
 
 export type WeekDaySchedule = {

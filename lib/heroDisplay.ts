@@ -14,8 +14,7 @@ export type HeroDisplayPhase =
   | "arrived"
   | "session"
   | "complete"
-  | "idle"
-  | "weekly";
+  | "idle";
 
 /** Distinct idle hero moods — day won vs empty calendar vs mid-day break. */
 export type HeroIdleMood = "day_complete" | "no_sessions" | "free_break";
@@ -125,6 +124,10 @@ function minutesUntilClockLabel(
   return Math.ceil((target.getTime() - referenceDate.getTime()) / 60_000);
 }
 
+function isTravelingHeadingFallback(hero: HeroCardData): boolean {
+  return hero.title.toLowerCase().includes("on your way.");
+}
+
 function isArrivedMoment(hero: HeroCardData): boolean {
   if (!hero.countdownLabel) return false;
   if (hero.icon === "arrived") return true;
@@ -218,7 +221,6 @@ export function resolveHeroDisplayPhase(
   celebration?: HeroCelebrationPayload | null,
 ): HeroDisplayPhase {
   if (celebration) return "complete";
-  if (hero.state === "weekly_report") return "weekly";
   if (hero.state === "active") return "session";
 
   if (hero.state === "up_next") {
@@ -229,6 +231,7 @@ export function resolveHeroDisplayPhase(
     if (!hero.upNext && !hero.nodeId) return "idle";
     if (isPreBufferHeroMessage(hero)) return "travel";
     if (hero.travelStats) return "travel";
+    if (isTravelingHeadingFallback(hero)) return "travel";
     if (isPenaltyOrAwayMoment(hero)) return "arrived";
     if (hero.countdownLabel && isArrivedMoment(hero)) return "arrived";
     if (hero.countdownLabel) return "arrived";
@@ -252,8 +255,6 @@ export function resolveHeroStatusLabel(phase: HeroDisplayPhase): string {
     case "session":
       return "FOCUS";
     case "complete":
-      return "COMPLETE";
-    case "weekly":
       return "COMPLETE";
     default:
       return "READY";
@@ -303,18 +304,6 @@ export function buildHeroDisplayModel(
     };
   }
 
-  if (phase === "weekly") {
-    return {
-      phase,
-      kindLabel,
-      statusLabel,
-      primary: context?.center.headline ?? "Week complete",
-      secondary: context?.center.subline,
-      showProgress: false,
-      verifyPulse: false,
-    };
-  }
-
   if (phase === "session") {
     const countdown =
       hero.countdownLabel ?? context?.center.countdownLabel ?? context?.center.headline ?? "—";
@@ -358,14 +347,32 @@ export function buildHeroDisplayModel(
         ? 1 - Math.min(Math.max(metersAway / TRAVEL_PROGRESS_CAP_METERS, 0), 1)
         : 0.35;
 
+    // Match dev preview traveling: distance, walk time, venue, progress — no extra guidance lines.
     return {
       phase,
       kindLabel,
       statusLabel,
       primary: hero.travelStats.distance,
       secondary: `${hero.travelStats.duration} walk`,
+      tertiary: hero.locationLabel ?? undefined,
       progressRatio: travelProgress,
       showProgress: true,
+      verifyPulse: false,
+    };
+  }
+
+  if (phase === "travel" && isTravelingHeadingFallback(hero)) {
+    const guidanceLine = hero.subtitle.split("\n")[0]?.trim() ?? hero.subtitle;
+
+    return {
+      phase,
+      kindLabel,
+      statusLabel,
+      primary: hero.title,
+      primaryPresentation: "heading",
+      secondary: guidanceLine.replace(/\n/g, " · "),
+      tertiary: hero.locationLabel ?? undefined,
+      showProgress: false,
       verifyPulse: false,
     };
   }
@@ -381,7 +388,8 @@ export function buildHeroDisplayModel(
       statusLabel: isVerify ? "ARRIVED" : statusLabel,
       arrivedMoment,
       eyebrow: isVerify ? "Check in" : undefined,
-      primary: countdown,
+      primary: isVerify ? hero.title : countdown,
+      primaryPresentation: isVerify ? "heading" : undefined,
       secondary: isVerify
         ? "Stay inside"
         : hero.subtitle.replace(/\n/g, " · "),
@@ -408,6 +416,7 @@ export function buildHeroDisplayModel(
       primary,
       secondary: hero.upNext.sessionTitle,
       detail: hero.upNext.locationLabel,
+      tertiary: hero.upNext.startsInLabel,
       footnote: hero.upNext.leaveByLabel
         ? `Leave by ${hero.upNext.leaveByLabel}`
         : undefined,
@@ -423,6 +432,8 @@ export function buildHeroDisplayModel(
       kindLabel,
       statusLabel,
       primary: context?.center.headline ?? hero.title,
+      // Idle copy is a sentence ("Nothing scheduled today"), not a clock metric.
+      primaryPresentation: "heading",
       secondary:
         context?.center.subline ??
         (hero.subtitle.replace(/\n/g, " · ") || undefined),

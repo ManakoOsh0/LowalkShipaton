@@ -8,10 +8,10 @@ export const lowalkLogoImage = require("@/assets/images/Lowalk-finale-logo.png")
 /** SVG source for ShieldBlockedIcon — assets/images/lowal2.svg */
 export const lowal2LogoAssetPath = "assets/images/lowal2.svg" as const;
 
-/** Pixel shield mascot — assets/images/New Piskel.png */
-export const shieldPiskelAssetPath = "assets/images/New Piskel.png" as const;
+/** Pixel shield mascot — assets/images/lowal2.svg */
+export const shieldPiskelAssetPath = "assets/images/lowal2.svg" as const;
 
-export const shieldPiskelImage = require("@/assets/images/New Piskel.png");
+export const shieldPiskelImage = require("@/assets/images/lowal2.svg");
 
 /** SVG source for LibraryKindIcon — assets/images/library-open-book.svg */
 export const libraryOpenBookAssetPath = "assets/images/library-open-book.svg" as const;
@@ -23,7 +23,7 @@ export const classGraduationCapAssetPath = "assets/images/class-graduation-cap.s
 export const gymDumbbellAssetPath = "assets/images/gym-dumbbell.svg" as const;
 
 /** SVG source for FocusCoinIcon — bundled via constants/pixelatedGoldenCoin.ts */
-export const focusCoinAssetPath = "assets/images/pixelated_golden_coin.svg" as const;
+export const focusCoinAssetPath = "assets/images/focus-coin.svg" as const;
 
 /** SVG source for HeroSunriseIcon — bundled via constants/pixelSunrise.ts */
 export const pixelSunriseAssetPath = "assets/images/pixel_sunrise.svg" as const;

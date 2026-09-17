@@ -1,10 +1,10 @@
 /**
- * Anchoring badge — Lowalk finale logo for on-site anchor setup sheets.
+ * Anchoring badge — lowal2.svg mascot for on-site anchor setup sheets.
  */
-import { Image } from "expo-image";
 import { Platform, View } from "react-native";
+import { SvgXml } from "react-native-svg";
 
-import { lowalkLogoImage } from "@/constants/images";
+import { lowal2LogoXml } from "@/constants/lowal2Logo";
 
 type AnchoringMascotIconProps = {
   size?: number;
@@ -13,6 +13,8 @@ type AnchoringMascotIconProps = {
 export function AnchoringMascotIcon({ size = 72 }: AnchoringMascotIconProps) {
   return (
     <View
+      accessibilityLabel="Lowalk"
+      accessibilityRole="image"
       style={{
         width: size,
         height: size,
@@ -31,12 +33,7 @@ export function AnchoringMascotIcon({ size = 72 }: AnchoringMascotIconProps) {
         }),
       }}
     >
-      <Image
-        source={lowalkLogoImage}
-        style={{ width: size, height: size }}
-        contentFit="contain"
-        accessibilityIgnoresInvertColors
-      />
+      <SvgXml xml={lowal2LogoXml} width={size} height={size} />
     </View>
   );
 }

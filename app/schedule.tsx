@@ -1,22 +1,19 @@
 /**
- * Weekly schedule screen — full Mon–Sun view of recurring Focus Nodes.
+ * Weekly schedule screen — full Mon–Sun timetable of recurring Focus Nodes.
  * Reachable from the Home "View all" link beside Today's plan.
  */
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useRef } from "react";
-import { ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { PressableScale } from "@/components/PressableScale";
 import { ScheduleItemActionSheet } from "@/components/ScheduleItemActionSheet";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { ScheduleScreenSkeleton } from "@/components/skeleton/ScheduleScreenSkeleton";
-import { WeekDayScheduleSection } from "@/components/WeekDayScheduleSection";
+import { WeekTimetable } from "@/components/WeekTimetable";
 import { useScheduleItemActions } from "@/hooks/useScheduleItemActions";
 import { useCoreStoresHydrated } from "@/hooks/usePersistedStoreHydration";
 import { ROUTES } from "@/lib/routes";
-import { SCREEN_PADDING, SECTION_GAP } from "@/lib/layout";
 import { selectWeekSchedule } from "@/store/selectors";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useThemeColors } from "@/hooks/useThemeColors";
@@ -31,24 +28,6 @@ export default function WeekScheduleScreen() {
   const activeNodeId = useScheduleStore((state) => state.activeSession?.nodeId ?? null);
   const { showScheduleItemActions, actionSheetProps } = useScheduleItemActions();
   const week = selectWeekSchedule(focusNodes, anchors, activeNodeId);
-  const scrollRef = useRef<ScrollView>(null);
-  const hasScrolledToToday = useRef(false);
-
-  const handleSectionLayout = (weekday: Weekday, y: number, isToday: boolean) => {
-    if (!isToday || hasScrolledToToday.current) return;
-
-    hasScrolledToToday.current = true;
-    // Last day (e.g. Sunday) stays at the bottom — scrolling it to the top
-    // leaves a large empty region under the highlighted section.
-    const isLastDay = week[week.length - 1]?.weekday === weekday;
-    requestAnimationFrame(() => {
-      if (isLastDay) {
-        scrollRef.current?.scrollToEnd({ animated: true });
-        return;
-      }
-      scrollRef.current?.scrollTo({ y: Math.max(y - 16, 0), animated: true });
-    });
-  };
 
   const handleAddForDay = (weekday: Weekday) => {
     router.push(ROUTES.focusNodeNewWithWeekday(weekday));
@@ -58,6 +37,7 @@ export default function WeekScheduleScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.surface }} edges={["top"]}>
       <ScreenHeader
         title="Schedule"
+        centerTitle
         trailing={
           <PressableScale
             accessibilityRole="button"
@@ -79,26 +59,12 @@ export default function WeekScheduleScreen() {
       {!storesReady ? (
         <ScheduleScreenSkeleton />
       ) : (
-        <ScrollView
-          ref={scrollRef}
-          contentContainerStyle={{
-            paddingHorizontal: SCREEN_PADDING,
-            paddingBottom: 40,
-            gap: SECTION_GAP,
-          }}
-          showsVerticalScrollIndicator={false}
-        >
-          {week.map((day) => (
-            <WeekDayScheduleSection
-              key={day.weekday}
-              day={day}
-              onLayout={(y) => handleSectionLayout(day.weekday as Weekday, y, day.isToday)}
-              onItemPress={(item) => router.push(ROUTES.sessionDetail(item.id, day.dateIso))}
-              onItemLongPress={showScheduleItemActions}
-              onAddPress={() => handleAddForDay(day.weekday as Weekday)}
-            />
-          ))}
-        </ScrollView>
+        <WeekTimetable
+          week={week}
+          onItemPress={(item) => router.push(ROUTES.sessionDetail(item.id, item.dateIso))}
+          onItemLongPress={showScheduleItemActions}
+          onAddForDay={handleAddForDay}
+        />
       )}
 
       <ScheduleItemActionSheet {...actionSheetProps} />

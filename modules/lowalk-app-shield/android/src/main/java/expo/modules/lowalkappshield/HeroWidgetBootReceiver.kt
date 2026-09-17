@@ -13,6 +13,7 @@ class HeroWidgetBootReceiver : BroadcastReceiver() {
       Intent.ACTION_TIME_CHANGED,
       -> {
         ShieldOrchestrator.sync(context)
+        WidgetSessionStore.requestWidgetRefresh(context)
       }
     }
   }

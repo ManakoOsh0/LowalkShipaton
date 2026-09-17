@@ -2,13 +2,11 @@
  * Hero Card presentation helpers — accents, walk estimates, and preview fixtures.
  * Keeps the shared shell free of schedule / presence business rules.
  */
-import {
-    buildPreviewFocusLedger,
-} from "@/lib/heroFocusLedger";
 import { buildPreBufferBody, buildPreBufferTitle } from "@/lib/preBufferCopy";
 import type { Anchor } from "@/types/anchor";
 import type { FocusNode } from "@/types/focusNode";
 import { buildPreviewHeroContext, mergeBlockedAppsIntoHero } from "@/lib/heroIntel";
+import { DURATION_AWAY_HERO_SUBTITLE } from "@/lib/sessionPenalty";
 import type {
     HeroPreviewKind,
     HeroPreviewScenario,
@@ -46,17 +44,12 @@ export const HERO_ACCENTS: Record<HeroCardState, HeroAccent> = {
   up_next: { name: "sky", color: "#8FAFD4", tint: "rgba(205, 222, 242, 0.45)" },
   on_the_way: { name: "skyDeep", color: "#6B8FB8", tint: "rgba(139, 175, 212, 0.2)" },
   active: { name: "skyDeep", color: "#6B8FB8", tint: "rgba(139, 175, 212, 0.2)" },
-  weekly_report: { name: "green", color: "#2D9B5A", tint: "rgba(45, 155, 90, 0.12)" },
 };
-
-/** Compact hero layout for weekly ledger. */
-export const HERO_COMPACT_STATES: HeroCardState[] = ["weekly_report"];
 
 export const HERO_STATE_LABELS: Record<HeroCardState, string> = {
   up_next: "Up Next",
   on_the_way: "On The Way",
   active: "Active Focus Session",
-  weekly_report: "Weekly Ledger",
 };
 
 export const ALL_HERO_STATES = Object.keys(HERO_STATE_LABELS) as HeroCardState[];
@@ -274,15 +267,65 @@ export function buildHeroPreviewData(
         {
           state: "on_the_way",
           title: "On your way.",
-          subtitle: "On your way to the venue.",
+          subtitle: "Head to your focus zone to check in.",
           icon: "traveller",
           action: null,
           nodeId: "preview-node",
           latitude: -25.7545,
           longitude: 28.2314,
+          locationLabel: fixture.locationLabel,
           travelStats: { distance: "340 m", duration: "5 mins" },
           blockedAppsCount: 8,
           upNext: upNextShort,
+          context: buildPreviewHeroContext("on_the_way", null, kind),
+        },
+        8,
+      );
+
+    case "traveling_location_denied":
+      return mergeBlockedAppsIntoHero(
+        {
+          state: "on_the_way",
+          title: "On your way.",
+          subtitle: "Enable location so we can verify you're here.",
+          icon: "traveller",
+          action: null,
+          nodeId: "preview-node",
+          locationLabel: fixture.locationLabel,
+          blockedAppsCount: 8,
+          context: buildPreviewHeroContext("on_the_way", null, kind),
+        },
+        8,
+      );
+
+    case "traveling_gps_wait":
+      return mergeBlockedAppsIntoHero(
+        {
+          state: "on_the_way",
+          title: "On your way.",
+          subtitle: "Waiting for GPS signal.",
+          icon: "traveller",
+          action: null,
+          nodeId: "preview-node",
+          locationLabel: fixture.locationLabel,
+          blockedAppsCount: 8,
+          context: buildPreviewHeroContext("on_the_way", null, kind),
+        },
+        8,
+      );
+
+    case "traveling_background_location":
+      return mergeBlockedAppsIntoHero(
+        {
+          state: "on_the_way",
+          title: "On your way.",
+          subtitle:
+            "Allow Always location so focus continues when the phone is locked.",
+          icon: "traveller",
+          action: null,
+          nodeId: "preview-node",
+          locationLabel: fixture.locationLabel,
+          blockedAppsCount: 8,
           context: buildPreviewHeroContext("on_the_way", null, kind),
         },
         8,
@@ -342,16 +385,39 @@ export function buildHeroPreviewData(
         12,
       );
 
-    case "stepped_out":
+    case "active_pre_start":
+      return mergeBlockedAppsIntoHero(
+        {
+          state: "active",
+          title: fixture.sessionTitle,
+          subtitle: "Session starts in 12 minutes.",
+          icon: "flame",
+          action: null,
+          countdownLabel: "12:00",
+          progressRatio: 0,
+          locationLabel: fixture.locationLabel,
+          nodeId: "preview-node",
+          blockedAppsCount: 12,
+          context: buildPreviewHeroContext("active", null, kind),
+        },
+        12,
+      );
+
+    case "stepped_out": {
+      const isClass = kind === "class";
+      const countdownLabel = isClass ? "02:30" : "1:50:00";
+      const subtitle = isClass
+        ? "Return within 02:30"
+        : DURATION_AWAY_HERO_SUBTITLE;
       return mergeBlockedAppsIntoHero(
         {
           state: "on_the_way",
           title: "Stepped out.",
-          subtitle: "Return within 02:30",
+          subtitle,
           icon: "traveller",
           action: null,
           nodeId: "preview-node",
-          countdownLabel: "02:30",
+          countdownLabel,
           blockedAppsCount: 8,
           context: {
             metaLeft: { label: HERO_PREVIEW_KIND_LABELS[kind] },
@@ -359,9 +425,9 @@ export function buildHeroPreviewData(
             sessionTitle: fixture.sessionTitle,
             dayArc: { positionLabel: "Session 2 of 3", markers: [] },
             center: {
-              headline: "02:30",
-              subline: "Return within 02:30",
-              countdownLabel: "02:30",
+              headline: countdownLabel,
+              subline: subtitle,
+              countdownLabel,
             },
             intelCells: [],
             upcomingToday: [],
@@ -370,6 +436,7 @@ export function buildHeroPreviewData(
         },
         8,
       );
+    }
 
     case "apps_locked":
       return mergeBlockedAppsIntoHero(
@@ -398,6 +465,41 @@ export function buildHeroPreviewData(
           },
         },
         12,
+      );
+
+    case "add_place":
+      return mergeBlockedAppsIntoHero(
+        {
+          state: "on_the_way",
+          title: "Add a place for this session",
+          subtitle: "Edit the Focus Node and search for a venue.",
+          icon: "traveller",
+          action: null,
+          nodeId: "preview-node",
+          blockedAppsCount: 0,
+          upNext: upNextLong,
+          context: buildPreviewHeroContext("up_next", null, kind),
+        },
+        0,
+      );
+
+    case "deferred_anchor":
+      return mergeBlockedAppsIntoHero(
+        {
+          state: "up_next",
+          title: "Up next",
+          subtitle: "",
+          icon: "target",
+          action: null,
+          nodeId: "preview-node",
+          blockedAppsCount: 0,
+          upNext: {
+            ...upNextLong,
+            startsInLabel: "Capture your location when you arrive at the venue.",
+          },
+          context: buildPreviewHeroContext("up_next", null, kind),
+        },
+        0,
       );
 
     case "day_complete":
@@ -450,20 +552,6 @@ export function buildHeroPreviewData(
         0,
       );
 
-    case "weekly_ledger":
-      return mergeBlockedAppsIntoHero(
-        {
-          state: "weekly_report",
-          title: "Focus Ledger",
-          subtitle: "",
-          icon: null,
-          action: null,
-          focusLedger: buildPreviewFocusLedger(),
-          context: buildPreviewHeroContext("weekly_report", null, kind),
-        },
-        0,
-      );
-
     default:
       return buildHeroPreviewData("up_next", kind);
   }
@@ -474,7 +562,6 @@ export function defaultIconForState(state: HeroCardState): HeroIconId | null {
     up_next: "up_next",
     on_the_way: "traveling",
     active: "active_session",
-    weekly_report: "weekly_ledger",
   };
   return buildHeroPreviewData(scenarioByState[state], "library").icon;
 }

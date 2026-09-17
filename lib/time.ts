@@ -66,10 +66,29 @@ export function schedulesOverlap(
 ): boolean {
   if (scheduleA.weekday !== scheduleB.weekday) return false;
 
+  // Gym/library/custom windows are planning hints — enforcement runs until midnight and
+  // can yield to later sessions, so only fixed class ↔ class slots are hard-clashed.
+  if (scheduleA.type === "duration" || scheduleB.type === "duration") {
+    return false;
+  }
+
   const windowA = getScheduleWindow(scheduleA);
   const windowB = getScheduleWindow(scheduleB);
 
   return windowA.startMinutes < windowB.endMinutes && windowA.endMinutes > windowB.startMinutes;
+}
+
+/** First existing node whose weekly window intersects the candidate schedule. */
+export function findOverlappingNode(
+  candidate: FocusNodeSchedule,
+  existingNodes: FocusNode[],
+  excludeNodeId?: string,
+): FocusNode | null {
+  return (
+    existingNodes.find(
+      (node) => node.id !== excludeNodeId && schedulesOverlap(candidate, node.schedule),
+    ) ?? null
+  );
 }
 
 export function nodeOverlapsExisting(
@@ -77,9 +96,7 @@ export function nodeOverlapsExisting(
   existingNodes: FocusNode[],
   excludeNodeId?: string,
 ): boolean {
-  return existingNodes.some(
-    (node) => node.id !== excludeNodeId && schedulesOverlap(candidate, node.schedule),
-  );
+  return findOverlappingNode(candidate, existingNodes, excludeNodeId) != null;
 }
 
 export function toIsoDateString(date: Date): string {

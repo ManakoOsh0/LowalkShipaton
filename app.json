@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "tryLowalk",
+    "name": "Lowalk",
     "slug": "tryLowalk",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/lowalk-app-icon.png",
     "scheme": "trylowalk",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
@@ -45,10 +45,9 @@
         "android.permission.SCHEDULE_EXACT_ALARM"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/images/lowalk-adaptive-foreground.png",
+        "monochromeImage": "./assets/images/lowalk-notification-icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -85,7 +84,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/images/lowal2-notification-icon.png",
+          "icon": "./assets/images/lowalk-notification-icon.png",
           "color": "#FF7700"
         }
       ],

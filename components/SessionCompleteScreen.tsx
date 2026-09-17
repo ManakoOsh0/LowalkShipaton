@@ -68,21 +68,21 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
       </Pressable>
 
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 0 }}>
-        <View style={{ height: 112, alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+        <View style={{ height: 128, alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
           <Animated.View entering={arrivalMascotEntering(reduceMotion)}>
-            <SessionCompleteBadge size={104} color={colors.success} />
+            <SessionCompleteBadge size={120} color={colors.success} />
           </Animated.View>
         </View>
 
         <View
-          style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 10 }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}
         >
-          <FocusNodeKindIcon kind={payload.kind} size={16} color={colors.muted} />
+          <FocusNodeKindIcon kind={payload.kind} size={18} color={colors.muted} />
           <Text
             style={{
               fontFamily: "Poppins-Medium",
-              fontSize: 15,
-              lineHeight: 20,
+              fontSize: 17,
+              lineHeight: 22,
               color: colors.muted,
             }}
           >
@@ -93,8 +93,8 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
         <Text
           style={{
             fontFamily: "Poppins-Bold",
-            fontSize: 44,
-            lineHeight: 52,
+            fontSize: 52,
+            lineHeight: 60,
             color: colors.foreground,
             letterSpacing: -0.5,
           }}
@@ -105,12 +105,12 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
         {payload.streak > 0 ? (
           <View
             style={{
-              marginTop: 20,
+              marginTop: 24,
               flexDirection: "row",
               alignItems: "center",
-              gap: 8,
-              paddingHorizontal: 16,
-              paddingVertical: 10,
+              gap: 10,
+              paddingHorizontal: 18,
+              paddingVertical: 12,
               borderRadius: PILL_RADIUS,
               borderWidth: 1,
               borderColor: colors.border,
@@ -118,12 +118,12 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
               borderCurve: "continuous",
             }}
           >
-            <StreakFlame height={18} color={colors.streak} />
+            <StreakFlame height={22} color={colors.streak} />
             <Text
               style={{
                 fontFamily: "Poppins-SemiBold",
-                fontSize: 15,
-                lineHeight: 20,
+                fontSize: 17,
+                lineHeight: 22,
                 color: colors.foreground,
               }}
             >
@@ -135,10 +135,10 @@ function SessionCompleteContent({ payload, onDismiss }: SessionCompleteContentPr
         {payload.hitDailyGoal ? (
           <Text
             style={{
-              marginTop: 12,
+              marginTop: 14,
               fontFamily: "Poppins-Medium",
-              fontSize: 14,
-              lineHeight: 20,
+              fontSize: 16,
+              lineHeight: 22,
               color: accent,
             }}
           >

@@ -198,8 +198,9 @@ export function SettingsControlsCard() {
                   color: colors.muted,
                 }}
               >
-                Away and penalty alerts during active sessions still follow your device notification
-                permission.
+                Pre-buffer and away alerts use Session reminders. A separate Session status
+                notification may stay visible while blocking is on — you can lower it in system
+                Settings without turning off reminders.
               </Text>
             </>
           )}

@@ -42,11 +42,11 @@ export function HeroCardHeader({
           gap: 8,
         }}
       >
-        <TrmnlText variant="label" color="ink" numberOfLines={1} style={{ fontSize: 17, lineHeight: 21 }}>
+        <TrmnlText variant="label" color="ink" numberOfLines={1} style={{ fontSize: 15, lineHeight: 18 }}>
           {metaLeft.label}
         </TrmnlText>
         <HeroVerifyingPulse active={verifyPulse}>
-          <TrmnlText variant="label" color="ink" numberOfLines={1} style={{ fontSize: 17, lineHeight: 21 }}>
+          <TrmnlText variant="label" color="ink" numberOfLines={1} style={{ fontSize: 15, lineHeight: 18 }}>
             {metaRight.label}
           </TrmnlText>
         </HeroVerifyingPulse>
@@ -57,7 +57,7 @@ export function HeroCardHeader({
           height: 1,
           marginTop: 2,
           marginBottom: compact ? 2 : 2,
-          backgroundColor: "rgba(0, 0, 0, 0.22)",
+          backgroundColor: "rgba(0, 0, 0, 0.32)",
           alignSelf: "stretch",
         }}
       />
@@ -66,7 +66,7 @@ export function HeroCardHeader({
         <TrmnlText
           variant="title"
           numberOfLines={1}
-          style={{ textAlign: "center", fontSize: 22, lineHeight: 24 }}
+          style={{ textAlign: "center", fontSize: 18, lineHeight: 20 }}
         >
           {sessionTitle}
         </TrmnlText>

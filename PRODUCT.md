@@ -92,7 +92,7 @@ Focus Coins are the same thing as **skips** — currency you earn by showing up 
 
 **Daily Goal target:** Automatically equals the number of Focus Nodes scheduled for today — not a fixed number like 4.
 
-**Spending:** Deferred until native app shielding ships — skips will be spent from the blocking overlay or enforcement flow, not from free session-detail skips.
+**Spending:** Long-press a session on Home or Schedule (or open session options from session detail) and choose **Skip today · 1 Focus Coin**. Skipping costs one saved coin, only applies to today's upcoming occurrence, and does not count toward your daily goal. The shield overlay stays minimal — no coin UI appears there.
 
 ### Streak
 The header streak counts **consecutive calendar days** you hit your daily session target (same threshold as earning a Focus Coin). Missing a day resets the streak to 1 on the next day you hit the target. Skipping or missing individual sessions without reaching the target does not extend the streak.
@@ -110,7 +110,9 @@ The Home screen should answer exactly one question: *"What should I do next?"* K
 3. **Dynamic Hero Card:** The primary status area and session timer. Only **one** instance exists on the dashboard, changing state dynamically (e.g., *No sessions today, Upcoming session, Walking to location, Verifying presence, Focus active, Session paused, Completed*). During active sessions it displays the countdown and a **Blocked Apps** button to manage distracting applications. Outside active sessions, the Hero intel row shows saved Focus Coins plus today's earn progress (e.g. `3 saved · 1 more today`).
 4. **Settings — Focus Rewards:** Displays the user's saved Focus Coin balance and a short explanation of how to earn coins.
 5. **Schedule Cards:** Rendered as a lightweight, scannable checklist tracking the day's nodes, showing an icon, title, scheduled time, and completion status.
-6. **Floating Action Button (FAB):** Triggers a quick-action tray showing templates (`Class`, `Study`, `Gym`) and a `Custom` creation flow button.
+6. **Floating Action Button (FAB):** Opens the full **New Focus Node** flow (type, title, and schedule on one screen). Preset kinds (`Class`, `Gym`, `Library`, `Custom`) are chosen on that form, not in a popover.
+
+**Full week schedule:** The dedicated Schedule screen (`View all` from Home) shows a horizontally scrollable week of day columns with time-proportional blocks. Home keeps the today checklist.
 
 **Focus Coin visibility:** Balance lives on **Settings** and the **Hero card** intel row. Earn feedback uses the streak celebration modal (and optional background notification when the app is not in the foreground). Coins must not appear on the Daily Goal card or home header.
 
@@ -128,6 +130,10 @@ Lowalk separates **when apps are blocked** (calendar) from **whether you showed 
 
 If two sessions are less than **30 minutes** apart, the shield **does not lift** between them.
 
+#### Gym / library / custom away
+
+Leaving the geofence **pauses** on-site time. The Hero keeps showing remaining on-site duration. Apps stay blocked until that quota is finished inside the fence, or **local midnight**. There is no 5-minute return grace and no Settings penalty for these sessions — unfinished time *is* the lock.
+
 #### Class completion rules
 
 A class counts as complete when **either**:
@@ -140,7 +146,7 @@ A class counts as complete when **either**:
 
 #### Class miss penalty
 
-If a **class** ends without completion (no check-in, partial attendance, or leaving without meeting early-complete thresholds), the same **Settings penalty tier** applies as leaving mid-session (+30 / 60 / 120 minutes of extra app lock). Gym and library sessions are unchanged — they already keep the shield up until midnight when incomplete. Explicit skips never incur a miss penalty.
+If a **class** ends without completion (no check-in, partial attendance, or leaving without meeting early-complete thresholds), the same **Settings penalty tier** applies as leaving a class mid-session (+30 / 60 / 120 minutes of extra app lock). Gym and library sessions never take this extra lock — they already keep the shield up until midnight when incomplete. Explicit skips never incur a miss penalty.
 
 Pre-buffer time (before nominal `startTime`) does **not** count toward on-site attendance. Gym and library sessions still require the full configured on-site duration.
 
@@ -148,4 +154,4 @@ Pre-buffer time (before nominal `startTime`) does **not** count toward on-site a
 When a shielded application is opened during an active lock window, a standalone full-screen layout overlays it. It contains a motivational quote, the remaining focus session time counter, a button navigating to the Home screen (Hero Card), and a Close button. It **never** contains a Skip button or Ads.
 
 ### 2. Blocked Apps Configuration
-Users manage their list of distracting applications from a dedicated screen reachable via the Hero Card **Blocked Apps** button during active sessions. The list is stored locally. OS-level app shielding and the Blocking Overlay are separate native integrations built on top of this configuration.
+Users manage their list of distracting applications from a dedicated screen in **Settings → Blocked Apps**, with a shortcut from the Hero shield line during active sessions. The list is stored locally. OS-level app shielding and the Blocking Overlay are separate native integrations built on top of this configuration.

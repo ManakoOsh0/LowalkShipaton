@@ -5,6 +5,7 @@ import type { PresenceContext } from "@/store/selectors";
 const EMPTY_PRESENCE: PresenceContext = {
   userPosition: null,
   isInsideGeofence: false,
+  isInsideGeofenceForDisplay: false,
   verificationSecondsRemaining: null,
   locationUnavailable: false,
   backgroundLocationDenied: false,

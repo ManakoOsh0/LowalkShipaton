@@ -5,7 +5,9 @@ import {
   fetchCustomerInfo,
   fetchCustomerInfoFresh,
   isPremiumFromCustomerInfo,
+  logCustomerInfoSnapshot,
 } from "@/services/revenueCat";
+import { setWidgetPremiumMirror } from "@/lib/widgetPremiumMirror";
 
 type SubscriptionState = {
   isPremium: boolean;
@@ -19,8 +21,20 @@ export const useSubscriptionStore = create<SubscriptionState>((set) => ({
   isPremium: false,
   isLoaded: false,
   setFromCustomerInfo: (customerInfo) => {
+    logCustomerInfoSnapshot(customerInfo);
+    const isPremium = isPremiumFromCustomerInfo(customerInfo);
+    if (isPremium) {
+      void setWidgetPremiumMirror(true);
+    } else {
+      const hasRcAccess =
+        Object.keys(customerInfo.entitlements.active).length > 0 ||
+        customerInfo.activeSubscriptions.length > 0;
+      if (!hasRcAccess) {
+        void setWidgetPremiumMirror(false);
+      }
+    }
     set({
-      isPremium: isPremiumFromCustomerInfo(customerInfo),
+      isPremium,
       isLoaded: true,
     });
   },
@@ -29,8 +43,20 @@ export const useSubscriptionStore = create<SubscriptionState>((set) => ({
       ? await fetchCustomerInfoFresh()
       : await fetchCustomerInfo();
     if (customerInfo) {
+      logCustomerInfoSnapshot(customerInfo);
+      const isPremium = isPremiumFromCustomerInfo(customerInfo);
+      if (isPremium) {
+        void setWidgetPremiumMirror(true);
+      } else {
+        const hasRcAccess =
+          Object.keys(customerInfo.entitlements.active).length > 0 ||
+          customerInfo.activeSubscriptions.length > 0;
+        if (!hasRcAccess) {
+          void setWidgetPremiumMirror(false);
+        }
+      }
       set({
-        isPremium: isPremiumFromCustomerInfo(customerInfo),
+        isPremium,
         isLoaded: true,
       });
     } else {

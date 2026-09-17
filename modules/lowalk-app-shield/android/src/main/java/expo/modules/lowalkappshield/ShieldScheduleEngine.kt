@@ -121,30 +121,28 @@ object ShieldScheduleEngine {
   ): HeroWidgetStateEngine.FocusNode? {
     val timezone = TimeZone.getTimeZone(bundle.timezoneId)
     val session = bundle.activeSession
+    val endOfDay = endOfDayMs(nowMs, timezone)
+    val intervals = todayShieldIntervals(bundle, nowMs, timezone)
 
     if (session != null) {
       val current = bundle.nodes.firstOrNull { it.id == session.nodeId }
       if (current != null && isNodeOpenToday(current, bundle, nowMs, timezone)) {
-        if (session.scheduleType == "duration" && session.requiredOnSiteMs != null) {
-          if (session.onSiteAccumulatedMs < session.requiredOnSiteMs) return current
-        } else if (session.scheduleType == "class") {
-          val endMs = max(
-            session.endsAtMs,
-            session.penaltyShieldEndsAtMs ?: 0L,
-          )
-          if (nowMs < endMs) return current
-        } else {
+        if (shouldKeepLiveSession(session, current, intervals, nowMs, bundle.timezoneId, endOfDay)) {
           return current
         }
       }
     }
 
-    val endOfDay = endOfDayMs(nowMs, timezone)
-    val intervals = todayShieldIntervals(bundle, nowMs, timezone)
     for (interval in intervals) {
       if (nowMs < interval.startsAtMs) continue
       if (interval.scheduleType == "duration") {
         if (nowMs >= endOfDay) continue
+        if (
+          nowMs >= interval.nominalEndsAtMs &&
+          isLaterCalendarObligationStarted(interval.nodeId, intervals, nowMs, endOfDay)
+        ) {
+          continue
+        }
       } else if (nowMs >= interval.nominalEndsAtMs) {
         continue
       }
@@ -152,6 +150,50 @@ object ShieldScheduleEngine {
     }
 
     return null
+  }
+
+  /**
+   * Keep the live snapshot only through its own calendar window.
+   * Remaining penalty time is shield-only and must not pin a finished node.
+   */
+  private fun shouldKeepLiveSession(
+    session: HeroWidgetStateEngine.ActiveSession,
+    current: HeroWidgetStateEngine.FocusNode,
+    intervals: List<NodeShieldInterval>,
+    nowMs: Long,
+    timezoneId: String,
+    endOfDay: Long,
+  ): Boolean {
+    if (session.scheduleType == "duration" && session.requiredOnSiteMs != null) {
+      if (isDurationExpired(session.shieldStartsAtMs, nowMs, timezoneId)) return false
+      if (session.onSiteAccumulatedMs >= session.requiredOnSiteMs) return false
+      if (!isLaterCalendarObligationStarted(current.id, intervals, nowMs, endOfDay)) {
+        return true
+      }
+      val interval = intervals.firstOrNull { it.nodeId == current.id }
+      return interval != null && nowMs < interval.nominalEndsAtMs
+    }
+    if (session.scheduleType == "class") {
+      return nowMs < session.endsAtMs
+    }
+    return true
+  }
+
+  private fun isLaterCalendarObligationStarted(
+    currentNodeId: String,
+    intervals: List<NodeShieldInterval>,
+    nowMs: Long,
+    endOfDay: Long,
+  ): Boolean {
+    return intervals.any { interval ->
+      if (interval.nodeId == currentNodeId) return@any false
+      if (nowMs < interval.startsAtMs) return@any false
+      if (interval.scheduleType == "duration") {
+        nowMs < endOfDay
+      } else {
+        nowMs < interval.nominalEndsAtMs
+      }
+    }
   }
 
   private fun isLiveActiveSessionShielded(

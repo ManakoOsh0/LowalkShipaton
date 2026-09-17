@@ -1,5 +1,5 @@
 /**
- * ScheduleItemActionSheet — long-press menu for editing or deleting a Focus Node.
+ * ScheduleItemActionSheet — long-press menu for editing, skipping, or deleting a Focus Node.
  * Uses the shared BottomSheet shell so actions match the rest of the app.
  */
 import { Ionicons } from "@expo/vector-icons";
@@ -9,17 +9,22 @@ import { Pressable, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 
 import { BottomSheet } from "@/components/BottomSheet";
+import { FocusCoinIcon } from "@/components/FocusCoinIcon";
 import { useReduceMotion } from "@/hooks/useHeroMotion";
 import { useThemeColors } from "@/hooks/useThemeColors";
 import { sheetStepEntering, sheetStepExiting } from "@/lib/heroMotion";
+import { canSkipScheduleItem } from "@/lib/scheduleItem";
 import type { FocusNodeRemovalLockReason } from "@/lib/sessionPenalty";
 import type { ScheduleItem } from "@/types/dashboard";
 
 export type ScheduleItemActionSheetProps = {
   item: ScheduleItem | null;
+  coins: number;
+  skipCost: number;
   deleteLockReason?: FocusNodeRemovalLockReason | null;
   onClose: () => void;
   onEdit: (item: ScheduleItem) => void;
+  onSkip: (item: ScheduleItem) => void;
   onDelete: (item: ScheduleItem) => void;
 };
 
@@ -129,20 +134,32 @@ function ActionRow({
 
 function ActionsContent({
   item,
+  coins,
+  skipCost,
   deleteLockReason,
   onEdit,
+  onRequestSkip,
   onRequestDelete,
   onCancel,
 }: {
   item: ScheduleItem;
+  coins: number;
+  skipCost: number;
   deleteLockReason: FocusNodeRemovalLockReason | null;
   onEdit: () => void;
+  onRequestSkip: () => void;
   onRequestDelete: () => void;
   onCancel: () => void;
 }) {
   const colors = useThemeColors();
   const deleteLocked = deleteLockReason != null;
   const deleteCopy = deleteLockReason ? getDeleteLockCopy(deleteLockReason) : null;
+  const skipAvailable = canSkipScheduleItem(item);
+  const skipAffordable = coins >= skipCost;
+  const skipDisabled = !skipAvailable || !skipAffordable;
+  const skipLabel = skipAvailable
+    ? `Skip today · ${skipCost} Focus Coin${skipCost === 1 ? "" : "s"}`
+    : "Skip today";
 
   return (
     <View style={{ gap: 16, paddingBottom: 4 }}>
@@ -180,6 +197,15 @@ function ActionsContent({
         }}
       >
         <ActionRow icon="pencil-outline" label="Edit schedule" onPress={onEdit} showDivider />
+        {skipAvailable ? (
+          <ActionRow
+            icon="play-skip-forward-outline"
+            label={skipLabel}
+            disabled={skipDisabled}
+            onPress={onRequestSkip}
+            showDivider
+          />
+        ) : null}
         <ActionRow
           icon="trash-outline"
           label={deleteCopy?.label ?? "Delete schedule"}
@@ -188,6 +214,20 @@ function ActionsContent({
           onPress={onRequestDelete}
         />
       </View>
+
+      {skipAvailable && !skipAffordable ? (
+        <Text
+          style={{
+            paddingHorizontal: 4,
+            fontFamily: "Poppins-Regular",
+            fontSize: 13,
+            lineHeight: 18,
+            color: colors.muted,
+          }}
+        >
+          Complete every session on today&apos;s schedule to earn Focus Coins.
+        </Text>
+      ) : null}
 
       {deleteCopy ? (
         <Text
@@ -224,6 +264,124 @@ function ActionsContent({
           Cancel
         </Text>
       </Pressable>
+    </View>
+  );
+}
+
+function ConfirmSkipContent({
+  item,
+  skipCost,
+  onConfirm,
+  onBack,
+}: {
+  item: ScheduleItem;
+  skipCost: number;
+  onConfirm: () => void;
+  onBack: () => void;
+}) {
+  const colors = useThemeColors();
+  const coinLabel = `${skipCost} Focus Coin${skipCost === 1 ? "" : "s"}`;
+
+  return (
+    <View style={{ gap: 20, paddingBottom: 4 }}>
+      <View style={{ alignItems: "center", gap: 12, paddingHorizontal: 8 }}>
+        <View
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: `${colors.warning}1A`,
+          }}
+        >
+          <FocusCoinIcon size={30} />
+        </View>
+
+        <View style={{ alignItems: "center", gap: 6 }}>
+          <Text
+            style={{
+              fontFamily: "Poppins-Bold",
+              fontSize: 20,
+              lineHeight: 26,
+              color: colors.foreground,
+              textAlign: "center",
+            }}
+          >
+            Skip today?
+          </Text>
+          <Text
+            style={{
+              fontFamily: "Poppins-Regular",
+              fontSize: 15,
+              lineHeight: 22,
+              color: colors.muted,
+              textAlign: "center",
+            }}
+          >
+            {`"${item.title}" will be skipped for today using ${coinLabel}. This won't count toward your daily goal. Your recurring schedule stays the same.`}
+          </Text>
+        </View>
+      </View>
+
+      <View style={{ gap: 10 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Skip today for ${coinLabel}`}
+          onPress={() => {
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            onConfirm();
+          }}
+          style={({ pressed }) => ({
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 14,
+            borderCurve: "continuous",
+            backgroundColor: colors.foreground,
+            paddingVertical: 15,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <Text
+            style={{
+              fontFamily: "Poppins-SemiBold",
+              fontSize: 16,
+              lineHeight: 22,
+              color: colors.background,
+            }}
+          >
+            {`Use ${coinLabel}`}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Keep session"
+          onPress={onBack}
+          style={({ pressed }) => ({
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 14,
+            borderCurve: "continuous",
+            backgroundColor: colors.surface,
+            borderWidth: 1,
+            borderColor: colors.cardStroke,
+            paddingVertical: 15,
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <Text
+            style={{
+              fontFamily: "Poppins-SemiBold",
+              fontSize: 16,
+              lineHeight: 22,
+              color: colors.foreground,
+            }}
+          >
+            Keep session
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -345,12 +503,15 @@ function ConfirmDeleteContent({
 
 export function ScheduleItemActionSheet({
   item,
+  coins,
+  skipCost,
   deleteLockReason = null,
   onClose,
   onEdit,
+  onSkip,
   onDelete,
 }: ScheduleItemActionSheetProps) {
-  const [step, setStep] = useState<"actions" | "confirm">("actions");
+  const [step, setStep] = useState<"actions" | "confirmDelete" | "confirmSkip">("actions");
   const reduceMotion = useReduceMotion();
   const deleteLocked = deleteLockReason != null;
 
@@ -382,16 +543,32 @@ export function ScheduleItemActionSheet({
           {step === "actions" ? (
             <ActionsContent
               item={item}
+              coins={coins}
+              skipCost={skipCost}
               deleteLockReason={deleteLockReason}
               onEdit={() => {
                 onEdit(item);
                 handleClose();
               }}
+              onRequestSkip={() => {
+                if (!canSkipScheduleItem(item) || coins < skipCost) return;
+                setStep("confirmSkip");
+              }}
               onRequestDelete={() => {
                 if (deleteLocked) return;
-                setStep("confirm");
+                setStep("confirmDelete");
               }}
               onCancel={handleClose}
+            />
+          ) : step === "confirmSkip" ? (
+            <ConfirmSkipContent
+              item={item}
+              skipCost={skipCost}
+              onConfirm={() => {
+                onSkip(item);
+                handleClose();
+              }}
+              onBack={() => setStep("actions")}
             />
           ) : (
             <ConfirmDeleteContent

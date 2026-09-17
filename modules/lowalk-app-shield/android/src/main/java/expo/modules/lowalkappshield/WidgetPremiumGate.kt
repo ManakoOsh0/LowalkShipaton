@@ -14,6 +14,7 @@ object WidgetPremiumGate {
 
   fun applyLockedState(views: RemoteViews, overlayId: Int) {
     views.setViewVisibility(overlayId, View.VISIBLE)
+    WidgetTileAppearance.applyLockOverlayShape(views, overlayId)
   }
 
   fun applyUnlockedState(views: RemoteViews, overlayId: Int) {

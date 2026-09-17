@@ -20,7 +20,7 @@ export function HeroWellGloss() {
           top: 0,
           left: 0,
           right: 0,
-          height: "28%",
+          height: "38%",
         }}
       />
     </View>

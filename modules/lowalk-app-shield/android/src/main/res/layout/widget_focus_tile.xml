@@ -4,15 +4,17 @@
   android:id="@+id/widget_root"
   android:layout_width="match_parent"
   android:layout_height="match_parent"
+  android:background="#DEDEDE"
   android:clipToOutline="true"
-  android:padding="16dp">
+  android:padding="0dp">
 
   <LinearLayout
     android:id="@+id/widget_content"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:gravity="center_vertical"
-    android:orientation="vertical">
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:orientation="vertical"
+    android:padding="14dp">
 
     <LinearLayout
       android:layout_width="match_parent"
@@ -30,7 +32,7 @@
         android:maxLines="2"
         android:text="Statistics Lecture"
         android:textColor="#1C1C1E"
-        android:textSize="16sp"
+        android:textSize="18sp"
         android:textStyle="bold" />
 
       <LinearLayout
@@ -46,7 +48,7 @@
           android:includeFontPadding="false"
           android:text="Tue"
           android:textColor="#1C1C1E"
-          android:textSize="13sp"
+          android:textSize="14sp"
           android:textStyle="bold" />
 
         <TextView
@@ -56,8 +58,8 @@
           android:layout_marginStart="3dp"
           android:includeFontPadding="false"
           android:text="01"
-          android:textColor="#6B8FB8"
-          android:textSize="13sp"
+          android:textColor="#FF8A3D"
+          android:textSize="14sp"
           android:textStyle="bold" />
       </LinearLayout>
     </LinearLayout>
@@ -66,7 +68,7 @@
       android:id="@+id/tile_active_timer"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginTop="8dp"
+      android:layout_marginTop="6dp"
       android:orientation="vertical"
       android:visibility="gone">
 
@@ -74,7 +76,7 @@
         android:id="@+id/tile_session_progress"
         style="?android:attr/progressBarStyleHorizontal"
         android:layout_width="match_parent"
-        android:layout_height="4dp"
+        android:layout_height="5dp"
         android:indeterminate="false"
         android:max="100"
         android:progress="35"
@@ -94,7 +96,7 @@
           android:includeFontPadding="false"
           android:text="12:26"
           android:textColor="#1C1C1E"
-          android:textSize="12sp" />
+          android:textSize="13sp" />
 
         <TextView
           android:id="@+id/tile_timer_remaining"
@@ -104,7 +106,7 @@
           android:includeFontPadding="false"
           android:text="1:37"
           android:textColor="#1C1C1E"
-          android:textSize="12sp" />
+          android:textSize="13sp" />
       </LinearLayout>
     </LinearLayout>
 
@@ -116,18 +118,18 @@
       android:maxLines="2"
       android:text="41:00"
       android:textColor="#1C1C1E"
-      android:textSize="14sp" />
+      android:textSize="16sp" />
 
     <TextView
       android:id="@+id/tile_detail"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:layout_marginTop="2dp"
+      android:layout_marginTop="3dp"
       android:ellipsize="end"
       android:maxLines="2"
       android:text="2:00 PM – 4:00 PM&#10;Engineering Library"
       android:textColor="#636366"
-      android:textSize="12sp" />
+      android:textSize="14sp" />
   </LinearLayout>
 
   <FrameLayout
@@ -135,6 +137,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_lock_scrim"
+    android:clipToOutline="true"
     android:visibility="gone">
 
     <TextView
