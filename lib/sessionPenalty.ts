@@ -63,9 +63,60 @@ export const PENALTY_TIER_OPTIONS = [
   { minutes: 120 as const, label: "2 hours" },
 ] as const;
 
-export type PenaltyTierMinutes = (typeof PENALTY_TIER_OPTIONS)[number]["minutes"];
+/** Allowed range when the user picks a custom class-penalty lock duration. */
+export const MIN_PENALTY_TIER_MINUTES = 5;
+export const MAX_PENALTY_TIER_MINUTES = 300;
+
+export type PenaltyTierMinutes = number;
 
 export const DEFAULT_PENALTY_TIER_MINUTES: PenaltyTierMinutes = 30;
+
+export function isPresetPenaltyTierMinutes(minutes: number): boolean {
+  return PENALTY_TIER_OPTIONS.some((option) => option.minutes === minutes);
+}
+
+export function clampPenaltyTierMinutes(minutes: number): number {
+  if (!Number.isFinite(minutes)) return DEFAULT_PENALTY_TIER_MINUTES;
+  return Math.min(
+    MAX_PENALTY_TIER_MINUTES,
+    Math.max(MIN_PENALTY_TIER_MINUTES, Math.round(minutes)),
+  );
+}
+
+/** Spoken duration for settings labels — "45 minutes", "2 hours 30 minutes". */
+export function formatPenaltyDurationWords(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.round(totalMinutes));
+  if (minutes < 60) {
+    return minutes === 1 ? "1 minute" : `${minutes} minutes`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  const hourLabel = hours === 1 ? "1 hour" : `${hours} hours`;
+  if (remainder === 0) return hourLabel;
+  const minLabel = remainder === 1 ? "1 minute" : `${remainder} minutes`;
+  return `${hourLabel} ${minLabel}`;
+}
+
+export function formatPenaltyTierRangeLabel(): string {
+  return `${formatPenaltyDurationWords(MIN_PENALTY_TIER_MINUTES)} to ${formatPenaltyDurationWords(MAX_PENALTY_TIER_MINUTES)}`;
+}
+
+export function splitPenaltyTierMinutes(totalMinutes: number): {
+  hours: number;
+  minutes: number;
+} {
+  const clamped = clampPenaltyTierMinutes(totalMinutes);
+  return { hours: Math.floor(clamped / 60), minutes: clamped % 60 };
+}
+
+export function combinePenaltyTierHoursMinutes(hours: number, minutes: number): number {
+  return clampPenaltyTierMinutes(hours * 60 + minutes);
+}
+
+export function formatPenaltyTierLabel(minutes: number): string {
+  const preset = PENALTY_TIER_OPTIONS.find((option) => option.minutes === minutes);
+  return preset?.label ?? formatPenaltyDurationWords(minutes);
+}
 
 export function getShieldEndsAt(session: ActiveSessionSnapshot): string {
   const sessionEnd = new Date(session.endsAt).getTime();

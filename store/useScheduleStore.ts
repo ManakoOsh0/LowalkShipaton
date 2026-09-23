@@ -855,11 +855,7 @@ export const useScheduleStore = create<ScheduleState>()(
           });
 
           if (result.hitDailyGoal && (result.coinAwarded || result.streakIncremented)) {
-            void notifyDailyGoalAchieved(
-              result.streak,
-              result.coinAwarded,
-              useUserStore.getState().notificationsEnabled,
-            );
+            void notifyDailyGoalAchieved(result.streak, result.coinAwarded);
           }
         }
       },

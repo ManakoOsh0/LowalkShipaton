@@ -1,6 +1,9 @@
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform } from "react-native";
 
+import { ANDROID_FOCUS_ALERTS_CHANNEL_ID } from "@/lib/androidNotificationCopy";
+import { fitNotificationBody, fitNotificationTitle } from "@/lib/notificationCopy";
+import { isAppActive } from "@/lib/notificationPolicy";
 import { buildPreBufferBody, buildPreBufferTitle } from "@/lib/preBufferCopy";
 import { getScheduleWindow, parseTimeToMinutes, toIsoDateString } from "@/lib/time";
 import type { Anchor } from "@/types/anchor";
@@ -42,14 +45,33 @@ export async function ensureNotificationHandler(): Promise<void> {
 
   const Notifications = await getNotificationsModule();
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      priority: Notifications.AndroidNotificationPriority.HIGH,
-    }),
+    handleNotification: async (notification) => {
+      const data = notification.request.content.data as Record<string, unknown> | undefined;
+      const isDevPreview =
+        typeof __DEV__ !== "undefined" &&
+        __DEV__ &&
+        data?.devNotification === true;
+
+      // Apple HIG / Material: don't interrupt when the app is already open (dev previews exempt).
+      if (isAppActive() && !isDevPreview) {
+        return {
+          shouldShowAlert: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+          shouldShowBanner: false,
+          shouldShowList: false,
+        };
+      }
+
+      return {
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+      };
+    },
   });
   handlerConfigured = true;
 }
@@ -189,16 +211,15 @@ async function scheduleDaySessionReminders(
       await Notifications.scheduleNotificationAsync({
         identifier: `${PRE_BUFFER_REMINDER_PREFIX}${node.id}-${todayIso}`,
         content: {
-          title: buildPreBufferTitle(node, classPreBufferMinutes),
-          body: buildPreBufferBody(node, anchors),
+          title: fitNotificationTitle(buildPreBufferTitle(node, classPreBufferMinutes)),
+          body: fitNotificationBody(buildPreBufferBody(node, anchors)),
           sound: true,
           data: { nodeId: node.id, type: "pre-buffer" },
-          ...(Platform.OS === "android" ? { priority: "max" } : {}),
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: preBufferDate,
-          channelId: Platform.OS === "android" ? "session-reminders" : undefined,
+          channelId: Platform.OS === "android" ? ANDROID_FOCUS_ALERTS_CHANNEL_ID : undefined,
         },
       });
     }
@@ -208,15 +229,15 @@ async function scheduleDaySessionReminders(
       await Notifications.scheduleNotificationAsync({
         identifier: missedReminderId(node.id, todayIso),
         content: {
-          title: buildMissedTitle(node),
-          body: buildMissedBody(),
+          title: fitNotificationTitle(buildMissedTitle(node)),
+          body: fitNotificationBody(buildMissedBody()),
           sound: true,
           data: { nodeId: node.id, type: "session-missed" },
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
           date: missedDate,
-          channelId: Platform.OS === "android" ? "session-reminders" : undefined,
+          channelId: Platform.OS === "android" ? ANDROID_FOCUS_ALERTS_CHANNEL_ID : undefined,
         },
       });
     }
@@ -287,16 +308,8 @@ export async function syncTodaySessionReminders(
   return syncSessionReminders(nodes, anchors, classPreBufferMinutes, referenceDate);
 }
 
-/** Android requires a channel before reminders can fire. */
+/** @deprecated Use ensureAndroidNotificationChannels from androidSessionStatus */
 export async function ensureAndroidReminderChannel(): Promise<void> {
-  if (!areSessionRemindersSupported() || Platform.OS !== "android") return;
-
-  const Notifications = await getNotificationsModule();
-  await Notifications.setNotificationChannelAsync("session-reminders", {
-    name: "Session reminders",
-    description: "Pre-buffer, missed session, and completion alerts.",
-    importance: Notifications.AndroidImportance.HIGH,
-    sound: "default",
-    vibrationPattern: [0, 250, 120, 250],
-  });
+  const { ensureAndroidNotificationChannels } = await import("@/services/androidSessionStatus");
+  await ensureAndroidNotificationChannels();
 }

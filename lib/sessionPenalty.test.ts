@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  clampPenaltyTierMinutes,
+  formatPenaltyTierLabel,
+  isPresetPenaltyTierMinutes,
   formatAwaitingCheckInDetailLine,
   formatDurationAwayNotificationBody,
   formatSessionDetailLabel,
@@ -255,5 +258,23 @@ describe("duration away (no presence penalty)", () => {
       formatDurationAwayNotificationBody("Campus Gym"),
       /midnight/,
     );
+  });
+});
+
+describe("penalty tier settings", () => {
+  it("recognizes preset minutes and formats custom labels", () => {
+    assert.equal(isPresetPenaltyTierMinutes(30), true);
+    assert.equal(isPresetPenaltyTierMinutes(45), false);
+    assert.equal(formatPenaltyTierLabel(60), "1 hour");
+    assert.equal(formatPenaltyTierLabel(45), "45 minutes");
+    assert.equal(formatPenaltyTierLabel(300), "5 hours");
+    assert.equal(formatPenaltyTierLabel(150), "2 hours 30 minutes");
+  });
+
+  it("clamps custom penalty minutes into the allowed range", () => {
+    assert.equal(clampPenaltyTierMinutes(45), 45);
+    assert.equal(clampPenaltyTierMinutes(2), 5);
+    assert.equal(clampPenaltyTierMinutes(999), 300);
+    assert.equal(clampPenaltyTierMinutes(Number.NaN), 30);
   });
 });

@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- White silhouette twin of assets/images/lowal2-notification.svg — inset for circular status icons. -->
+<!-- Status-bar silhouette — pin + keyhole, generous inset (no walking trail). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
   android:width="24dp"
   android:height="24dp"
-  android:viewportWidth="860"
-  android:viewportHeight="889">
+  android:viewportWidth="96"
+  android:viewportHeight="96">
   <group
-    android:pivotX="430"
-    android:pivotY="445"
-    android:scaleX="0.62"
-    android:scaleY="0.62">
+    android:translateX="12"
+    android:translateY="6"
+    android:scaleX="0.085"
+    android:scaleY="0.085"
+    android:pivotX="0"
+    android:pivotY="0">
     <path
       android:fillColor="#FFFFFFFF"
       android:pathData="M651.768,833.588L417.186,835.555C517.626,709.927 666.385,493.215 660.02,329.382C652.655,145.591 507.539,2.8877 328.691,4.38716C149.843,5.88662 7.13874,151.003 2.85708,334.891C-0.690363,507.127 168.437,735.316 270.102,855.09C286.906,874.915 311.121,885.527 336.076,885.318L652.18,882.668C666.321,882.549 677.045,871.644 676.926,857.503C676.808,843.361 665.91,833.47 651.768,833.588ZM209.995,333.987C209.43,266.607 263.047,212.083 330.427,211.518C397.807,210.953 452.331,264.57 452.896,331.95C453.461,399.33 400.738,560.485 333.358,561.05C265.978,561.615 210.56,401.367 209.995,333.987ZM835.194,881.965L786.115,882.377C773.637,882.481 762.753,874.253 760.16,862.628C756.7,846.851 769.059,832.605 784.033,832.479L833.944,832.061C848.085,831.942 858.99,842.666 859.109,856.807C860.059,870.942 849.336,881.847 835.194,881.965Z" />

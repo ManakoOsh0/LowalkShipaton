@@ -9,7 +9,17 @@ import { FocusCoinsInfoSheet } from "@/components/settings/FocusCoinsInfoSheet";
 import { LowalkRulePickerSheet } from "@/components/settings/LowalkRulePickerSheet";
 import { SettingsListRow } from "@/components/settings/SettingsListRow";
 import { useThemeColors } from "@/hooks/useThemeColors";
-import { PENALTY_TIER_OPTIONS } from "@/lib/sessionPenalty";
+import {
+  combinePenaltyTierHoursMinutes,
+  formatPenaltyDurationWords,
+  formatPenaltyTierLabel,
+  formatPenaltyTierRangeLabel,
+  isPresetPenaltyTierMinutes,
+  MAX_PENALTY_TIER_MINUTES,
+  MIN_PENALTY_TIER_MINUTES,
+  PENALTY_TIER_OPTIONS,
+  splitPenaltyTierMinutes,
+} from "@/lib/sessionPenalty";
 import { CLASS_PRE_BUFFER_OPTIONS } from "@/lib/shieldSchedule";
 import { useUserStore } from "@/store/useUserStore";
 
@@ -25,9 +35,7 @@ export function FocusRewardsCard() {
   const [activePicker, setActivePicker] = useState<ActivePicker>(null);
   const [coinsInfoVisible, setCoinsInfoVisible] = useState(false);
 
-  const penaltyLabel =
-    PENALTY_TIER_OPTIONS.find((option) => option.minutes === penaltyTierMinutes)?.label ??
-    `${penaltyTierMinutes} min`;
+  const penaltyLabel = formatPenaltyTierLabel(penaltyTierMinutes);
   const preLockLabel =
     CLASS_PRE_BUFFER_OPTIONS.find((option) => option.minutes === classPreBufferMinutes)?.label ??
     `${classPreBufferMinutes} min`;
@@ -91,6 +99,15 @@ export function FocusRewardsCard() {
         selected={penaltyTierMinutes}
         onSelect={setPenaltyTierMinutes}
         onClose={() => setActivePicker(null)}
+        customMinutes={{
+          min: MIN_PENALTY_TIER_MINUTES,
+          max: MAX_PENALTY_TIER_MINUTES,
+          isPresetValue: isPresetPenaltyTierMinutes,
+          formatDuration: formatPenaltyDurationWords,
+          formatRange: formatPenaltyTierRangeLabel,
+          splitTotal: splitPenaltyTierMinutes,
+          combineParts: combinePenaltyTierHoursMinutes,
+        }}
       />
 
       <LowalkRulePickerSheet

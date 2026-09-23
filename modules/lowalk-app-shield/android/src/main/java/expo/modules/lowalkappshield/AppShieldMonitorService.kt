@@ -141,8 +141,8 @@ class AppShieldMonitorService : Service() {
 
     // Group summary for enforcement FGS — pre-buffer alerts use a separate expo-notifications channel.
     val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-      .setContentTitle("Lowalk session")
-      .setContentText("Apps blocked in the background.")
+      .setContentTitle("Focus session active")
+      .setContentText("Location check and app blocking are running in the background.")
       .setSmallIcon(R.drawable.ic_notification)
       .setColor(0xFFFF7700.toInt())
       .setContentIntent(pending)
@@ -177,7 +177,7 @@ class AppShieldMonitorService : Service() {
       NotificationManager.IMPORTANCE_MIN,
     ).apply {
       description =
-        "Keeps app blocking active. Pre-buffer and session reminders use Session reminders."
+        "Silent indicator while a focus session runs in the background. Does not play sounds."
       setShowBadge(false)
     }
     manager.createNotificationChannel(channel)

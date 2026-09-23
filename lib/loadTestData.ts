@@ -1,5 +1,5 @@
 /**
- * Dev helper — loads a full local dataset into schedule, user, and blocked-app stores.
+ * Dev helper — loads presentation-style test data into schedule, user, and blocked-app stores.
  */
 import { createTestData } from "@/store/seed";
 import { useBlockedAppsStore } from "@/store/useBlockedAppsStore";

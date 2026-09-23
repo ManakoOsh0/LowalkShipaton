@@ -14,6 +14,17 @@ export function formatMinutesToLabel(totalMinutes: number): string {
   return `${hours12}:${minutes.toString().padStart(2, "0")} ${period}`;
 }
 
+/** 24-hour clock for schedule rows (e.g. 15:00). */
+export function formatMinutesToClock24(totalMinutes: number): string {
+  const hours24 = Math.floor(totalMinutes / 60) % 24;
+  const minutes = totalMinutes % 60;
+  return `${hours24.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+}
+
+export function formatTimeLabel24(time: string): string {
+  return formatMinutesToClock24(parseTimeToMinutes(time));
+}
+
 /**
  * Session start as HH:mm from a 12h label or range
  * ("2:00 PM – 4:00 PM" → "14:00").
@@ -127,10 +138,10 @@ export function formatRemainingTime(endsAtIso: string, now = new Date()): string
 
 export function getScheduleTimeLabel(schedule: FocusNodeSchedule): string {
   if (schedule.type === "class") {
-    return `${formatTimeLabel(schedule.startTime)} – ${formatTimeLabel(schedule.endTime)}`;
+    return `${formatTimeLabel24(schedule.startTime)} – ${formatTimeLabel24(schedule.endTime)}`;
   }
 
-  return formatTimeLabel(schedule.startTime);
+  return formatTimeLabel24(schedule.startTime);
 }
 
 /** Builds a Date for today's clock minutes (handles windows that spill past midnight). */

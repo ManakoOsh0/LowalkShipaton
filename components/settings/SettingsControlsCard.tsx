@@ -11,12 +11,12 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 import { openAppSettings } from "@/lib/openExternal";
 import {
   areSessionRemindersSupported,
-  cancelAllSessionReminders,
   ensureNotificationPermission,
   getNotificationPermissionStatus,
   syncSessionReminders,
   type NotificationPermissionStatus,
 } from "@/services/sessionReminders";
+import { cancelAllScheduledUserAlerts } from "@/services/userNotifications";
 import { useScheduleStore } from "@/store/useScheduleStore";
 import { useUserStore } from "@/store/useUserStore";
 
@@ -60,7 +60,7 @@ export function SettingsControlsCard() {
     setNotificationsEnabled(next);
 
     if (!next) {
-      await cancelAllSessionReminders();
+      await cancelAllScheduledUserAlerts();
       return;
     }
 
@@ -129,7 +129,7 @@ export function SettingsControlsCard() {
                       color: colors.foreground,
                     }}
                   >
-                    Session reminders
+                    Focus alerts
                   </Text>
                   <Text
                     style={{
@@ -139,11 +139,11 @@ export function SettingsControlsCard() {
                       color: colors.muted,
                     }}
                   >
-                    Pre-lock nudges, missed-session alerts, and daily goal celebrations.
+                    Pre-buffer, missed sessions, leaving your venue, penalties, and daily goal.
                   </Text>
                 </View>
                 <Switch
-                  accessibilityLabel="Session reminders"
+                  accessibilityLabel="Focus alerts"
                   value={notificationsEnabled}
                   onValueChange={(value) => void onToggle(value)}
                 />
@@ -198,9 +198,9 @@ export function SettingsControlsCard() {
                   color: colors.muted,
                 }}
               >
-                Pre-buffer and away alerts use Session reminders. A separate Session status
-                notification may stay visible while blocking is on — you can lower it in system
-                Settings without turning off reminders.
+                Focus alerts cover pre-buffer, missed sessions, leaving your venue, and daily
+                goal celebrations. Session status is a silent indicator while a session runs — you
+                can lower it in system Settings without turning off alerts.
               </Text>
             </>
           )}

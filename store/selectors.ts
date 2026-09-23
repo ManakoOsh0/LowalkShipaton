@@ -18,6 +18,7 @@ import {
     formatCountdownMmSs,
     formatStartsInLabel,
 } from "@/lib/heroCard";
+import { buildPreBufferBody, buildPreBufferTitle } from "@/lib/preBufferCopy";
 import { buildEndTimeLabel, enrichHeroCardData } from "@/lib/heroIntel";
 import {
     formatAwaitingCheckInDetailLine,
@@ -360,6 +361,51 @@ function buildTravelingHeroData(
       node.anchorId,
       anchors,
     ),
+    ...coords,
+  };
+}
+
+function buildPreBufferTravelHeroData(
+  nextNode: FocusNode,
+  anchors: Anchor[],
+  referenceDate: Date,
+  coords: { latitude: number | null; longitude: number | null },
+): HeroCardData {
+  const minutesUntilStart = minutesUntilScheduleStart(nextNode.schedule, referenceDate);
+  const nodeKind = normalizeNodeKind(nextNode.kind);
+
+  return {
+    state: "on_the_way",
+    title: buildPreBufferTitle(nextNode, Math.max(minutesUntilStart, 0)),
+    subtitle: buildPreBufferBody(nextNode, anchors),
+    icon: "walk",
+    action: null,
+    nodeId: nextNode.id,
+    locationLabel: resolveScheduleLocationLabel(
+      nextNode.locationLabel,
+      nextNode.anchorId,
+      anchors,
+    ),
+    upNext: {
+      sessionTitle: nextNode.title,
+      timeLabel: getScheduleTimeLabel(nextNode.schedule),
+      locationLabel: resolveScheduleLocationLabel(
+        nextNode.locationLabel,
+        nextNode.anchorId,
+        anchors,
+      ),
+      startsInLabel: `Starts in ${formatStartsInLabel(Math.max(minutesUntilStart, 0))}`,
+      endTimeLabel: buildEndTimeLabel(nextNode.schedule),
+      kindLabel:
+        nodeKind === "class"
+          ? "CLASS"
+          : nodeKind === "gym"
+            ? "GYM"
+            : nodeKind === "library"
+              ? "LIBRARY"
+              : "FOCUS",
+      leaveByLabel: null,
+    },
     ...coords,
   };
 }
@@ -719,12 +765,14 @@ function computeHeroCardData(
     const inWindow = isWithinScheduleWindow(nextNode.schedule, referenceDate);
     const inPreBuffer = isInNodePreBufferPeriod(nextNode, shieldSettings, referenceDate);
     const shieldOpen = inPreBuffer || inWindow;
+    const focusFromPreBufferAlert =
+      focusNodeId != null && focusNodeId === nextNode.id;
     const coords =
       anchor && hasUsableCoordinates(anchor)
         ? { latitude: anchor.latitude, longitude: anchor.longitude }
         : { latitude: null, longitude: null };
 
-    if (!shieldOpen) {
+    if (!shieldOpen && !focusFromPreBufferAlert) {
       return buildUpNextHeroData(nextNode, anchors, referenceDate);
     }
 
@@ -749,10 +797,12 @@ function computeHeroCardData(
       return buildVerifyingHeroData(nextNode.id, presence, coords);
     }
 
+    if (inPreBuffer || focusFromPreBufferAlert) {
+      return buildPreBufferTravelHeroData(nextNode, anchors, referenceDate, coords);
+    }
+
     return buildTravelingHeroData(nextNode, anchors, presence, {
-      detailLine: inPreBuffer
-        ? formatPreStartTravelDetailLine(nextNode.schedule, referenceDate)
-        : undefined,
+      detailLine: undefined,
     });
   }
 

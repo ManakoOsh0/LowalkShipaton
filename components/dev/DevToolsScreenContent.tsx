@@ -14,12 +14,21 @@ import { useThemeColors } from "@/hooks/useThemeColors";
 import { getBackgroundPresenceDebugState } from "@/lib/backgroundPresenceDebug";
 import { isDevOnlyToolsEnabled } from "@/lib/devToolsAccess";
 import { HERO_PREVIEW_KIND_LABELS } from "@/lib/heroCard";
+import { buildPreBufferBody, buildPreBufferTitle } from "@/lib/preBufferCopy";
 import { getTestDataSummary, loadTestData } from "@/lib/loadTestData";
 import { isPresenceDebugEnabled } from "@/lib/presenceDebug";
 import { ROUTES } from "@/lib/routes";
 import { resetProTestState } from "@/lib/resetProTestState";
 import { markNativeWidgetPremiumUnlocked } from "@/lib/widgetPremiumSync";
 import { readWidgetPremiumMirror } from "@/lib/widgetPremiumMirror";
+import {
+  getDevNotificationDiagnostics,
+  presentDevPreBufferNotification,
+  resyncDevSessionReminders,
+  scheduleDevMissedSessionNotification,
+  scheduleDevPreBufferNotification,
+  type DevScheduledNotificationRow,
+} from "@/services/devNotifications";
 import {
   getBackgroundPermissionStatus,
   isSessionLocationTaskRegistered,
@@ -38,6 +47,7 @@ import {
 import { useSessionCompleteStore } from "@/store/useSessionCompleteStore";
 import { useSessionPenaltyStore } from "@/store/useSessionPenaltyStore";
 import { useStreakCelebrationStore } from "@/store/useStreakCelebrationStore";
+import { useScheduleStore } from "@/store/useScheduleStore";
 import { useSubscriptionStore } from "@/store/useSubscriptionStore";
 import { useUserStore } from "@/store/useUserStore";
 import type { ScheduleItemKind } from "@/types/dashboard";
@@ -155,8 +165,8 @@ function TestDataSection() {
             color: colors.muted,
           }}
         >
-          Populate the app with a full week of Focus Nodes, anchors, completion history, coins,
-          streak, and sample blocked apps. Replaces your current local schedule.
+          Three sessions today (gym and library completed, class open for demos), anchors,
+          completion history, coins, streak, and sample blocked apps. Replaces your local schedule.
         </Text>
         <Text
           style={{
@@ -206,12 +216,6 @@ function HeroPreviewSection() {
   const showCelebration = useHeroCelebrationStore((state) => state.show);
   const dismissCelebration = useHeroCelebrationStore((state) => state.dismiss);
   const activeCelebration = useHeroCelebrationStore((state) => state.celebration);
-
-  const previewPreBufferNotification = () => {
-    setForcedScenario("pre_buffer");
-    useNotificationNavigationStore.getState().setPreBufferFocus("preview-node");
-    router.push(ROUTES.home);
-  };
 
   const previewCelebration = (hitDailyGoal: boolean) => {
     setForcedScenario(null);
@@ -387,29 +391,6 @@ function HeroPreviewSection() {
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             <Pressable
               accessibilityRole="button"
-              onPress={previewPreBufferNotification}
-              style={{
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: colors.skyDeep,
-                backgroundColor: colors.surface,
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: "Poppins-SemiBold",
-                  fontSize: 12,
-                  lineHeight: 16,
-                  color: colors.skyDeep,
-                }}
-              >
-                Pre-buffer notification
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
               onPress={() => previewCelebration(false)}
               style={{
                 borderRadius: 999,
@@ -471,6 +452,353 @@ function HeroPreviewSection() {
             </Pressable>
           ) : null}
         </View>
+      </DevCard>
+    </DevSection>
+  );
+}
+
+function formatDevNotificationFireTime(date: Date | null): string {
+  if (!date) return "unknown time";
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function NotificationDebugSection() {
+  const colors = useThemeColors();
+  const openOnHome = useOpenPreviewOnHome();
+  const setForcedScenario = useHeroPreviewStore((state) => state.setForcedScenario);
+  const { previewNode } = useSchedulePreviewFixture();
+  const focusNodes = useScheduleStore((state) => state.focusNodes);
+  const anchors = useScheduleStore((state) => state.anchors);
+  const classPreBufferMinutes = useUserStore((state) => state.classPreBufferMinutes);
+  const notificationsEnabled = useUserStore((state) => state.notificationsEnabled);
+
+  const [diagnostics, setDiagnostics] = useState<{
+    supported: boolean;
+    permission: string;
+    scheduled: DevScheduledNotificationRow[];
+  }>({ supported: false, permission: "…", scheduled: [] });
+  const [busy, setBusy] = useState(false);
+
+  const refreshDiagnostics = async () => {
+    const next = await getDevNotificationDiagnostics();
+    setDiagnostics({
+      supported: next.supported,
+      permission: next.permission,
+      scheduled: next.scheduled,
+    });
+  };
+
+  useEffect(() => {
+    void refreshDiagnostics();
+  }, []);
+
+  const sampleNode = previewNode;
+  const sampleAnchors = sampleNode ? anchors : [];
+  const preBufferTitle =
+    sampleNode
+      ? buildPreBufferTitle(sampleNode, classPreBufferMinutes)
+      : "Add a Focus Node to preview copy";
+  const preBufferBody = sampleNode
+    ? buildPreBufferBody(sampleNode, sampleAnchors)
+    : "—";
+
+  const simulatePreBufferTap = () => {
+    const nodeId = sampleNode?.id ?? "preview-node";
+    openOnHome(() => {
+      setForcedScenario(null);
+      useNotificationNavigationStore.getState().setPreBufferFocus(nodeId);
+    });
+  };
+
+  const previewPreBufferHero = () => {
+    openOnHome(() => {
+      setForcedScenario("pre_buffer");
+      useNotificationNavigationStore.getState().clearPreBufferFocus();
+    });
+  };
+
+  const runWithFeedback = async (
+    label: string,
+    action: () => Promise<void>,
+    successMessage: string,
+  ): Promise<void> => {
+    if (!diagnostics.supported) {
+      Alert.alert(
+        label,
+        "Local notifications are not available in Android Expo Go. Use a dev build or iOS.",
+      );
+      return;
+    }
+    if (!sampleNode) {
+      Alert.alert("No session", "Load test data or add a Focus Node for today first.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await action();
+      await refreshDiagnostics();
+      Alert.alert(label, successMessage);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown error";
+      Alert.alert(label, `Could not deliver notification.\n\n${detail}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <DevSection title="Notifications">
+      <DevCard gap={10}>
+        <Text
+          style={{
+            fontFamily: "Poppins-Regular",
+            fontSize: 13,
+            lineHeight: 18,
+            color: colors.muted,
+          }}
+        >
+          Test local Focus alerts — especially the pre-buffer (“apps blocked”) reminder before a
+          session. Uses the same copy and payload as production scheduling.
+        </Text>
+
+        <Text style={{ fontFamily: "Poppins-Medium", fontSize: 13, color: colors.foreground }}>
+          supported={diagnostics.supported ? "yes" : "no"} · permission={diagnostics.permission} ·
+          alerts_toggle={notificationsEnabled ? "on" : "off"} · scheduled=
+          {diagnostics.scheduled.length}
+        </Text>
+
+        <View
+          style={{
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: colors.border,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+            gap: 4,
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: "Poppins-SemiBold",
+              fontSize: 11,
+              letterSpacing: 0.6,
+              textTransform: "uppercase",
+              color: colors.muted,
+            }}
+          >
+            Pre-buffer copy
+            {sampleNode ? ` · ${sampleNode.title}` : ""}
+          </Text>
+          <Text style={{ fontFamily: "Poppins-SemiBold", fontSize: 14, color: colors.skyDeep }}>
+            {preBufferTitle}
+          </Text>
+          <Text style={{ fontFamily: "Poppins-Regular", fontSize: 13, color: colors.foreground }}>
+            {preBufferBody}
+          </Text>
+        </View>
+
+        {!diagnostics.supported ? (
+          <Text style={{ fontFamily: "Poppins-Regular", fontSize: 12, color: colors.muted }}>
+            Android Expo Go cannot schedule local notifications. Install a development build to test
+            OS banners.
+          </Text>
+        ) : null}
+
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy || !diagnostics.supported}
+            onPress={() =>
+              void runWithFeedback(
+                "Pre-buffer alert",
+                () =>
+                  presentDevPreBufferNotification(
+                    sampleNode!,
+                    anchors,
+                    classPreBufferMinutes,
+                  ),
+                "Notification sent now. Dev builds show it even while Lowalk is open.",
+              )
+            }
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.skyDeep,
+              backgroundColor: colors.surface,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              opacity: busy || !diagnostics.supported ? 0.6 : 1,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 12,
+                color: colors.skyDeep,
+              }}
+            >
+              Fire pre-buffer now
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy || !diagnostics.supported}
+            onPress={() =>
+              void runWithFeedback(
+                "Pre-buffer alert",
+                () =>
+                  scheduleDevPreBufferNotification(
+                    sampleNode!,
+                    anchors,
+                    classPreBufferMinutes,
+                    5,
+                  ),
+                "Scheduled in 5 seconds. Background the app if you do not see a dev banner immediately.",
+              )
+            }
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.skyDeep,
+              backgroundColor: colors.surface,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 12,
+                color: colors.skyDeep,
+              }}
+            >
+              Fire pre-buffer in 5s
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy || !diagnostics.supported}
+            onPress={() =>
+              void runWithFeedback(
+                "Missed session alert",
+                () => scheduleDevMissedSessionNotification(sampleNode!, 5),
+                "Scheduled in 5 seconds.",
+              )
+            }
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              opacity: busy ? 0.6 : 1,
+            }}
+          >
+            <Text style={{ fontFamily: "Poppins-SemiBold", fontSize: 12, color: colors.foreground }}>
+              Fire missed in 5s
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={simulatePreBufferTap}
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ fontFamily: "Poppins-SemiBold", fontSize: 12, color: colors.foreground }}>
+              Simulate tap → Home
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={previewPreBufferHero}
+            style={{
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ fontFamily: "Poppins-SemiBold", fontSize: 12, color: colors.foreground }}>
+              Preview hero layout
+            </Text>
+          </Pressable>
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={() => {
+            setBusy(true);
+            void resyncDevSessionReminders(
+              focusNodes,
+              anchors,
+              classPreBufferMinutes,
+              notificationsEnabled,
+            )
+              .then(() => refreshDiagnostics())
+              .then(() => Alert.alert("Reminders synced", "Re-ran production session reminder sync."))
+              .catch(() => Alert.alert("Sync failed", "Check Metro logs."))
+              .finally(() => setBusy(false));
+          }}
+        >
+          <Text style={{ fontFamily: "Poppins-Medium", fontSize: 13, color: colors.primary }}>
+            Resync scheduled session reminders
+          </Text>
+        </Pressable>
+
+        <Pressable accessibilityRole="button" onPress={() => void refreshDiagnostics()}>
+          <Text style={{ fontFamily: "Poppins-Medium", fontSize: 13, color: colors.primary }}>
+            Refresh scheduled list
+          </Text>
+        </Pressable>
+
+        {diagnostics.scheduled.length > 0 ? (
+          <View style={{ gap: 8 }}>
+            <Text
+              style={{
+                fontFamily: "Poppins-SemiBold",
+                fontSize: 11,
+                letterSpacing: 0.6,
+                textTransform: "uppercase",
+                color: colors.muted,
+              }}
+            >
+              Upcoming (lowalk-*)
+            </Text>
+            {diagnostics.scheduled.slice(0, 6).map((row) => (
+              <View
+                key={row.identifier}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  gap: 2,
+                }}
+              >
+                <Text style={{ fontFamily: "Poppins-SemiBold", fontSize: 12, color: colors.foreground }}>
+                  {row.kind} · {formatDevNotificationFireTime(row.fireAt)}
+                </Text>
+                <Text style={{ fontFamily: "Poppins-Regular", fontSize: 12, color: colors.muted }}>
+                  {row.title}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
       </DevCard>
     </DevSection>
   );
@@ -824,6 +1152,7 @@ export function DevToolsScreenContent() {
     <>
       {showDevOnly ? <TestDataSection /> : null}
       {showDevOnly ? <HeroPreviewSection /> : null}
+      {showDevOnly ? <NotificationDebugSection /> : null}
       {showDevOnly ? <OverlayPreviewsSection /> : null}
       {showDevOnly ? <SubscriptionDebugSection /> : null}
       {showFieldTest ? <BackgroundPresenceSection /> : null}

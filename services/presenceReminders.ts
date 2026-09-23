@@ -1,9 +1,15 @@
-import { AppState, Platform } from "react-native";
+import { Platform } from "react-native";
 
 import {
   formatDurationAwayNotificationBody,
   PRESENCE_PENALTY_GRACE_MS,
 } from "@/lib/sessionPenalty";
+import { ANDROID_FOCUS_ALERTS_CHANNEL_ID } from "@/lib/androidNotificationCopy";
+import { fitNotificationBody, fitNotificationTitle } from "@/lib/notificationCopy";
+import {
+  areUserAlertsEnabled,
+  shouldDeliverUserAlert,
+} from "@/lib/notificationPolicy";
 import {
   areSessionRemindersSupported,
   ensureNotificationPermission,
@@ -30,21 +36,27 @@ async function getNotificationsModule() {
   return import("expo-notifications");
 }
 
-function isAppForeground(): boolean {
-  return AppState.currentState === "active";
+/** @deprecated Presence alerts share the Focus alerts channel. */
+export async function ensureAndroidPresenceChannel(): Promise<void> {
+  const { ensureAndroidNotificationChannels } = await import("@/services/androidSessionStatus");
+  await ensureAndroidNotificationChannels();
 }
 
-/** Android channel for away / grace / penalty alerts. */
-export async function ensureAndroidPresenceChannel(): Promise<void> {
-  if (!areSessionRemindersSupported() || Platform.OS !== "android") return;
+/** Cancels every scheduled presence alert (all active sessions). */
+export async function cancelAllPendingPresenceNotifications(): Promise<void> {
+  if (!areSessionRemindersSupported()) return;
 
   const Notifications = await getNotificationsModule();
-  await Notifications.setNotificationChannelAsync("presence-alerts", {
-    name: "Presence alerts",
-    importance: Notifications.AndroidImportance.HIGH,
-    sound: "default",
-    vibrationPattern: [0, 250, 120, 250],
-  });
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  const ids = scheduled
+    .filter((item) => item.identifier.startsWith(PRESENCE_PREFIX))
+    .map((item) => item.identifier);
+
+  if (ids.length === 0) return;
+
+  await Promise.all(
+    ids.map((identifier) => Notifications.cancelScheduledNotificationAsync(identifier)),
+  );
 }
 
 async function cancelPresenceNotifications(nodeId: string): Promise<void> {
@@ -64,7 +76,7 @@ export async function notifySessionAway(
   nodeId: string,
   scheduleType: SessionScheduleType,
 ): Promise<void> {
-  if (!areSessionRemindersSupported()) return;
+  if (!areSessionRemindersSupported() || !areUserAlertsEnabled()) return;
 
   const granted = await ensureNotificationPermission();
   if (!granted) return;
@@ -73,18 +85,20 @@ export async function notifySessionAway(
   const Notifications = await getNotificationsModule();
   const zone = zoneLabel.trim() || "your venue";
 
-  if (!isAppForeground()) {
+  if (shouldDeliverUserAlert()) {
+    const awayBody =
+      scheduleType === "duration"
+        ? formatDurationAwayNotificationBody(zone)
+        : `Return to ${zone} within 5 minutes to avoid a penalty lock.`;
+
     await Notifications.scheduleNotificationAsync({
       identifier: awayId(nodeId),
       content: {
-        title: "You left your focus zone",
-        body:
-          scheduleType === "duration"
-            ? formatDurationAwayNotificationBody(zone)
-            : `Return to ${zone} within 5 minutes to avoid a penalty lock.`,
+        title: fitNotificationTitle("You left your focus zone"),
+        body: fitNotificationBody(awayBody),
         sound: true,
         data: { nodeId, type: "session-away" },
-        ...(Platform.OS === "android" ? { channelId: "presence-alerts" } : {}),
+        ...(Platform.OS === "android" ? { channelId: ANDROID_FOCUS_ALERTS_CHANNEL_ID } : {}),
       },
       trigger: null,
     });
@@ -96,15 +110,15 @@ export async function notifySessionAway(
   await Notifications.scheduleNotificationAsync({
     identifier: graceId(nodeId),
     content: {
-      title: "1 minute until penalty",
-      body: `Return to ${zone} now to avoid an extra app lock.`,
+      title: fitNotificationTitle("1 minute until penalty"),
+      body: fitNotificationBody(`Return to ${zone} now to avoid an extra app lock.`),
       sound: true,
       data: { nodeId, type: "grace-warning" },
     },
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: graceTrigger,
-      channelId: Platform.OS === "android" ? "presence-alerts" : undefined,
+      channelId: Platform.OS === "android" ? ANDROID_FOCUS_ALERTS_CHANNEL_ID : undefined,
     },
   });
 }
@@ -159,7 +173,7 @@ async function notifyPenaltyLock(
     suffix: string;
   },
 ): Promise<void> {
-  if (!areSessionRemindersSupported()) return;
+  if (!areSessionRemindersSupported() || !areUserAlertsEnabled()) return;
 
   const granted = await ensureNotificationPermission();
   if (!granted) return;
@@ -169,7 +183,7 @@ async function notifyPenaltyLock(
 
   await Notifications.cancelScheduledNotificationAsync(graceId(nodeId));
 
-  if (isAppForeground()) return;
+  if (!shouldDeliverUserAlert()) return;
 
   const zone = zoneLabel.trim() || "your venue";
   const durationLabel =
@@ -178,11 +192,13 @@ async function notifyPenaltyLock(
   await Notifications.scheduleNotificationAsync({
     identifier: penaltyId(nodeId),
     content: {
-      title: copy.title,
-      body: `${copy.bodyPrefix} ${durationLabel}. ${copy.suffix} ${zone} to finish your session.`,
+      title: fitNotificationTitle(copy.title),
+      body: fitNotificationBody(
+        `${copy.bodyPrefix} ${durationLabel}. ${copy.suffix} ${zone} to finish your session.`,
+      ),
       sound: true,
       data: { nodeId, type: copy.dataType },
-      ...(Platform.OS === "android" ? { channelId: "presence-alerts" } : {}),
+      ...(Platform.OS === "android" ? { channelId: ANDROID_FOCUS_ALERTS_CHANNEL_ID } : {}),
     },
     trigger: null,
   });

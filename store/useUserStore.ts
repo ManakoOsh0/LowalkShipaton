@@ -20,7 +20,10 @@ export type DailyGoalAwardResult = {
   streakIncremented: boolean;
 };
 
-import type { PenaltyTierMinutes } from "@/lib/sessionPenalty";
+import {
+  clampPenaltyTierMinutes,
+  type PenaltyTierMinutes,
+} from "@/lib/sessionPenalty";
 import type { ClassPreBufferMinutes } from "@/lib/shieldSchedule";
 
 type UserState = {
@@ -79,7 +82,8 @@ export const useUserStore = create<UserState>()(
         return true;
       },
       setStreak: (streak) => set({ streak }),
-      setPenaltyTierMinutes: (penaltyTierMinutes) => set({ penaltyTierMinutes }),
+      setPenaltyTierMinutes: (penaltyTierMinutes) =>
+        set({ penaltyTierMinutes: clampPenaltyTierMinutes(penaltyTierMinutes) }),
       setClassPreBufferMinutes: (classPreBufferMinutes) => set({ classPreBufferMinutes }),
       setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
@@ -156,7 +160,7 @@ export const useUserStore = create<UserState>()(
         state.lastStreakDateIso =
           state.lastStreakDateIso ?? (state as { lastCompletionDateIso?: string | null }).lastCompletionDateIso ?? null;
         state.hasCompletedOnboarding = state.hasCompletedOnboarding ?? false;
-        state.penaltyTierMinutes = state.penaltyTierMinutes ?? 30;
+        state.penaltyTierMinutes = clampPenaltyTierMinutes(state.penaltyTierMinutes ?? 30);
         state.classPreBufferMinutes = state.classPreBufferMinutes ?? 30;
         state.sessionGapMergeMinutes = state.sessionGapMergeMinutes ?? 30;
         state.notificationsEnabled = state.notificationsEnabled ?? true;

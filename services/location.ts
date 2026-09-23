@@ -2,7 +2,11 @@ import * as Location from "expo-location";
 import * as TaskManager from "expo-task-manager";
 
 import { MAX_PRESENCE_ACCURACY_METERS, type Coordinates } from "@/lib/geo";
-import { ensureAndroidSessionStatusChannels } from "@/services/androidSessionStatus";
+import {
+  ANDROID_SESSION_STATUS_BODY,
+  ANDROID_SESSION_STATUS_TITLE,
+  ensureAndroidNotificationChannels,
+} from "@/services/androidSessionStatus";
 
 export type LocationPermissionStatus = "undetermined" | "granted" | "denied";
 
@@ -145,15 +149,15 @@ export async function startSessionLocationTracking(): Promise<{ success: boolean
   }
 
   try {
-    await ensureAndroidSessionStatusChannels();
+    await ensureAndroidNotificationChannels();
     await Location.startLocationUpdatesAsync(LOWALK_SESSION_LOCATION_TASK, {
       accuracy: Location.Accuracy.Balanced,
       timeInterval: BACKGROUND_TIME_INTERVAL_MS,
       distanceInterval: BACKGROUND_DISTANCE_INTERVAL_M,
       showsBackgroundLocationIndicator: true,
       foregroundService: {
-        notificationTitle: "Location active",
-        notificationBody: "Verifying your focus zone in the background.",
+        notificationTitle: ANDROID_SESSION_STATUS_TITLE,
+        notificationBody: ANDROID_SESSION_STATUS_BODY,
       },
     });
     return { success: true };

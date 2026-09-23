@@ -155,7 +155,10 @@ function withShieldDebugAndroidManifest(config) {
  */
 const SESSION_STATUS_GROUP = "lowalk_session_status";
 
-/** Groups expo-location FGS with the shield status summary (separate from session-reminders). */
+/**
+ * Align expo-location FGS with shield: one MIN channel, grouped summary, proper small icon.
+ * Uses ic_notification (not the launcher adaptive icon) so the status bar glyph is not cropped.
+ */
 function withLocationSessionStatusNotificationGroup(config) {
   return withDangerousMod(config, [
     "android",
@@ -170,20 +173,46 @@ function withLocationSessionStatusNotificationGroup(config) {
       }
 
       let source = fs.readFileSync(ktPath, "utf8");
-      const groupMarker = '.setCategory(Notification.CATEGORY_SERVICE)';
-      const groupPatch = `${groupMarker}\n      .setGroup("${SESSION_STATUS_GROUP}")\n      .setSortKey("2")`;
 
-      if (!source.includes(`setGroup("${SESSION_STATUS_GROUP}")`)) {
-        source = source.replace(groupMarker, groupPatch);
+      if (!source.includes("SESSION_STATUS_CHANNEL_ID")) {
+        source = source.replace(
+          "class LocationTaskService : Service() {",
+          `class LocationTaskService : Service() {\n  private val SESSION_STATUS_CHANNEL_ID = "${SESSION_STATUS_GROUP}"\n`,
+        );
       }
+
+      source = source.replace(
+        /prepareChannel\(mChannelId\)/g,
+        "prepareChannel(SESSION_STATUS_CHANNEL_ID)",
+      );
+      source = source.replace(
+        /Notification\.Builder\(this, mChannelId\)/g,
+        "Notification.Builder(this, SESSION_STATUS_CHANNEL_ID)",
+      );
 
       const lowChannel =
         "channel = NotificationChannel(id, appName, NotificationManager.IMPORTANCE_LOW)";
       const minChannel =
-        'channel = NotificationChannel(id, "Session location", NotificationManager.IMPORTANCE_MIN)';
+        'channel = NotificationChannel(id, "Session status", NotificationManager.IMPORTANCE_MIN)';
 
       if (source.includes(lowChannel)) {
         source = source.replace(lowChannel, minChannel);
+      }
+
+      const legacyLocationChannel =
+        'channel = NotificationChannel(id, "Session location", NotificationManager.IMPORTANCE_MIN)';
+      const minSessionStatusChannel =
+        'channel = NotificationChannel(id, "Session status", NotificationManager.IMPORTANCE_MIN)';
+
+      if (source.includes(legacyLocationChannel)) {
+        source = source.replace(legacyLocationChannel, minSessionStatusChannel);
+      }
+
+      if (source.includes("Background location notification channel")) {
+        source = source.replace(
+          "Background location notification channel",
+          "Silent indicator while a focus session runs in the background",
+        );
       }
 
       const colorizedBlock =
@@ -193,6 +222,37 @@ function withLocationSessionStatusNotificationGroup(config) {
 
       if (colorizedBlock.test(source)) {
         source = source.replace(colorizedBlock, neutralColorBlock);
+      }
+
+      const groupedReturn = `val smallIcon =
+      resources.getIdentifier("ic_notification", "drawable", packageName)
+        .takeIf { it != 0 } ?: applicationInfo.icon
+
+    return builder.setCategory(Notification.CATEGORY_SERVICE)
+      .setGroup("${SESSION_STATUS_GROUP}")
+      .setSortKey("2")
+      .setSmallIcon(smallIcon)
+      .setOngoing(true)
+      .setOnlyAlertOnce(true)
+      .setShowWhen(false)
+      .setSilent(true)
+      .setPriority(Notification.PRIORITY_MIN)
+      .build()`;
+
+      const ungroupedReturn = `return builder.setCategory(Notification.CATEGORY_SERVICE)
+      .setSmallIcon(applicationInfo.icon)
+      .build()`;
+
+      if (source.includes(ungroupedReturn)) {
+        source = source.replace(ungroupedReturn, groupedReturn);
+      } else if (
+        source.includes('.setSmallIcon(applicationInfo.icon)') &&
+        !source.includes('getIdentifier("ic_notification"')
+      ) {
+        source = source.replace(
+          /return builder\.setCategory\(Notification\.CATEGORY_SERVICE\)\s*\n\s*\.setGroup\("lowalk_session_status"\)\s*\n\s*\.setSortKey\("2"\)\s*\n\s*\.setSmallIcon\(applicationInfo\.icon\)\s*\n\s*\.build\(\)/,
+          groupedReturn,
+        );
       }
 
       fs.writeFileSync(ktPath, source);
@@ -235,4 +295,4 @@ function withLowalkAppShield(config) {
   return config;
 }
 
-module.exports = createRunOncePlugin(withLowalkAppShield, PACKAGE_NAME, "1.6.5");
+module.exports = createRunOncePlugin(withLowalkAppShield, PACKAGE_NAME, "1.7.0");

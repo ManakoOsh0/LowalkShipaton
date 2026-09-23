@@ -1,5 +1,11 @@
-import { AppState, Platform } from "react-native";
+import { Platform } from "react-native";
 
+import { ANDROID_FOCUS_ALERTS_CHANNEL_ID } from "@/lib/androidNotificationCopy";
+import { fitNotificationBody, fitNotificationTitle } from "@/lib/notificationCopy";
+import {
+  areUserAlertsEnabled,
+  shouldDeliverUserAlert,
+} from "@/lib/notificationPolicy";
 import {
   areSessionRemindersSupported,
   ensureNotificationPermission,
@@ -9,20 +15,20 @@ async function getNotificationsModule() {
   return import("expo-notifications");
 }
 
-function isAppForeground(): boolean {
-  return AppState.currentState === "active";
-}
-
 /** Background-only alert when the user hits today's full session target. */
 export async function notifyDailyGoalAchieved(
   streak: number,
   coinAwarded: boolean,
-  notificationsEnabled = true,
 ): Promise<void> {
-  if (!areSessionRemindersSupported() || isAppForeground() || !notificationsEnabled) return;
+  if (!areSessionRemindersSupported() || !shouldDeliverUserAlert() || !areUserAlertsEnabled()) {
+    return;
+  }
 
   const granted = await ensureNotificationPermission();
   if (!granted) return;
+
+  const { ensureAndroidNotificationChannels } = await import("@/services/androidSessionStatus");
+  await ensureAndroidNotificationChannels();
 
   const Notifications = await getNotificationsModule();
   const body = coinAwarded
@@ -31,11 +37,11 @@ export async function notifyDailyGoalAchieved(
 
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: "Daily goal complete",
-      body,
+      title: fitNotificationTitle("Daily goal complete"),
+      body: fitNotificationBody(body),
       sound: true,
       data: { type: "daily-goal", streak },
-      ...(Platform.OS === "android" ? { channelId: "session-reminders" } : {}),
+      ...(Platform.OS === "android" ? { channelId: ANDROID_FOCUS_ALERTS_CHANNEL_ID } : {}),
     },
     trigger: null,
   });
