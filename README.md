@@ -14,6 +14,12 @@ The app separates **what you are doing**—a *Focus Node*—from **where you are
 
 See [PRODUCT.md](./PRODUCT.md) for the full product specification.
 
+## Shipaton judges
+
+Public repo: [https://github.com/ManakoOsh0/LowalkShipaton](https://github.com/ManakoOsh0/LowalkShipaton)
+
+`.env.example` already includes the RevenueCat **Test Store** public SDK key (`test_...`). Copy it to `.env` to unlock Lowalk Pro in development and preview builds — no Play Console or secret `sk_` key required. Purchases use RevenueCat’s Test Store (Success / Fail in the test dialog).
+
 ## Prerequisites
 
 - Node.js 20+
@@ -28,7 +34,7 @@ See [PRODUCT.md](./PRODUCT.md) for the full product specification.
 
 ```bash
 git clone https://github.com/ManakoOsh0/LowalkShipaton.git
-cd lowalk
+cd LowalkShipaton
 npm install
 cp .env.example .env
 ```
@@ -78,7 +84,7 @@ Copy `.env.example` to `.env` and fill in any values you need. Never commit `.en
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `EXPO_PUBLIC_PRESENCE_DEBUG` | No | Set to `1` for location diagnostics in preview builds |
-| `EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY` | Dev / Shipaton | RevenueCat Test Store public key (`test_...`) |
+| `EXPO_PUBLIC_REVENUECAT_TEST_STORE_API_KEY` | Dev / Shipaton | RevenueCat Test Store public key (`test_...`). Included in `.env.example`. |
 | `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY` | Production Android | RevenueCat public SDK key (Android) |
 | `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY` | Production iOS | RevenueCat public SDK key (iOS) |
 
