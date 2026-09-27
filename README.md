@@ -1,9 +1,6 @@
 # Lowalk
 
-Lowalk helps you follow through on your plans by getting you to the right place, keeping you there for a focused session, and turning repeated effort into consistent real-world routines.
-
-The app separates **what you are doing**—a *Focus Node*—from **where you are doing it**—an *Anchor*. During an active session, Lowalk shields selected distracting apps until you complete the required time at your Anchor.
-
+Lowalk is a location-based focus screentime app that helps you show up where you planned to be and stay there long enough to get the work done. Instead of simply reminding you to focus, Lowalk connects your focus sessions to real places. You choose an Anchor — such as a library, gym, classroom, or café — and create a Focus Node for what you want to accomplish there and for how long. When a session starts, Lowalk shields the apps you've chosen to block 30 minutes before their scheduled time. You then travel to your Anchor and check in by physically arriving there. After a short arrival period, your focus session begins. Most screen time apps that utilize location, aren't as refined, they only start to block when you enter a particular geofence, and there is no penalty for leaving, Lowalk punishes the user with more block time if they leave a focus zone before they are done.
 
 ## Features
 
