@@ -18,6 +18,18 @@ Public repo: [https://github.com/ManakoOsh0/LowalkShipaton](https://github.com/M
 
 `.env.example` already includes the RevenueCat **Test Store** public SDK key (`test_...`). Copy it to `.env` to unlock Lowalk Pro in development and preview builds — no Play Console or secret `sk_` key required. Purchases use RevenueCat’s Test Store (Success / Fail in the test dialog).
 
+### Platform
+
+| | |
+|---|---|
+| **Shipaton target** | **Android** (phone) |
+| **Stack** | Expo SDK 54, React Native, TypeScript |
+| **How to run** | **EAS development build** or **preview APK** — not Expo Go (custom native `lowalk-app-shield` module) |
+| **Device** | Physical Android recommended for geofencing, background location, and app blocking; emulator works for UI flows with limits |
+| **iOS** | Config exists in the repo; **app shielding and Shipaton demo path are Android-only** for this submission |
+
+Quick judge build: `npm run build:preview:android` (internal APK) after `cp .env.example .env`.
+
 ## Prerequisites
 
 - Node.js 20+
